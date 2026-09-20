@@ -13,6 +13,8 @@ import re
 import struct
 import zipfile
 
+from catalogue import catalogue
+
 JARS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                     "jars")
 DEFAULT_GAME = "ShiradsForge"
@@ -168,9 +170,21 @@ class World:
         self.xp = 0
         self.gold = 50
         self.raises = 0
+
+        # "Your hero starts with the most basic sword as a default" and the
+        # same for bows — EOE GAME RULES, Items.
+        kit = catalogue().starting_kit()
+        self.inventory = [i.name for i in kit.values()]
+        self.equipped = {
+            "weapon": kit.get("sword").name if kit.get("sword") else None,
+            "armour": kit.get("armour").name if kit.get("armour") else None,
+        }
         self.mobs = {}
         self.next_node = 1
-        self.node_count = 32
+        # Node ids index into the tag-21 and tag-25 state arrays and into
+        # d.n (sized from tag 25), and they are global across the whole world,
+        # not per location.
+        self.node_count = 128
         self.populate()
 
     # -- map access ---------------------------------------------------------
@@ -268,30 +282,42 @@ class World:
     # -- population ---------------------------------------------------------
 
     def populate(self):
-        """Place creatures near the player. Which creatures a chapter has is in
-        its jar (types 7/8/11 share an id per creature); where they stood is in
-        the lost type 1/9 tables, so this scatters a couple of them on walkable
-        ground within sight."""
+        """Populate EVERY location, not just the current one.
+
+        The client fetches type 1 and type 9 exactly once, at opcode 8, and
+        never asks again — which is why each record carries a location field.
+        One table describes the whole world. Filling in only the current
+        location leaves every other one empty, so travelling somewhere new
+        strands you there with no monsters and no way back.
+        """
         self.mobs.clear()
         self.next_node = 1
-        mp = self.map()
+        for loc in self.locations:
+            self.populate_location(loc)
+
+    def populate_location(self, loc):
+        """Which creatures a chapter has is in its jar (types 7/8/11 share an
+        id per creature); where they stood was in the lost tables, so scatter a
+        couple on walkable ground near where the player arrives."""
+        mp = self.map(loc)
         if not mp or not self.creatures:
             return
+        ax, ay = self.spawn_point(loc)
         # Deterministic per location, so a save reloads the same encounter.
-        rng = random.Random(f"{self.game}:{self.location}")
-        picks = [self.creatures[rng.randrange(len(self.creatures))]
-                 for _ in range(2)]
+        rng = random.Random(f"{self.game}:{loc}")
         placed = 0
-        for creature in picks:
-            for _ in range(60):
-                x = self.hero_x + rng.randint(-5, 5)
-                y = self.hero_y + rng.randint(-5, 5)
-                if (x, y) == (self.hero_x, self.hero_y):
+        for _ in range(2):
+            creature = self.creatures[rng.randrange(len(self.creatures))]
+            for _ in range(80):
+                x, y = ax + rng.randint(-5, 5), ay + rng.randint(-5, 5)
+                if (x, y) == (ax, ay) or self.mob_at(x, y, loc):
                     continue
-                if mp.walkable(x, y) and not mp.is_exit(x, y) \
-                        and not self.mob_at(x, y):
-                    m = self.add_mob(x, y, creature, hp=6 + 2 * placed)
+                if mp.walkable(x, y) and not mp.is_exit(x, y):
+                    m = Mob(self.next_node, loc, x, y, creature,
+                            hp=6 + 2 * placed + 2 * self.locations.index(loc))
                     m.anim = self.anim(creature, "idle")
+                    self.mobs[m.node] = m
+                    self.next_node += 1
                     placed += 1
                     break
 
@@ -331,9 +357,55 @@ class World:
             gained += 1
         return gained
 
+    # -- equipment ----------------------------------------------------------
+
+    def item(self, name):
+        return catalogue().find(name) if name else None
+
+    def weapon(self):
+        return self.item(self.equipped.get("weapon"))
+
+    def armour(self):
+        return self.item(self.equipped.get("armour"))
+
+    def attack_damage(self):
+        """Rules: base = skill effect + weapon + Strength; a low roll (a
+        precise hit) multiplies it. Dexterity governs the critical chance."""
+        w = self.weapon()
+        base = (w.effect if w else 2) + self.stats["Strength"] // 6
+        crit = random.random() < min(0.35, self.stats["Dexterity"] / 200)
+        dmg = base + random.randint(0, max(1, base // 3))
+        return (int(dmg * 1.8), True) if crit else (dmg, False)
+
+    def damage_taken(self, raw):
+        """Armour reduces melee and missile damage. It never touches spells."""
+        a = self.armour()
+        return max(1, raw - (a.effect if a else 0))
+
+    def equip(self, name):
+        it = self.item(name)
+        if not it or it.name not in self.inventory:
+            return None
+        slot = "armour" if it.kind == "armour" else "weapon"
+        self.equipped[slot] = it.name
+        return it
+
+    def buy(self, name):
+        it = self.item(name)
+        if not it or it.price > self.gold or it.name in self.inventory:
+            return None
+        self.gold -= it.price
+        self.inventory.append(it.name)
+        return it
+
     def hero_sheet(self):
+        w, a = self.weapon(), self.armour()
         lines = [f"Level {self.level}   XP {self.xp}/{self.xp_for_next()}",
-                 f"Life {self.hero_hp}/{self.hero_max}   Gold {self.gold}", ""]
+                 f"Life {self.hero_hp}/{self.hero_max}   Gold {self.gold}",
+                 f"Weapon: {w.name if w else 'none'}"
+                 + (f" (E{w.effect})" if w else ""),
+                 f"Armour: {a.name if a else 'none'}"
+                 + (f" (-{a.effect})" if a else ""), ""]
         for st in self.STATS:
             lines.append(f"{st}: {self.stats[st]}")
         if self.raises:
@@ -380,9 +452,10 @@ class World:
         return [m for m in self.mobs.values()
                 if m.alive and m.location == self.location]
 
-    def mob_at(self, x, y):
-        for m in self.living():
-            if m.x == x and m.y == y:
+    def mob_at(self, x, y, location=None):
+        loc = self.location if location is None else location
+        for m in self.mobs.values():
+            if m.alive and m.location == loc and m.x == x and m.y == y:
                 return m
         return None
 
@@ -396,11 +469,11 @@ class World:
     # -- state arrays the client needs --------------------------------------
 
     def node_states(self):
-        """tag 25 -> d.l. 1 or 2 = present, 3 = gone (d.java:216)."""
+        """tag 25 -> d.l. 1 or 2 = present, 3 = gone (d.java:216).
+        Covers every location, like the table it indexes."""
         s = bytearray(self.node_count)
         for m in self.mobs.values():
-            if m.location == self.location:
-                s[m.node] = 1 if m.alive else 3
+            s[m.node] = 1 if m.alive else 3
         return bytes(s)
 
     # -- type 1 entities ----------------------------------------------------
@@ -436,13 +509,32 @@ class World:
         return 1, 1
 
     def entity_table(self):
-        """The type 1 resource for this location: its exits, plus one sign
-        carrying a real line from the location's own type 3 text."""
+        """The type 1 resource for this location: currently its exits.
+
+        Set EOE_TEST_EXIT=1 to widen every doorway's trigger box by 3 tiles,
+        so a transition fires almost as soon as you can walk. Useful because
+        reaching a real doorway means winning a fight first and then crossing
+        the map.
+        """
+        # EOE_TEST_EXIT=1 widens every doorway so transitions are easy to
+        # reach. =2 additionally makes them teleport WITHIN the location, which
+        # takes d.java's `var2[14] == this.L` branch: no map reload, no
+        # resource fetch. That isolates "does the entity fire at all" from
+        # "does the location reload work".
+        mode = os.environ.get("EOE_TEST_EXIT", "")
+        pad = 3 if mode else 0
+        local = mode == "2"
         rows, state = [], 1
-        for (x, y), dest in self.EXITS.get(self.location, []):
-            dx, dy = self.arrival(dest)
-            rows.append(exit_entity(state, self.location, x, y, dest, dx, dy))
-            state += 1
+        for loc in self.locations:
+            for (x, y), dest in self.EXITS.get(loc, []):
+                dx, dy = self.arrival(dest)
+                if local:
+                    mp = self.map(loc)
+                    dest = loc
+                    dx, dy = (mp.w // 2, mp.h // 2) if mp else (dx, dy)
+                rows.append(exit_entity(state, loc, x, y, dest, dx, dy,
+                                        radius=pad))
+                state += 1
         self.entity_count = state
         return rows
 
@@ -455,9 +547,8 @@ class World:
         return bytes(s)
 
     def mob_table(self):
-        """The type 9 resource: every node in this location, alive or not."""
-        return [m.record() for m in self.mobs.values()
-                if m.location == self.location]
+        """The type 9 resource: every node in the WHOLE world."""
+        return [m.record() for m in self.mobs.values()]
 
 
 # handlers.py is reloaded on every request, so the live game cannot live there —
@@ -494,12 +585,31 @@ def get_world(reset=False):
 #        5 = activate nodes   [14..] node ids
 #        6 = tilemap patch    [14] loc [15] x [16] y [17] w [18] h [19..] tiles
 #   [13] length of that tail
-#   then at p = 14 + [13]:
-#        [p]   prerequisite count N (the loop runs 1..N-1, so N=1 means none)
-#        [p+1] 0 = check d.i states, 1 = check d.l states
-#        [p+2..] node ids that must already be state 3
+#
+# and then FOUR length-prefixed blocks, each "u8 count" followed by that many
+# bytes. Miss any of them and the client walks off the end of the record —
+# `a(Object)` computes the second block's offset as
+# `14 + [13] + 1 + rec[14 + [13]]` unconditionally, which on a record with only
+# one block lands exactly one past the end:
+#   "ArrayIndexOutOfBoundsException: Index 19 out of bounds for length 19".
+#
+#   block 1  prerequisites. count, then [mode, ids...] where mode 0 checks the
+#            d.i entity states and 1 checks the d.l node states; every listed
+#            id must already be state 3 or the entity does not fire (d.b())
+#   block 2  ids to ARM      — state 1 becomes 2
+#   block 3  ids to COMPLETE — state 2 becomes 3 (and fires any kind 6 patch
+#                              belonging to them)
+#   block 4  ids to DISABLE  — anything not already 3 becomes 4
+#
+# Together those three lists are the quest graph: finishing one entity can open
+# the next, mark itself done, and switch off whatever it replaces.
 
-def entity(state, location, kind, tail=b"", box=None, trigger=0, prereq=()):
+def _block(ids=()):
+    return bytes([len(ids)]) + bytes(ids)
+
+
+def entity(state, location, kind, tail=b"", box=None, trigger=0,
+           prereq=(), arms=(), completes=(), disables=()):
     r = bytearray(14)
     r[0] = state
     r[1] = location
@@ -509,14 +619,25 @@ def entity(state, location, kind, tail=b"", box=None, trigger=0, prereq=()):
     r[12] = kind
     r[13] = len(tail)
     r += bytes(tail)
+    # block 1 carries the mode byte ahead of the ids, so its count includes it
     r += bytes([len(prereq) + 1, 0]) + bytes(prereq)
+    r += _block(arms) + _block(completes) + _block(disables)
     return r
 
 
-def exit_entity(state, location, x, y, dest, dx, dy):
-    """A red exit tile. The box is the single tile, so stepping on it fires."""
+def exit_entity(state, location, x, y, dest, dx, dy, radius=0):
+    """A red exit tile.
+
+    The trigger is this bounding box, NOT the tile's appearance — d.b() checks
+    `x1 <= heroX < x2 && y1 <= heroY < y2` and nothing about the tilemap. The
+    red-and-green tiles are only the artist telling you where the boxes are.
+
+    radius widens the box, which is how EOE_TEST_EXIT makes transitions
+    testable without walking across a 40x40 map to find a doorway.
+    """
     return entity(state, location, kind=4, tail=bytes([dest, dx, dy]),
-                  box=(x, y, x + 1, y + 1))
+                  box=(max(0, x - radius), max(0, y - radius),
+                       x + 1 + radius, y + 1 + radius))
 
 
 def message_entity(state, location, x, y, text_key, w=1, h=1):
@@ -526,10 +647,10 @@ def message_entity(state, location, x, y, text_key, w=1, h=1):
 
 
 def _travel(self, location):
-    """Follow the player through an exit: new map, new population, new state."""
+    """Follow the player through an exit. The world is already populated
+    everywhere, so this only moves our idea of where the hero is."""
     self.location = location
     self.hero_x, self.hero_y = self.arrival(location)
-    self.populate()
 
 
 World.travel = _travel
@@ -565,6 +686,7 @@ def _world_to_dict(self):
         "next_node": self.next_node,
         "stats": self.stats, "level": self.level, "xp": self.xp,
         "gold": self.gold, "raises": self.raises,
+        "inventory": self.inventory, "equipped": self.equipped,
         "mobs": [{"node": m.node, "location": m.location, "x": m.x, "y": m.y,
                   "creature": m.creature, "hp": m.hp, "max_hp": m.max_hp,
                   "alive": m.alive} for m in self.mobs.values()],
@@ -583,6 +705,8 @@ def _world_from_dict(self, d):
     self.xp = d.get("xp", 0)
     self.gold = d.get("gold", 50)
     self.raises = d.get("raises", 0)
+    self.inventory = d.get("inventory") or self.inventory
+    self.equipped = d.get("equipped") or self.equipped
     self.mobs = {}
     for md in d.get("mobs", []):
         m = Mob(md["node"], md["location"], md["x"], md["y"], md["creature"],

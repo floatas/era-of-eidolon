@@ -917,3 +917,49 @@ ability requirements for each of the 167 catalogued things. Those were rendered
 by the server in the Market and Academy screens and never published. Everything
 else — names, classes, descriptions, progression order, which town sold what,
 and the formulas they feed — is recovered.
+
+---
+
+# Type 1 records have FOUR trailing blocks, not one
+
+This one costs you an ArrayIndexOutOfBounds that looks nothing like its cause.
+After the kind switch, `a(Object)` (d.java:964) walks three more lists:
+
+    p    = 14 + [13]                          block 1, read by d.b()
+    var12 = 14 + [13] + 1 + rec[14 + [13]]    block 2
+    var15 = var12 + rec[var12] + 1            block 3
+    var20 = var15 + rec[var15] + 1            block 4
+
+each being `u8 count` followed by that many bytes:
+
+    block 1  prerequisites — count, then [mode, ids...]. mode 0 checks the
+             d.i entity states, 1 checks the d.l node states; every id listed
+             must already be state 3 or the entity will not fire
+    block 2  ids to ARM      — state 1 becomes 2
+    block 3  ids to COMPLETE — state 2 becomes 3, and fires any kind 6 tilemap
+                               patch belonging to them
+    block 4  ids to DISABLE  — anything not already 3 becomes 4
+
+Those three lists are the quest graph: finishing one entity arms the next,
+marks itself done, and switches off whatever it replaces. That is how "destroy
+the crate -> a lever appears -> the bridge rises" was wired without any
+server round trip.
+
+`var12` is computed unconditionally, so a record that stops after block 1 is
+read one byte past its end — on a 19-byte record, "Index 19 out of bounds for
+length 19".
+
+# Opcode 10 is the on-demand resource fetch
+
+When `k()` is missing anything for the location it is loading, it builds a
+want-list of u16 `(restype << 8 | id)` keys and sends them as tag 1 of opcode
+10 (d.java:282), then waits with `d.T` false — the "Please wait..." screen.
+Reply with type-5 resource pushes. If a second pass still finds them missing it
+throws "Unable to get resources from server:" listing the keys in hex, which is
+a genuinely helpful error.
+
+# Type 1 and type 9 describe the WHOLE world, not one location
+
+Both are fetched once, at opcode 8, and never re-requested — which is why each
+record carries a location field. Send only the current location's rows and
+everything else is empty: no monsters anywhere else, and no way back.

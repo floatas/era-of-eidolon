@@ -21,6 +21,7 @@ import random
 import struct
 
 from codec import build_response, chunk_int, chunk_str, chunk_raw
+from catalogue import catalogue
 from world import get_world, saves
 
 HANDLERS = {}
@@ -473,10 +474,11 @@ def resolve(w, actions):
             if target is None:
                 script.append(result(0, [0], msg="Out of reach"))
                 continue
-            dmg = random.randint(3, 7)
+            dmg, crit = w.attack_damage()
             target.hp -= dmg
             script.append(res_attack(0, [(target.node, dmg)],
-                                     anim=w.anim(0, "attack"), msg=f"-{dmg}"))
+                                     anim=w.anim(0, "attack"),
+                                     msg=("CRIT -%d" % dmg) if crit else f"-{dmg}"))
             if target.hp <= 0:
                 target.alive = False
                 script.append(res_remove([target.node]))
@@ -508,7 +510,8 @@ def resolve(w, actions):
                 continue
             if max(abs(m.x - w.hero_x), abs(m.y - w.hero_y)) > 1:
                 continue          # the hero moved away first
-            dmg = random.randint(1, 4)
+            # Armour reduces melee and missile damage, never spells.
+            dmg = w.damage_taken(random.randint(3, 8))
             w.hero_hp = max(0, w.hero_hp - dmg)
             script.append(res_attack(m.node, [(0, dmg)],
                                      anim=w.anim(m.creature, "attack"),
@@ -599,10 +602,132 @@ def hero_sheet(req):
 
 @handler(21)
 def equipped(req):
+    """Opcode 21 — Equipped items. i.java case 21 makes a list from tag 20."""
     w, _, _ = session_world(req)
-    items = [f"Worn: nothing", f"Gold: {w.gold}"]
+    rows = []
+    for slot in ("weapon", "armour"):
+        it = w.item(w.equipped.get(slot))
+        rows.append(f"{slot.title()}: {it.label() if it else 'nothing'}")
+    rows.append(f"Gold: {w.gold}")
+    rows += [f"- {n}" for n in w.inventory
+             if n not in w.equipped.values()]
     return build_response(status=1,
-                          chunks=[chunk_str(20, i) for i in items])
+                          chunks=[chunk_str(20, r) for r in rows])
+
+
+@handler(22)
+def shop(req):
+    """Opcode 22 — a Market category. The client renders tag 20 as a list with
+    the title from tag 21 and the selected index from tag 22.
+
+    Categories are the client's own (d.java:37): Melee weapons, Missile
+    weapons, Armours, Skills, Spells.
+    """
+    w, _, _ = session_world(req)
+    which = req.int_(1)
+    kinds = ["weapon", "weapon", "armour", "skill", "spell"]
+    kind = kinds[which] if 0 <= which < len(kinds) else "weapon"
+    title = w.SHOP_CATEGORIES[which] if 0 <= which < 5 else "Market"
+
+    items = [i for i in catalogue().get(kind)
+             if which != 1 or i.cls in ("bow", "bomb")]
+    if which == 0:
+        items = [i for i in items if i.cls in ("sword", "axe", "hammer")]
+    rows = [i.label() for i in items[:14]] or ["Nothing in stock"]
+    return build_response(status=1, chunks=[
+        chunk_str(21, f"{title} ({w.gold}g)"), chunk_int(22, 0)] +
+        [chunk_str(20, r) for r in rows])
+
+
+@handler(16)
+def buy(req):
+    """Opcode 16 — buy. The client drops the bought row from the shop list and
+    shows tag 21, then goes back."""
+    w, _, hero = session_world(req)
+    name = req.get(1).decode("utf-8", "replace").split(" ")[0:99]
+    wanted = " ".join(n for n in name if not n.endswith("g")
+                      and not n.startswith(("E", "Ti"))).strip()
+    it = w.buy(wanted)
+    if hero:
+        saves().save(hero, w.game)
+    msg = (f"Bought {it.name} for {it.price}g." if it
+           else "You cannot afford that.")
+    return build_response(status=1, chunks=[chunk_str(21, msg)])
+
+
+@handler(23)
+def equip(req):
+    """Opcode 23 — equip. Status 1 makes the client swap the row in place."""
+    w, _, hero = session_world(req)
+    raw = req.get(1).decode("utf-8", "replace")
+    wanted = raw.split(":")[-1].split(" E")[0].strip(" -")
+    it = w.equip(wanted)
+    if hero:
+        saves().save(hero, w.game)
+    return build_response(status=1 if it else 2,
+                          chunks=[chunk_str(20, it.name if it else "Not held")])
+
+
+@handler(10)
+def fetch_resources(req):
+    """Opcode 10 — the on-demand resource fetch, and the reason a location
+    change hangs on "Please wait..." without it.
+
+    d.java:282: when k() finds it is missing anything for the location it is
+    loading, it builds a want-list of u16 (restype << 8 | id) keys, sends them
+    as tag 1, and waits. Until the reply lands, d.T stays false and the screen
+    never comes back.
+
+    Everything it asks for is in the jar except types 1 and 9, which are ours.
+    """
+    w, _, _ = session_world(req)
+    raw = req.get(1)
+    keys = [int.from_bytes(raw[i:i + 2], "big") for i in range(0, len(raw) - 1, 2)]
+
+    chunks, served, missing = [], [], []
+    for k in keys:
+        restype, rid = k >> 8, k & 0xFF
+        if restype == 1 and rid == 0:
+            body = byte_table(w.entity_table())
+        elif restype == 9 and rid == 0:
+            body = byte_table(w.mob_table())
+        else:
+            body = w.res.get(restype, rid)
+        if body is None:
+            missing.append(f"{restype}:{rid:02x}")
+            continue
+        chunks.append(push_resource(3, k, body))
+        served.append(f"{restype}:{rid:02x}")
+
+    print(f"    \033[35mresources: served {len(served)}"
+          + (f", MISSING {' '.join(missing)}" if missing else "")
+          + f"  ({sum(len(c) for c in chunks)}B)\033[0m")
+    return build_response(status=1, chunks=chunks)
+
+
+@handler(11)
+def interact(req):
+    """Opcode 11 — sent by a type 1 kind-3 entity ("ask the server"), tag 1 =
+    the entity's state index.
+
+    The reply goes to d.c(b), which shows the stat-raise screen when tag 21 is
+    non-zero, with the six ability scores as a byte[6] in tag 22. Message tags
+    1 and 2 are handled generically by the client, so this is also how an NPC
+    or a crate says something.
+    """
+    w, _, hero = session_world(req)
+    chunks = []
+    if w.raises:
+        chunks += [chunk_int(21, w.raises),
+                   chunk_raw(22, 0, bytes(min(255, w.stats[s])
+                                          for s in w.STATS))]
+    else:
+        # nothing pending: say something from this location's own text
+        t = w.text()
+        line = next((v for k, v in sorted(t.items())
+                     if len(v) > 40 and ":" in v), "Nothing happens.")
+        chunks.append(chunk_str(1, line[:180]))
+    return build_response(status=1, chunks=chunks)
 
 
 @handler(25)
