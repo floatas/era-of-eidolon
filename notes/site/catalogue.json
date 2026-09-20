@@ -1,0 +1,1244 @@
+{
+ "skills": [
+  {
+   "name": "Move",
+   "description": "Moving around in the ARENA is quite simple and you should have no trouble doing this...just beware of the traps that might have been placed by your foes!"
+  },
+  {
+   "name": "Tiptoe",
+   "description": "Tiptoeing is useful when you must sneak home from a late visit to the local tavern and don't want to wake up the wife. However, it may also save your life if you use the skill in the ARENA because when tiptoeing you don't trigger any traps."
+  },
+  {
+   "name": "Disarm trap",
+   "description": "Disarming a trap is only for those with the right skill...and this is it! Instead of just hoping that you will not step on a trap you can use this skill to completely remove a trap that has been planted. Note that you will first have to guess where the traps might be hidden."
+  },
+  {
+   "name": "Zig zag",
+   "description": "When you move in zig-zag it will take you longer to get from A to B than when moving normally.however, you will be harder to hit with weapons for your foe."
+  },
+  {
+   "name": "Panic",
+   "description": "Sometimes it is better to leave things to fate and hope that it works out okay. By deliberately working up a panic, a skill tought be the masters of the ACADEMIES, you may increase your move speed. The downside is that you have no control over where you end up once your combination of jumps, rolls and sprints is over!"
+  },
+  {
+   "name": "Wait",
+   "description": "Waiting can sometimes be a useful thing to do if you are not sure what your enemy is going to do. Use this tactical element to make your nasty attacks or spells come in at the exact right time."
+  },
+  {
+   "name": "Dodge",
+   "description": "Dodging is the primary defence skill taught in the ACADEMIES. It is simple and fast to learn but will only make you slightly harder to hit. This type of skill was invented by a long gone order of pacifists."
+  },
+  {
+   "name": "Deflect",
+   "description": "By using a weapon or your armour this skill allows you to deflect incoming attacks."
+  },
+  {
+   "name": "Evade",
+   "description": "With this skilli you will be able to read your foes next move the second before he performs it. This means that you sometimes can move out of the way and take no damage at all making your opponent look silly."
+  },
+  {
+   "name": "Slide",
+   "description": "Sliding is a more advanced skill based on the same principles as evading and doging and it will make it very hard for opponents to hit you with weapons."
+  },
+  {
+   "name": "Back Away",
+   "description": "Moving around in the ARENA is quite simple and you should have no trouble doing this...just beware of the traps that might have been placed by your foes!"
+  },
+  {
+   "name": "Run",
+   "description": "Waiting can sometimes be a useful thing to do if you are not sure what your enemy is going to do. Use this tactical element to make your nasty attacks or spells come in at the exact right time."
+  },
+  {
+   "name": "Tumble",
+   "description": "Sometimes it is better to leave things to fate and hope that it works out okay. By deliberately working up a panic, a skill tought be the masters of the ACADEMIES, you may increase your move speed. The downside is that you have no control over where you end up once your combination of jumps, rolls and sprints is over!"
+  },
+  {
+   "name": "Arrowshield",
+   "description": "Dodging is the primary defence skill taught in the ACADEMIES. It is simple and fast to learn but will only make you slightly harder to hit. This type of skill was invented by a long gone order of pacifists."
+  },
+  {
+   "name": "Meditate",
+   "description": "By using a weapon or your armour this skill allows you to deflect incoming attacks."
+  },
+  {
+   "name": "Bomb Cover",
+   "description": "With this skilli you will be able to read your foes next move the second before he performs it. This means that you sometimes can move out of the way and take no damage at all making your opponent look silly."
+  },
+  {
+   "name": "Counterstrik",
+   "description": "Sliding is a more advanced skill based on the same principles as evading and doging and it will make it very hard for opponents to hit you with weapons."
+  },
+  {
+   "name": "Blindfight",
+   "description": "Tiptoeing is useful when you must sneak home from a late visit to the local tavern and don't want to wake up the wife. However, it may also save your life if you use the skill in the ARENA because when tiptoeing you don't trigger any traps."
+  },
+  {
+   "name": "Head Blow",
+   "description": "Disarming a trap is only for those with the right skill...and this is it! Instead of just hoping that you will not step on a trap you can use this skill to completely remove a trap that has been planted. Note that you will first have to guess where the traps might be hidden."
+  },
+  {
+   "name": "True Shot",
+   "description": "When you move in zig-zag it will take you longer to get from A to B than when moving normally.however, you will be harder to hit with weapons for your foe."
+  }
+ ],
+ "items1": [
+  {
+   "name": "Introduction",
+   "description": "The list of weapons below is divided into the Town products (Orumant, Dagonar and Ravarcil) so that you can easily see where you can buy them. Note that all weapons require that you use them with a skill! So if you want to drop a bomb on your opponent you must use the Toss Bomb skill, if you want to use your bow you must use one of the Long Range skills."
+  },
+  {
+   "name": "1 - Bloody Blade (sword)",
+   "description": "The Bloody Blade is the type of sword most commonly made and used in Eidolon. It is a rather small sword with a blade that is just slightly larger that a big kitchen knife."
+  },
+  {
+   "name": "2 - Longfang (sword)",
+   "description": "A Longfang sword has a slightly curved blade that is shaped like a big tooth of some large monster. Such blades are often used by the nomads of Vulcor as they are quite handy for cutting through the hide of the desert animals."
+  },
+  {
+   "name": "3 - Fell Blade (sword)",
+   "description": "These swords have been out of production for quite some years now and they exist in a limited number. They were formerly used by the red masked Executioners that served under the queens in the early years of their reign. Most of the victims that fell to the blades when they were still used for official purposes were sentenced to death because they didn\u2019t want to serve in the royal armies."
+  },
+  {
+   "name": "4 - Lizard Sword (sword)",
+   "description": "Lizard Swords come in many shapes and sizes but what distinguishes them from other swords is that they are always coated with lizard venom taken from the giant lizards that can be found in the mountains of Blissmor."
+  },
+  {
+   "name": "5 - Giant Sword (sword)",
+   "description": "The name of this type of weapon reflects the sheer size of it. Most Giant Swords are longer than a tall man and it takes great strength to wield them properly. However, once a hero has learned how to use a Giant Swords he or she becomes a truly dangerous foe! There is no secret behind the invention of Giant swords \u2013 the smith that made the first of its kind simply thought that \u201cbigger is better\u201d\u2026"
+  },
+  {
+   "name": "6 - Ghost Sword (sword)",
+   "description": "Ghost swords are very rare and are as such collector items. Once one of these weapons surfaces it will usually end up in a store and be sold to a hefty price. The swords all come from Mystor and it is said that they must be created in the ancient Stone Circles of the forest. On more than one occasion the victim of a Ghost Sword has simply vanished when killed by the weapon. This has resulted in the common belief that these weapons can turn people into ghosts, but this is still to be proven."
+  },
+  {
+   "name": "7 - Smasher (hammer)",
+   "description": "The hammer head of a Smasher is no larger than a child\u2019s fist but if used properly it can still be quite effective. They are cheap and easy to make and can be bought anywhere in Eidolon."
+  },
+  {
+   "name": "8 - Bone Crusher (hammer)",
+   "description": "Made from the bones of large animals these hammers are more than capable of dishing out damage. Bone Crushers are usually made in Vulcor because the availability of large bones is higher here than anywhere else."
+  },
+  {
+   "name": "9 - Widow Maker (hammer)",
+   "description": "Widow Makers are beautiful hammers that are made by master smiths as a tribute to the art of their craft. The hammers are adorned with delicate runes and small cavities that will produce a low whisper when the weapon is swung. Most of these hammers are made in Blissmor."
+  },
+  {
+   "name": "10 - Doom Hammer (hammer)",
+   "description": "Doom Hammers are large and clumsy to wield but the damage they cause more than compensates for this. Upon impact with any hard surface, be it a rock or the head of a person, a Doom Hammer will emit a loud thundering noise which is how they earned their name. These weapons are only manufactured by a few smiths that reside in the depths of the mountains of Blissmor."
+  },
+  {
+   "name": "11 - Spike Axe (axe)",
+   "description": "Spike Axes are very characteristic weapons that are usually only found in the Arenas or amongst the tribesmen of Vulcor. A Spike Axe is a brutish weapon which has a design more aimed at causing pain rather than harm. Of course, nobody will escape injury if they are subjected to the row of pointy spikes that are fitted onto the axe head instead of a sharp edge."
+  },
+  {
+   "name": "12 - Razor Axe (axe)",
+   "description": "The art of making a Razor Axe is closely guarded by the few smiths that know how to make them. The special techniques involved result in a super keen edge that cut through most materials with ease."
+  },
+  {
+   "name": "13 - Cleaverhead (axe)",
+   "description": "If the axe can cleave a large tree then it should also be able to cleave a skull. At least that was what a group of foresters thought when they decided to use their tools against their enemies when they were attacked in Mystor. Since then the large bladed type of axe has become more and more popular with gladiators in the Arenas and the foresters have now been proven right."
+  },
+  {
+   "name": "14 - Beheader Axe (axe)",
+   "description": "Just like Fell Blades these axes were invented for the purpose of executions. It was soon discovered that Fell Blades were not good enough for the job \u2013 it would often take several strikes to cut off a person\u2019s head which was found to be too cruel. Beheader Axes, however, fully live up to their name and will always chop off a head in the first try\u2026at least if the executioner is half decent. The axes are no longer made but because they were originally produced in such great numbers they can still be bought."
+  },
+  {
+   "name": "15 - Inferno Axe (axe)",
+   "description": "Inferno Axes are made from a special material that the wizards of Orumant invented some years ago. The material is comprised of many elements, including lava rock from Vulcor, which creates intense heat. The weapons are therefore not easy to carry around and as a result they are usually used in the Arenas or in great battles."
+  },
+  {
+   "name": "16 - Black Axe (axe)",
+   "description": "The heads of Black Axes have been burned in the fire of volcanoes for decades, giving the metal a pitch black surface. When the metal has been shaped into its final form and is cooled down it becomes very hard and is almost unbreakable. These axes are often favoured by more shady people that don\u2019t want to be spotted at night."
+  },
+  {
+   "name": "17 - Pain Trap (trap)",
+   "description": "A Pain Trap is the simplest type of trap and is basically made from a length of tube and a small dart. The dart doesn\u2019t cause much harm but since the Pain Trap is easy to rig it is still a very popular choice. The traps are made all over Eidolon and are relatively cheap to buy."
+  },
+  {
+   "name": "18 - Toe Twister (trap)",
+   "description": "The Toe Twister trap is based on a short length of wire that is placed on the ground and concealed in some way. When the trap is triggered the wire will tighten around whatever triggered it. The device is a typical example of how a thing that was originally invented for hunting has been adopted for warfare."
+  },
+  {
+   "name": "19 - Foot Mincer (trap)",
+   "description": "A Foot Mincer is a trap that requires some time to set up. It is a rather large construction that mainly consists of two metal jaws that shut tight when triggered. The traps are also used for hunting but many shun them as they are considered too brutal."
+  },
+  {
+   "name": "20 - Leg Ripper (trap)",
+   "description": "The Leg Ripper has gotten its name from the small but vicious monster that is used for the trap. Leg Rippers live in the wastelands of Vulcor and hunt by lying in wait for prey buried under the sand. When something steps near the monster\u2019s hiding place it shoots out and tears into the victim, often ripping off a leg."
+  },
+  {
+   "name": "21 - Body Blaster (trap)",
+   "description": "Although this kind of trap is not magical in nature it is only powerful wizards who know how to make it since it requires great knowledge of alchemical ingredients. When the trap is triggered a spray of strong acid is released at the unfortunate victim. The acid causes terrible burns and as a result Body Blasters are only allowed in the Arenas where people are magically restored to full health after fights."
+  },
+  {
+   "name": "22 - Short Bow (bow)",
+   "description": "Short Bows are the smallest of all bows. They can be used in a flash which makes them ideal for hunting. However, the small arrows that can be fired from such bows are relatively harmless to anything but small animals and thus they are not too popular in the Arenas."
+  },
+  {
+   "name": "23 - Medium Bow (bow)",
+   "description": "A Medium Bow is slightly longer than a Short Bow, which makes it possible to fire arrows with greater damage potential. As a result the type of bow is quite popular."
+  },
+  {
+   "name": "24 - Long Bow (bow)",
+   "description": "Long Bows are slender bows made after the fine traditions of Mystoran hunters. They are the favoured weapon when hunting for the fearsome monsters called Morgulars that dwell within the mighty forest."
+  },
+  {
+   "name": "25 - Ghost Bow (bow)",
+   "description": "Ghost Bows are ancient weapons that were long ago used in an epic battle that would decide the fate of Eidolon. Now the rare weapons are said to hold the spirits of the fallen warriors of that battle. For that reason many shun the bows, fearing that they might be evil."
+  },
+  {
+   "name": "26 - Heavy Bow (bow)",
+   "description": "Heavy Bows are made from solid hardwood trees and are quite heavy, requiring some strength to use. All Heavy Bows are made in Mystor but since they are very popular they can be bought everywhere in Eidolon."
+  },
+  {
+   "name": "27 - Bolt Bow (bow)",
+   "description": "The type of ammunition used for Bolt Bows is very thick and strong bolt-like arrows that are capable of penetrating even steel. They were invented to counter some of the heavier kinds of armour but now they are used for practically all purposes. Their high damage potential makes up for their slow rate of fire."
+  },
+  {
+   "name": "28 - Fire Bow (bow)",
+   "description": "Fire Bows are an excellent example of how the various regions of Eidolon work together to ensure maximum efficiency and prosperity. The bows are made from Vulcan steel that is particularly resilient to heat and fire. This is important because the incendiary arrows that are used with the bows generate a lot of heat. The arrows are made in Blissmor and are based on the same principles as Lava Bombs \u2013 they are also called Arrows of Inferno."
+  },
+  {
+   "name": "29 - Giant Bow (bow)",
+   "description": "Although a Giant Bow is quite large the name of the weapon is rather a result of the use of giant hair as strings. Only few true giants still roam Eidolon and these are viciously hunted for the durable material that their hair is."
+  },
+  {
+   "name": "30 - Blast Stone (bomb)",
+   "description": "Blast Stones are actually small crystals that can be found in caves deep beneath the earth. The crystals may be charged with raw energy which is released if the crystals are shattered."
+  },
+  {
+   "name": "31 - Steel Shell (bomb)",
+   "description": "A Steel Shell bomb is based on Blast Stones. Several of the energy-charged crystals are placed in a small steel container which is constructed so as to easily break all the crystals at once if the bomb is thrown onto a hard surface. Needless to say these bombs must be handled with utmost care."
+  },
+  {
+   "name": "32 - Egg Bomb (bomb)",
+   "description": "Egg Bombs were originally invented by a clever hunter that wanted to find an easier way to kill the large birds called Glibbars than to shoot arrows at them. He came up with the idea of making a bomb that looked like a Glibbar egg. The bomb was placed in an empty nest and when one of the large birds returned to hatch the eggs the bomb would go off. These days the bombs are mostly used in the Arenas but some still use them to hunt Glibbars."
+  },
+  {
+   "name": "33 - Lava Bomb (bomb)",
+   "description": "The skill required to make a Lava Bomb is not something that many possess. Many foolishly think they know just how to accumulate the hot lave that is needed for these bombs but most end up dead in the volcanoes of Vulcor. It is even said that the ancient dragons that once roamed Eidolon used to favour the hot lave for drinks."
+  },
+  {
+   "name": "34 - Fiery Oil (bomb)",
+   "description": "Fiery Oil is a special liquid that is made by wizards of Orumant. The elements of the oil make it very sticky which is ideal for causing maximum damage to enemies. On the downside the oil is very unstable and the slightest friction may cause it to burst into flames."
+  },
+  {
+   "name": "35 - Liquid Fire (bomb)",
+   "description": "Liquid Fire is actually molten metal that is kept in a heated container. When the bomb hits a surface with some force the container breaks, spilling out the burning metal. This is very painful, especially when the hardened metal has to be removed from the body, which usually causes the skin to be peeled off as well!"
+  },
+  {
+   "name": "36 - Fire Bomb (bomb)",
+   "description": "These bombs are the peak of innovation in terms of what can be done with fire. Fire Bombs have evolved from Fiery Oil but instead of oil they are based on plasma which is almost impossible to put out once lit. Also, the plasma is not as unstable as Fiery Oil, which makes it far safer to use. However, it is much more expensive to produce."
+  },
+  {
+   "name": "1 - Corrupter (sword)",
+   "description": "These blades have a reputation of turning people into criminals. Are you interested?"
+  },
+  {
+   "name": "2 - Heartcutter (sword)",
+   "description": "A nasty little thing this is! The small blade is designed to cut out the foe's heart."
+  },
+  {
+   "name": "3 - Duoblade (sword)",
+   "description": "This exotic sword actually has two blades and look more like a huge claw."
+  },
+  {
+   "name": "4 - Slayer Blade (sword)",
+   "description": "Monster hunters from Mystor swear to this long and slender sword."
+  },
+  {
+   "name": "5 - Foul Basher (hammer)",
+   "description": "Formerly used for pest control these hammers are now popular in the Arena."
+  },
+  {
+   "name": "6 - Skullhammer (hammer)",
+   "description": "The head of this hammer is one large skull taken from any kind of monster."
+  },
+  {
+   "name": "7 - Chaos Sledge (hammer)",
+   "description": "Get a suit of Chaos Armour too and you will look like you mean business!"
+  },
+  {
+   "name": "8 - Soulcrusher (hammer)",
+   "description": "This evil hammer shouldn't be taken lightly as it can destroy souls."
+  },
+  {
+   "name": "9 - Brutalis (hammer)",
+   "description": "Many Vulcor Clans favour this brutal weapon only for the visual effect."
+  },
+  {
+   "name": "10 - Twin Axe (axe)",
+   "description": "This weapon is more or less a long shaft with axe heads in both ends."
+  },
+  {
+   "name": "11 - Rustaxe (axe)",
+   "description": "The secret behind Rustaxes is simply that the metal is rusty ...surprise!"
+  },
+  {
+   "name": "12 - Souldevourer (axe)",
+   "description": "Some say that these ancient axes can eat a man's soul if they hit just right."
+  },
+  {
+   "name": "13 - Dark Reaper (axe)",
+   "description": "The Dark Reaper axe features a long curving head that looks like the blade of a scythe."
+  },
+  {
+   "name": "14 - Skulltrap (trap)",
+   "description": "Skulltraps are bizarre contraptions that are based around putting explosive devices into human or animal skulls. When they are triggered they will blast fragments of bone in a wide radius."
+  },
+  {
+   "name": "15 - Jaws of Pain (trap)",
+   "description": "The design is taken from the typical bear trap that features big metal jaws."
+  },
+  {
+   "name": "16 - Crystaltrap (trap)",
+   "description": "People often mistake this trap for being some kind of valuable. Most are dead!"
+  },
+  {
+   "name": "17 - Mutilator (trap)",
+   "description": "As an example of true vickedness this trap will wound rather that kill the foe."
+  },
+  {
+   "name": "18 - Demolisher (trap)",
+   "description": "I tell you, don't be the one to trigger this trap! It will litterally tear you apart."
+  },
+  {
+   "name": "19 - Haunter (bow)",
+   "description": "The arrows fired from this bow emit a shivering sound...like ghosts!"
+  },
+  {
+   "name": "20 - Eyepiercer (bow)",
+   "description": "This light bow is perfect for fast and accurate shots e.g. Taking out an eye or two."
+  },
+  {
+   "name": "21 - Striker (bow)",
+   "description": "This advanced bow is actually very easy to use and requires little skill of the user."
+  },
+  {
+   "name": "22 - Doombow (bow)",
+   "description": "Oh boy is this a slow bow. But just wait till you see the carnage it can cause!"
+  },
+  {
+   "name": "23 - Spikebomb (bomb)",
+   "description": "When these bombs explode it looks like porcupines being blown up."
+  },
+  {
+   "name": "24 - Darkfire (bomb)",
+   "description": "These bombs are filled with foul Darkfire that can burn through almost anything."
+  },
+  {
+   "name": "25 - Groundshaker (bomb)",
+   "description": "This heavy bomb is very stable and is often used for blasting large areas."
+  },
+  {
+   "name": "26 - Wallbuster (bomb)",
+   "description": "Being invented for demolition purposes these bombs pack a great punch."
+  },
+  {
+   "name": "RAVARCIL",
+   "description": "(Still to come...)"
+  }
+ ],
+ "items2": [
+  {
+   "name": "1 - Scrapsuit",
+   "description": "Most people would laugh at the notion that a Scrapsuit should be regarded as a suit of armour. Basically, the suit is made from all sorts of waste materials like pieces of leather or wood - only few contain any metal pieces. A Scrapsuit is not very durable since the different types of materials are difficult to fit together. Many a wearer has suddenly found himself without armour as a Scrapsuit fell apart due to a blow from the enemy\u2019s weapon and as a result the armour is only used by those who cannot afford better."
+  },
+  {
+   "name": "2 - Snail Shell",
+   "description": "Slightly better than a Scrapsuit is the Snail Shell that is made of large pieces of shell that is taken from lake slugs. The armour is rather cumbersome and offers only little room for delicate manoeuvring, but on the other hand it is very cheap."
+  },
+  {
+   "name": "3 - Iron Shell",
+   "description": "The Iron Shell body armour is based on the same principles as Snail Shell armour. However, the skilled smiths of Orumant have discovered that by using iron instead of slug shells they can make the armour fit the wearer better."
+  },
+  {
+   "name": "4 - Doom Suit",
+   "description": "Doom Suits consists of breast and shoulder plates of metal and earned the name because the guards of the Arenas, Doom Guards, favour this type of armour. The suits are mass produced all over the country and are relatively cheap considering the protection they afford."
+  },
+  {
+   "name": "5 - Spike Suit",
+   "description": "Spike Suits can be quite a nasty experience to the wearer as the many long spikes may cause harm if a wrong move is made. However, many brave warriors have learned to live with this since the mere appearance of the armour may discourage enemies from attacking."
+  },
+  {
+   "name": "6 - Blood Armour",
+   "description": "These rare suits of armour are surrounded by mystery and are banned in many places because they are thought to be linked to some sort of evil. Blood Armour is made from an unknown, blood red material and even today no one knows who made them."
+  },
+  {
+   "name": "7 - Power Mail",
+   "description": "Many famous heroes swear to this type of armour. Power Mail is strong, durable and allows for reasonable movement during combat. It consists of many small plates of metal that are fitted together in overlaying layers. The metal used varies from region to region but the smiths of Blissmor are probably the best at making Power Mail."
+  },
+  {
+   "name": "8 - Bull Armour",
+   "description": "Bull Armour is fashioned from thick metal plate and comes with a great helmet shaped like the head of a bull, hence the name. Skilled warriors have learned to use the big horns on the helmet as brute weapons in the wars against intruders."
+  },
+  {
+   "name": "1 - Trollskin",
+   "description": "Hides from forest trolls are quite useful for making armour as they are very tough. Getting the hides for the armour is just as tough, however, as troll rarely want to part with their skin!"
+  },
+  {
+   "name": "2 - Ice Armour",
+   "description": "The name is quite misleading as Ice Armour isn't made from ice but cold steel."
+  },
+  {
+   "name": "3 - Lava Plate",
+   "description": "The hardened lava of Vulcor volcanos can be made into plates of hard armour."
+  },
+  {
+   "name": "4 - Black mail",
+   "description": "We are not talking about crime now but a suit of black armour worn by many warriors."
+  },
+  {
+   "name": "5 - Paladin Suit",
+   "description": "Bright and shiny this is the suit of armour for those that need to think about their image."
+  },
+  {
+   "name": "6 - Chaos Plate",
+   "description": "The twisted metal and strange shape of these suits have earned them their name."
+  },
+  {
+   "name": "7 - Vulcor suit",
+   "description": "Heavy armour is not seen often in the region of Vulcor as it is simply too hot to wear in the relentless wastes of the desert. A Vulcor Suit is one of the few that are popular, though."
+  },
+  {
+   "name": "8 - Wraith Mail",
+   "description": "The light material used for these suits makes the armour look transparent."
+  },
+  {
+   "name": "9 - Holy Plate",
+   "description": "Suits of Holy Plate are highly prized by Heroes as they are blessed by gods."
+  },
+  {
+   "name": "RAVARCIL",
+   "description": "(Still to come...)"
+  }
+ ],
+ "items3": [
+  {
+   "name": "Introduction",
+   "description": "The list of skills below is divided into the Town products (Orumant, Dagonar and Ravarcil) so that you can easily see where you can buy them. Skills are used for moving around and making attacks with weapons in the Arena."
+  },
+  {
+   "name": "1 - Move (move)",
+   "description": "Moving around in the Arena is quite simple and you should have no trouble doing this...just beware of the traps that might have been placed by your foes!"
+  },
+  {
+   "name": "2 - Wait (move)",
+   "description": "Waiting can sometimes be a useful thing to do if you are not sure what your enemy is going to do. Use this tactical element to make your nasty attacks or spells come in at the exact right time."
+  },
+  {
+   "name": "3 - Panic (move)",
+   "description": "Sometimes it is better to leave things to fate and hope that it works out okay. By deliberately working up a Panic, a skill tought be the masters of the Academies, you may increase your move speed. The downside is that you have no control over where you end up once your combination of jumps, rolls and sprints is over!"
+  },
+  {
+   "name": "4 - Tiptoe (move)",
+   "description": "Tiptoeing is useful when you must sneak home from a late visit to the local Tavern and don't want to wake up the wife. However, it may also save your life if you use the skill in the Arena because when Tiptoeing you don't trigger any traps."
+  },
+  {
+   "name": "5 - Disarm Trap (move)",
+   "description": "Disarming a trap is only for those with the right skill...and this is it! Instead of just hoping that you will not step on a trap you can use this skill to completely remove a trap that has been planted. Note that you will first have to guess where the traps might be hidden."
+  },
+  {
+   "name": "6 - Zig-Zag (move)",
+   "description": "When you move in Zig-Zag it will take you longer to get from A to B than when moving normally.however, you will be harder to hit with weapons for your foe."
+  },
+  {
+   "name": "7 - Dodge (defence)",
+   "description": "Dodging is the primary defence skill taught in the Academies. It is simple and fast to learn but will only make you slightly harder to hit. This type of skill was invented by a long gone order of pacifists."
+  },
+  {
+   "name": "8 - Deflect (defence)",
+   "description": "By using a weapon or your armour this skill allows you to deflect incoming attacks."
+  },
+  {
+   "name": "9 - Evade (defence)",
+   "description": "With this skill you will be able to read your foes next move the second before he performs it. This means that you sometimes can move out of the way and take no damage at all making your opponent look silly."
+  },
+  {
+   "name": "10 - Slide (defence)",
+   "description": "Sliding is a more advanced skill based on the same principles as Evading and Doging and it will make it very hard for opponents to hit you with weapons."
+  },
+  {
+   "name": "11 - Parry (defence)",
+   "description": "The Parry skill is based on blocking attacks with your own weapon."
+  },
+  {
+   "name": "12 - Hit (close range)",
+   "description": "Everyone who starts training in the Academies will learn to make this basic attack form with melee weapons. There is nothing fancy about the skill but it will do its job."
+  },
+  {
+   "name": "13 - Aimed Hit (close range)",
+   "description": "With this skill the focus is on precision rather than speed. Use this form of attack if your opponent is hard to hit as it will improve your chance of winning."
+  },
+  {
+   "name": "14 - Whip Hit (close range)",
+   "description": "The name of this skill does not reflect the weapon used but rather describes the speed with with it is performed. It is fast but not as accurate as an Aimed Hit."
+  },
+  {
+   "name": "15 - Place Trap (close range)",
+   "description": "If you plan on using any of the deadly traps that are available in the world of Eidolon then this skill is a must. It allows you to place a trap in the field that you are in when you use the skill. Note that some other skills can be learned to overcome traps!"
+  },
+  {
+   "name": "16 - Nerve Hit (close range)",
+   "description": "Many would argue that this somewhat shady form of attack should be banned in the Arenas but that has yet to happen. The skill is taught by former assassins that know how to target vital nerves for great effect!"
+  },
+  {
+   "name": "17 - Power Hit (close range)",
+   "description": "Sheer power is the secret of this skill! Considering the amount of time this skill takes to learn is itsn't that accurate. But don't worry, when you hit your foe they are sure to feel that you mean business!"
+  },
+  {
+   "name": "18 - Shoot (long range)",
+   "description": "Most commoners know how to use a bow and as such there is nothing impressive about the Shoot skill. It is nice to know, though!"
+  },
+  {
+   "name": "19 - Snapshot (long range)",
+   "description": "Basically, a Snapshot is a fast variant of the basic Shoot skill and it will allow you to increase your rate of fire while only sacrificing a little accuracy"
+  },
+  {
+   "name": "20 - Toss Bomb (long range)",
+   "description": "Tossing a bomb would be suicide if you didn't master this skill, especially considering how dangerous some of the bombs of Eidolon are even to the one using them!"
+  },
+  {
+   "name": "21 - Snipe (long range)",
+   "description": "Like an Aimed Hit the Snipe skill is based on accuracy. It is the pride of the famous huntsmen of Mystor and is only those who are deemed worthy are taught the skill."
+  },
+  {
+   "name": "22 - Double Shot (long range)",
+   "description": "Long training is required to learn the special skill of firing two arrows at the same time. However, once learned you will quick discover the damage potential of the extra arrow that hits your opponent."
+  },
+  {
+   "name": "1 - Back Away (move)",
+   "description": "This is a more controlled form of Panic as you will only move away from the foe."
+  },
+  {
+   "name": "2 - Run (move)",
+   "description": "Running allows you to move faster but you will be easier to affect with spells."
+  },
+  {
+   "name": "3 - Tumble (move)",
+   "description": "Tumble allows you to move through enemy fields. But you can still not end in same field."
+  },
+  {
+   "name": "4 - Arrowshield (defence)",
+   "description": "Great for avoiding arrows but not very clever to use in close combat!"
+  },
+  {
+   "name": "5 - Meditate (defence)",
+   "description": "While Meditating you will be easier to hit with weapons but will resist spells easier."
+  },
+  {
+   "name": "6 - Bomb Cover (defence)",
+   "description": "If your foe keeps hurling bombs at you then use this skill and you will only take half damage."
+  },
+  {
+   "name": "7 - Counterstrike (defence)",
+   "description": "If you avoid the foe's attack with this skill you will also make an automatic counter hit."
+  },
+  {
+   "name": "8 - Impair (close range)",
+   "description": "Hitting the foe with this skill will reduce his chance of hitting you next time."
+  },
+  {
+   "name": "9 - Slow (close range)",
+   "description": "The foe will move slower if you hit with this attack skill."
+  },
+  {
+   "name": "10 - Whirlwind (close range)",
+   "description": "This attack will cause a minimum of damage but it's very fast indeed!"
+  },
+  {
+   "name": "11 - Rage Hit (close range)",
+   "description": "You won't hit that well with this skill but at least you will make 2 fast attacks in a row."
+  },
+  {
+   "name": "12 - Berserk (close range)",
+   "description": "Forget about defence! This is an all out attack skill and you will go right for your foe in melee."
+  },
+  {
+   "name": "13 - Demolish (close range)",
+   "description": "Are you annoyed by the obstacles? Then reduce their size or completely remove the small ones!"
+  },
+  {
+   "name": "14 - Blindfight (close range)",
+   "description": "You won't hit that often with this skill but you will even be able to hit Invisible foes."
+  },
+  {
+   "name": "15 - Head Blow (close range)",
+   "description": "If this attack hits it will cause a lot of damage and the foe's spells may actually fizzle!"
+  },
+  {
+   "name": "16 - Pierce Hit (close range)",
+   "description": "With this skill you don't have to worry about foes in big suits of armour."
+  },
+  {
+   "name": "17 - Arm Shot (long range)",
+   "description": "Shoot the foe in the arm and his next attack will have a hard time hitting you."
+  },
+  {
+   "name": "18 - Leg Shot (long range)",
+   "description": "With an arrow in the leg your foe won't move as far as normal."
+  },
+  {
+   "name": "19 - Turbo Shot (long range)",
+   "description": "Yes, you will be able to shoot very fast but you won't cause much damage."
+  },
+  {
+   "name": "20 - Arrow Burst (long range)",
+   "description": "Two arrows are fired in a row but the chance of hitting is rather low."
+  },
+  {
+   "name": "21 - Power Shot (long range)",
+   "description": "This type of shot may be slow\u2026 but boy does it hurt!"
+  },
+  {
+   "name": "22 - True Shot (long range)",
+   "description": "This type of shot may even target invisible foes."
+  },
+  {
+   "name": "23 - Fizzle Shot (long range)",
+   "description": "This shot may cause the foe's next spell to fizzle but it has a low chance of hitting."
+  },
+  {
+   "name": "RAVARCIL",
+   "description": "(Still to come...)"
+  }
+ ],
+ "items6": [
+  {
+   "name": "Introduction",
+   "description": "Charms are magic items that will artificially boost Heroes wearing them. Charms can only be gained by winning the so-called Blood Duels."
+  },
+  {
+   "name": "1 - Force Stone",
+   "description": "A Force Stone is made from the black stones that can be found deep beneath the earth. These are ideal for the enchantments that are used to create the effect that increases the wearer's Strength Ability score by +3."
+  },
+  {
+   "name": "2 - Hunter Gem",
+   "description": "Hunter Gems are simple gemstones that are kept in their rough form. They are highly prized by hunters and archers as they improve the wearer's Dexterity Ability score by +3."
+  },
+  {
+   "name": "3 - Mage Ring",
+   "description": "These beautiful and thick rings are made by mages for mages. They are wrought in cold silver and bestows a +3 bonus to the wearer's Intelligence Ability score."
+  },
+  {
+   "name": "4 - Jaguar Ring",
+   "description": "The fast and beautiful jaguars of east Vulcor are often hunted for their leg bones that are used in these charms. A Jaguar Ring adds +2 to the wearer's Speed Ability score."
+  },
+  {
+   "name": "5 - Minor Relic",
+   "description": "Minor Relics are given to initiates of the holy temples but somehow a lot of these charms have found their way to other users. The charms increases the Willpower Ability score of the wearer by +3."
+  },
+  {
+   "name": "6 - Ox Charm",
+   "description": "An Ox Charm is a small bone amulet carved to resemble an ox or a bull. The primitive magic that is imbued within such charms adds a +1 bonus to the Toughness Ability and derives from the savage shamans that live in Vulcor."
+  },
+  {
+   "name": "7 - Luck Ring",
+   "description": "Luck Rings are simple charms made by old gypsy fortune tellers. When worn the charm may warn the wearer of imminent danger and as a result a +3 bonus is added to the effect of Defence skills."
+  },
+  {
+   "name": "8 - Mage Eye",
+   "description": "A Mage Eye is actually a small amber orb that resembles an eye. Such a charm is bestowed with simple magic that adds +10 to the damage effect of distance spells."
+  },
+  {
+   "name": "9 - Harm Stone",
+   "description": "Harm Stones are made from the sharp rocks that are found everywhere in Vulcor. The rock is imbued with magic and when strapped to a melee weapon of any kind the charm adds +12 to the damage effect."
+  },
+  {
+   "name": "10 - Life Pearl",
+   "description": "From the depths of the Sterling Lake in Blissmor come these magic pearls that are highly sought for their ability to increase the effect of healing spells by +8."
+  },
+  {
+   "name": "11 - Archer Token",
+   "description": "These charms are crafted by the forest people of Mystor and the secrets of the process are closely guarded. The feathered Archer Tokens adds +10 to the damage effect of missile weapons."
+  },
+  {
+   "name": "12 - Mage Claw",
+   "description": "Mage Claws are sharp metal claws that are fitted to the back of a hand and act like catalysts for close ranged Bane spells. The claws add +12 to the damage effect of touch spells."
+  },
+  {
+   "name": "13 - Eagle Eye",
+   "description": "The desiccated eyes of an eagle is one of the ingredients used in this type of charm, which has earned it its name. The charms add +3 to the accuracy effect of missile weapons."
+  },
+  {
+   "name": "14 - Air Boots",
+   "description": "When donning these feathered boots the wearer can make long and high jump, making travel on foot much easier. As a bonus the boots add +3 to the avoid effect of spells and skills."
+  },
+  {
+   "name": "15 - Cleric Cross",
+   "description": "When held forward towards an enemy this powerful cross will add a +3 bonus to the bearer's spell resist effect of spells and skills."
+  },
+  {
+   "name": "16 - Ice Skin",
+   "description": "This relatively small charm produces a kind of thin, icy membrane around the bearer. The membrane acts more or less like a suit of light armour, providing a +12 bonus to damage reduction of spells and skills."
+  },
+  {
+   "name": "17 - Time Orb",
+   "description": "This fist-sized magic orb that you found on Shirard radiates a faint purple light. You realise that your reactions improve noticeably while holding the orb!"
+  }
+ ],
+ "spells": [
+  {
+   "name": "Blink",
+   "description": "Blink is the most unstable spell in the line of translocations spells. Because of the speed with which this spell is cast it may sometimes fizzle - mainly because the caster messes up with the incantation. However, when it works it will teleport the caster to a random location in the ARENA."
+  },
+  {
+   "name": "Shift",
+   "description": "Unsatisfied with the somewhat unstable Blink spell the masters of the TOWER of Orumant invented this spell, which is just an upgraded version. This spell will never fizzle but the caster still has no influence on where he will be teleported to."
+  },
+  {
+   "name": "Ghost walk",
+   "description": "Now this is more like it! By making use of the Ghost Walk the caster may teleport to a location that he selects himself - so no more random teleportation here! The downside of the spell, though, is that there is a slight chance that it will fizzle."
+  },
+  {
+   "name": "Wraith walk",
+   "description": "Just like Ghost Walking this spell will allow the caster to magically move to a different location in a matter of seconds. This spell is even better than the sister version in that it will not fizzle as often as Ghost Walk."
+  },
+  {
+   "name": "Double zap",
+   "description": "Once the old masters of the TOWERS learned how to harness the raw energy of a basic Zap spell they soon learned to increase the power. The result was the Double Zap spell that releases two rays instead of one."
+  },
+  {
+   "name": "Hand of Pain",
+   "description": "The force of this close range spell is that it will often take the opponent by surprise. The reason for this is that it isn't that obvious that a spell is being cast - it simply looks like the caster is trying to grap the opponent. However, when the Hand of Pain touches a person it will drain a small amount of Life from the victim."
+  },
+  {
+   "name": "Big Zap",
+   "description": "This is the most powerful version of the spell category that is based upon releasing raw energy. Unlike the Double Zap spell the Big Zap is just one large bolt of energy that is so powerful that it will even melt soft metals."
+  },
+  {
+   "name": "Ice Kiss",
+   "description": "When someone tries to kiss you, you would hardly suspect that they mean to harm you. This spell exploits this as it delivers a powerful draining effect through a kiss, often rendering the victim numb or slain on the ground. Off course, using the spell in the ARENA may often give the opponent a clue as to your intentions."
+  },
+  {
+   "name": "Sticky fire",
+   "description": "Having seen the impressive effect of the varios fire bomb types the masters of the TOWERS soon realised that a spell with similar effects would be very potent indeed. The first result in the line of fire spells is this spell, which engulfs the victim in sticky, burning plasma."
+  },
+  {
+   "name": "Clawkill",
+   "description": "When using this spell the caster's main hand transforms into a large, sharp claw. If used against an opponent like a melee weapon the claw will cause great damage."
+  },
+  {
+   "name": "Inferno",
+   "description": "Inferno is a much favoured spell by those who fight in the ARENAS. The spell was invented by a crazy wizard of Vulcor who ended his days in prison accused for many accounts of arson. Rumour has it that the wizard said that he was communicating with dragons and that the reptilians would one day free him...obviously they never did."
+  },
+  {
+   "name": "Drainhand",
+   "description": "This spell is particularly useful. Not only will the Drainhand cause damage in victims but the damage taken will also be transferred to heal the caster! This means that the spell is effectively two in one."
+  },
+  {
+   "name": "Lightning",
+   "description": "It may not come as SHOCKING news to you that Lightnings are quite dangerous. With this spell you have the advantage of being able to blast your opponent away from a safe distance."
+  },
+  {
+   "name": "Fireball",
+   "description": "As the name implies this spell produces a deadly fireball that explodes when it hits its target."
+  },
+  {
+   "name": "Lethal Claw",
+   "description": "Lethal Claw is a much more potent version of the Clawkill spell. One of the main ingredients is a claw from one of the huge trolls that roam the wastes of Vulcor. Unfortunately the claw must be taken from a living troll, which makes it much harder to come by."
+  },
+  {
+   "name": "Mind Block",
+   "description": "Mind Block is a spell that the former head master of the TOWER of Orumant invented as a means to improve magic resistance. Ironically he died in a horrible explosion that was caused by a Fireball spell that somehow went wrong."
+  },
+  {
+   "name": "Runic Vest",
+   "description": "This spell works on the same principles as Magic Coat but the force surrounding the caster is slightly stronger and will absorb more damage."
+  },
+  {
+   "name": "Spell armour",
+   "description": "With this spell the effect of heavy armour is more or less duplicated. However, since the spell is based on a force field it should only be used in fights as it may also prevent other things than weapons to get to the caster...like a keg of beer!"
+  },
+  {
+   "name": "Celestial Bo",
+   "description": "Under the influence of a Celestial Body spell the caster becomes ethereal for a short period of time, making it harder for opponents to hit with weapons."
+  },
+  {
+   "name": "Mental wall",
+   "description": "Unlike the Brain Shield this spell creates a big, invisible magic wall around the caster. The wall acts as a obstacle for spells and will make it easier for the caster to resist hostile spells."
+  },
+  {
+   "name": "Stoneskin",
+   "description": "Even today it is unknown who invented this spell that is an improved version of Spell Armour. Some say that it must have been a former master of the TOWER of Dagonar while others claim that its origins can be traced back to Mystor. No matter what, the spell offers great protection against enemy attacks!"
+  },
+  {
+   "name": "Blurry",
+   "description": "Avoiding being hit becomes so much easier if this spell is used. The caster's body will appear as a blurry form to the enemy making it harder to direct attacks at the right places."
+  },
+  {
+   "name": "Minor Cure",
+   "description": "By the use of this spell a number of magical bandagaes appear and they will automatically wrap themselves around any wound the caster may have suffered. Of course, the spell is only effective against small wounds and scratches!"
+  },
+  {
+   "name": "Medium Cure",
+   "description": "As an improved version of Minor Cure this spells allows for greater healing and may even be used to re-attach small body parts like toes and fingers."
+  },
+  {
+   "name": "Strong Cure",
+   "description": "This spell is said to be based on the same type of divine magic that the queens have enchanted the ARENAS with so that heroes cannot die while training. If this is true it is obviously far less potent than the magic used by the queens."
+  },
+  {
+   "name": "Power Cure",
+   "description": "Conjuring a vortex of holy energy from nearby plants end elements this spell can potentially heal even gaping wounds. The visual effects of the spell are just as spectacular as magical bandages that look like bands of shimmering light are wrapped around the caster's wounds."
+  },
+  {
+   "name": "Repair Wound",
+   "description": "Even though the Heal Wound spell is more difficult to cast, the healing potential of this spell exceeds it slightly. The reason that Repair Wound is easier to learn and does not require as much willpower to control is that the result is somewhat random."
+  },
+  {
+   "name": "Heal Wound",
+   "description": "With this spell the caster will know just how much he can count on being healed. Since the spell was invented by a priest of Mystor it has saved many a hero from dying on the battlefield."
+  },
+  {
+   "name": "Super Heal",
+   "description": "This spell is even better than the Heal Wound spell and though it could possibly turn the tide of great battles only few ever get to cast it because it requires so much willpower to control the divine force that is needed."
+  },
+  {
+   "name": "Lower Will",
+   "description": "Blink is the most unstable spell in the line of translocations spells. Because of the speed with which this spell is cast it may sometimes fizzle - mainly because the caster messes up with the incantation. However, when it works it will teleport the caster to a random location in the ARENA."
+  },
+  {
+   "name": "Evil Eye",
+   "description": "Unsatisfied with the somewhat unstable Blink spell the masters of the TOWER of Orumant invented this spell, which is just an upgraded version. This spell will never fizzle but the caster still has no influence on where he will be teleported to."
+  },
+  {
+   "name": "Plague",
+   "description": "Now this is more like it! By making use of the Ghost Walk the caster may teleport to a location that he selects himself - so no more random teleportation here! The downside of the spell, though, is that there is a slight chance that it will fizzle."
+  },
+  {
+   "name": "Dispel Magic",
+   "description": "Just like Ghost Walking this spell will allow the caster to magically move to a different location in a matter of seconds. This spell is even better than the sister version in that it will not fizzle as often as Ghost Walk."
+  },
+  {
+   "name": "Attraction",
+   "description": "When using this spell the caster's main hand transforms into a large, sharp claw. If used against an opponent like a melee weapon the claw will cause great damage."
+  },
+  {
+   "name": "Confusion",
+   "description": "Inferno is a much favoured spell by those who fight in the ARENAS. The spell was invented by a crazy wizard of Vulcor who ended his days in prison accused for many accounts of arson. Rumour has it that the wizard said that he was communicating with dragons and that the reptilians would one day free him...obviously they never did."
+  },
+  {
+   "name": "Fear",
+   "description": "This spell is particularly useful. Not only will the Drainhand cause damage in victims but the damage taken will also be transferred to heal the caster! This means that the spell is effectively two in one."
+  },
+  {
+   "name": "Construct",
+   "description": "It may not come as SHOCKING news to you that Lightnings are quite dangerous. With this spell you have the advantage of being able to blast your opponent away from a safe distance."
+  },
+  {
+   "name": "Paralyze",
+   "description": "Once the old masters of the TOWERS learned how to harness the raw energy of a basic Zap spell they soon learned to increase the power. The result was the Double Zap spell that releases two rays instead of one."
+  },
+  {
+   "name": "Fire Dart",
+   "description": "The force of this close range spell is that it will often take the opponent by surprise. The reason for this is that it isn't that obvious that a spell is being cast - it simply looks like the caster is trying to grap the opponent. However, when the Hand of Pain touches a person it will drain a small amount of Life from the victim."
+  },
+  {
+   "name": "Spell Stop",
+   "description": "This is the most powerful version of the spell category that is based upon releasing raw energy. Unlike the Double Zap spell the Big Zap is just one large bolt of energy that is so powerful that it will even melt soft metals."
+  },
+  {
+   "name": "Poison Acid",
+   "description": "When someone tries to kiss you, you would hardly suspect that they mean to harm you. This spell exploits this as it delivers a powerful draining effect through a kiss, often rendering the victim numb or slain on the ground. Off course, using the spell in the ARENA may often give the opponent a clue as to your intentions."
+  },
+  {
+   "name": "Fire Field",
+   "description": "Having seen the impressive effect of the varios fire bomb types the masters of the TOWERS soon realised that a spell with similar effects would be very potent indeed. The first result in the line of fire spells is this spell, which engulfs the victim in sticky, burning plasma."
+  },
+  {
+   "name": "Reflect pain",
+   "description": "Mind Block is a spell that the former head master of the TOWER of Orumant invented as a means to improve magic resistance. Ironically he died in a horrible explosion that was caused by a Fireball spell that somehow went wrong."
+  },
+  {
+   "name": "Mental Armor",
+   "description": "This spell works on the same principles as Magic Coat but the force surrounding the caster is slightly stronger and will absorb more damage."
+  },
+  {
+   "name": "Reflect spel",
+   "description": "With this spell the effect of heavy armour is more or less duplicated. However, since the spell is based on a force field it should only be used in fights as it may also prevent other things than weapons to get to the caster...like a keg of beer!"
+  },
+  {
+   "name": "Holy Aura",
+   "description": "Under the influence of a Celestial Body spell the caster becomes ethereal for a short period of time, making it harder for opponents to hit with weapons."
+  },
+  {
+   "name": "Neutralize",
+   "description": "By the use of this spell a number of magical bandagaes appear and they will automatically wrap themselves around any wound the caster may have suffered. Of course, the spell is only effective against small wounds and scratches!"
+  },
+  {
+   "name": "Bless",
+   "description": "As an improved version of Minor Cure this spells allows for greater healing and may even be used to re-attach small body parts like toes and fingers."
+  },
+  {
+   "name": "Rain of Life",
+   "description": "This spell is said to be based on the same type of divine magic that the queens have enchanted the ARENAS with so that heroes cannot die while training. If this is true it is obviously far less potent than the magic used by the queens."
+  },
+  {
+   "name": "Bravery",
+   "description": "Conjuring a vortex of holy energy from nearby plants end elements this spell can potentially heal even gaping wounds. The visual effects of the spell are just as spectacular as magical bandages that look like bands of shimmering light are wrapped around the caster's wounds."
+  },
+  {
+   "name": "Mystic Hand",
+   "description": "Even though the Heal Wound spell is more difficult to cast, the healing potential of this spell exceeds it slightly. The reason that Repair Wound is easier to learn and does not require as much willpower to control is that the result is somewhat random."
+  }
+ ],
+ "gladiators": [
+  {
+   "name": "1. Scarboy",
+   "description": "Scarboy is little more than a boy, and is thus the youngest of the town's gladiators. Scarboy is not exactly a natural gladiator and he often loses his fights in a horrible manner. As a result his entire body is covered by hideous scars that he has earned in the many fights. It has become almost a tradition for spectators to bet on what part of his body will be severed first in a fight. Needless to say, Scarboy can't wait till his sentence has been served so that he no longer has to endure this cruel punishment that doesn't really correspond to his crime of begging. 2. Eliana Eliana is the only female gladiator of Orumant. Her crime is considered one of the worst in Eidolon; she tried to hide the birth of her boy so that he wouldn't have to go to the arena for training. Ironically this is where she now serves as a gladiator herself and she has even trained her own boy some years ago! Many an opponent has made the mistake of underestimating her because she is a woman. 3. Swifter Swifter is only 5' tall but what he lacks in volume he makes up for in speed and agility. These traits served him well as a cat burglar but now he makes use of them in the arena. You could say that Swifter is somewhat dense for the reason he is a gladiator is that he was caught trying to rob the Queen's Guard of Orumant. Everyone knows how heavily guarded that place is! 4. Mr. Traps As his name implies, this gladiator has a knack for setting up traps everywhere. This dangerous habit has already resulted in the loss of an arm and many wonder when he will blow the rest apart. The crime that this gladiator committed was to place a trap in a business rival's shop, blowing up several noble persons. Mr. Traps is \"trapped\" in the arena for life. 5. Blaster Like his brother, Mr. Traps, Blaster is very fond of blowing up things. Blaster is not as subtle, though, prefering to hurl nasty bombs at his opponents instead of setting up tricky traps. Before he joined the ranks of gladiators, Blaster worked in one of the mountain mines as head of the explosives. However, one day he suddenly snapped and blew up the whole supply of explosives which caused many of the mine tunnels to colapse. He is now paying for the crime by serving his time as a gladiator and by the looks of it he will never leave the arena! 6. Rascalion Born in the streets of Orumant, Rascalion has always known to take care of himself. Ultimately he was caught stealing bread at the market and as a punishment he must now fight as a gladiator in the arena. Unlike most of the other gladiators, Rascalion likes his new \"career\" since he is no longer a nobody but has earned the respect of the people of the town. 7. Conjuman Conjuman is the oldest of the Orumant gladiators and he is reputed for his fondness for spells. He comes from one of the mountains of Blissmor and it is said that it was Queen Sorena herself that selected him for the position as a gladiator since he tried to magically steal one of the royal spell books. 8. Fitorius Fitorius is a strong and fast gladiator that has won many fights in the arena. His mighty Doomhammer is an heirloom from his father and you might say that it is the reason why he is now a gladiator. Fitorius used the weapon in a bar brawl and being very drunk he didn't even realise that he managed to kill several men before he was arrested by the town's guard. 9. Stronghand Nobody really knows that much about the mysterious Stronghand who is the most recent addition to the group of gladiators of Orumant. One of the things that most have learned, however, is that he's a formidable foe who hates anyone that comes in his way! 10. Multinios Multinios is currently the champion of the gladiators of Orumant. Multinios is very much a jack of all trades and finding his weak spot isn't something that many will have a chance to do before he defeats them in the arena. His crime was to refuse enrolment in the army of Eidolon. He said that it goes against his beliefs to kill others! Somehow, though, Queen Sorena's wizards have managed to \"persuade\" Multinios into fighting in the arena and he has certainly become a very skilled gladiator. However, when he fights he always says prayers for his opponents."
+  }
+ ],
+ "items4": [
+  {
+   "name": "Introduction",
+   "description": "The list of spells below is divided into the Town products (Orumant, Dagonar and Ravarcil) so that you can easily see where you can buy them. Spells are divided into 2 main categories, namely those based on the Intelligence Ability and those based on Willpower. Furthermore, there are 4 sub-categories: Spectral, Bane, Guardian and Spirit. Spells that fall within the same sun-category are typically related in some way. For instance, all spells that deal instant damage are found in the Bane category."
+  },
+  {
+   "name": "1 - Blink (spectral)",
+   "description": "Blink is the most unstable spell in the line of translocations spells. Because of the speed with which this spell is cast it may sometimes fizzle - mainly because the caster messes up with the incantation. However, when it works it will teleport the caster to a random location in the Arena."
+  },
+  {
+   "name": "2 - Shift (spectral)",
+   "description": "Unsatisfied with the somewhat unstable Blink spell the masters of the Tower of Orumant invented this spell, which is just an upgraded version. This spell will fizzle less but the caster still has no influence on where he will be teleported to."
+  },
+  {
+   "name": "3 - Ghost Walk (spectral)",
+   "description": "Now this is more like it! By making use of the Ghost Walk the caster may teleport to a location that he selects himself - so no more random teleportation here! The downside of the spell, though, is that there is a slight chance that it will fizzle."
+  },
+  {
+   "name": "4 - Wraith Walk (spectral)",
+   "description": "Just like Ghost Walking this spell will allow the caster to magically move to a different location in a matter of seconds. This spell is even better than the sister version in that it will not fizzle as often as Ghost Walk."
+  },
+  {
+   "name": "5 - Zap (bane)",
+   "description": "The Zap spell is the most elemental Bane spell that is taught in the magic Towers in the towns and cities of Eidolon. The spell releases a ray of raw energy that the caster accumulates when speaking the incantation."
+  },
+  {
+   "name": "6 - Double Zap (bane)",
+   "description": "Once the old masters of the Towers learned how to harness the raw energy of a basic Zap spell they soon learned to increase the power. The result was the Double Zap spell that releases two rays instead of one."
+  },
+  {
+   "name": "7 - Hand of Pain (bane)",
+   "description": "The force of this close range spell is that it will often take the opponent by surprise. The reason for this is that it isn't that obvious that a spell is being cast - it simply looks like the caster is trying to grab the opponent. However, when the Hand of Pain touches a person it will drain a small amount of Life from the victim."
+  },
+  {
+   "name": "8 - Big Zap (bane)",
+   "description": "This is the most powerful version of the spell category that is based upon releasing raw energy. Unlike the Double Zap spell the Big Zap is just one large bolt of energy that is so powerful that it will even melt soft metals."
+  },
+  {
+   "name": "9 - Ice Kiss (bane)",
+   "description": "When someone tries to kiss you, you would hardly suspect that they mean to harm you. This spell exploits this as it delivers a powerful draining effect through a kiss, often rendering the victim numb or slain on the ground. Off course, using the spell in the Arena may often give the opponent a clue as to your intentions."
+  },
+  {
+   "name": "10 - Sticky Fire (bane)",
+   "description": "Having seen the impressive effect of the varios fire bomb types the masters of the Towers soon realised that a spell with similar effects would be very potent indeed. The first result in the line of fire spells is this spell, which engulfs the victim in sticky, burning plasma."
+  },
+  {
+   "name": "11 - Clawkill (bane)",
+   "description": "When using this spell the caster's main hand transforms into a large, sharp claw. If used against an opponent like a melee weapon the claw will cause great damage."
+  },
+  {
+   "name": "12 - Inferno (bane)",
+   "description": "Inferno is a much favoured spell by those who fight in the Arenas. The spell was invented by a crazy wizard of Vulcor who ended his days in prison accused for many accounts of arson. Rumour has it that the wizard said that he was communicating with dragons and that the reptilians would one day free him...obviously they never did."
+  },
+  {
+   "name": "13 - Drainhand (bane)",
+   "description": "This spell is particularly useful. Not only will the Drainhand cause damage in victims but the damage taken will also be transferred to heal the caster! This means that the spell is effectively two in one."
+  },
+  {
+   "name": "14 - Lightning (bane)",
+   "description": "It may not come as SHOCKING news to you that Lightnings are quite dangerous. With this spell you have the advantage of being able to blast your opponent away from a safe distance."
+  },
+  {
+   "name": "15 - Fireball (bane)",
+   "description": "As the name implies this spell produces a deadly Fireball that explodes when it hits its target."
+  },
+  {
+   "name": "16 - Lethal Claw (bane)",
+   "description": "Lethal Claw is a much more potent version of the Clawkill spell. One of the main ingredients is a claw from one of the huge trolls that roam the wastes of Vulcor. Unfortunately the claw must be taken from a living troll, which makes it much harder to come by."
+  },
+  {
+   "name": "17 - Magic Coat (guardian)",
+   "description": "This spell creates a shimmering force around the caster's body that acts more or less like a suit of body. The force will absorb a small amount of damage caused by weapons, thus offering the caster slightly better protection versus attacks."
+  },
+  {
+   "name": "18 - Blur Body (guardian)",
+   "description": "This Guardian spell improves the caster's chance of avoiding getting hit by attacks made with weapons by partly transferring the caster's body to another plane of existence. The spell will stack with defence skills if used in the same turn."
+  },
+  {
+   "name": "19 - Mind Block (guardian)",
+   "description": "Mind Block is a spell that the former head master of the Tower of Orumant invented as a means to improve magic resistance. Ironically he died in a horrible explosion that was caused by a Fireball spell that somehow went wrong."
+  },
+  {
+   "name": "20 - Runic Vest (guardian)",
+   "description": "This spell works on the same principles as Magic Coat but the force surrounding the caster is slightly stronger and will absorb more damage."
+  },
+  {
+   "name": "21 - Ghost Body (guardian)",
+   "description": "Inspired by an encounter with a ghostly humanoid shape near one of the stone circles in the deep forest of Mystor, one of the master of the Tower in Ravarcil invented this spell. The spell makes the caster's body appear semi transparent."
+  },
+  {
+   "name": "22 - Brain Shield (guardian)",
+   "description": "This spell creates a magical barrier around the caster's brain that effectively increases the chances of resisting spells. The barrier creates a slight tingle, but not so much as to become unbearable."
+  },
+  {
+   "name": "23 - Spell Armour (guardian)",
+   "description": "With this spell the effect of heavy armour is more or less duplicated. However, since the spell is based on a force field it should only be used in fights as it may also prevent other things than weapons to get to the caster...like a keg of beer!"
+  },
+  {
+   "name": "24 - Celestial Body (guardian)",
+   "description": "Under the influence of a Celestial Body spell the caster becomes ethereal for a short period of time, making it harder for opponents to hit with weapons."
+  },
+  {
+   "name": "25 - Mental Wall (guardian)",
+   "description": "Unlike the Brain Shield this spell creates a big, invisible magic wall around the caster. The wall acts as a obstacle for spells and will make it easier for the caster to resist hostile spells."
+  },
+  {
+   "name": "26 - Stoneskin (guardian)",
+   "description": "Even today it is unknown who invented this spell that is an improved version of Spell Armour. Some say that it must have been a former master of the Tower of Dagonar while others claim that its origins can be traced back to Mystor. No matter what, the spell offers great protection against enemy attacks!"
+  },
+  {
+   "name": "27 - Blurry (guardian)",
+   "description": "Avoiding being hit becomes so much easier if this spell is used. The caster's body will appear as a blurry form to the enemy making it harder to direct attacks at the right places."
+  },
+  {
+   "name": "28 - Minor Cure  (spirit)",
+   "description": "By the use of this spell a number of magical bandages appear and they will automatically wrap themselves around any wound the caster may have suffered. Of course, the spell is only effective against small wounds and scratches!"
+  },
+  {
+   "name": "29 - Medium Cure (spirit)",
+   "description": "As an improved version of Minor Cure this spells allows for greater healing and may even be used to re-attach small body parts like toes and fingers."
+  },
+  {
+   "name": "30 - Strong Cure (spirit)",
+   "description": "This spell is said to be based on the same type of divine magic that the queens have enchanted the Arenas with so that heroes cannot die while training. If this is true it is obviously far less potent than the magic used by the queens."
+  },
+  {
+   "name": "31 - Power Cure (spirit)",
+   "description": "Conjuring a vortex of energy from nearby plants and elements, this spell can potentially heal even gaping wounds. The visual effects of the spell are just as spectacular as magical bandages that look like bands of shimmering light are wrapped around the caster's wounds."
+  },
+  {
+   "name": "32 - Repair Wound (spirit)",
+   "description": "Even though the Heal Wound spell is more difficult to cast, the healing potential of this spell exceeds it slightly. The reason that Repair Wound is easier to learn and does not require as much willpower to control is that the result is somewhat random."
+  },
+  {
+   "name": "33 - Heal Wound (spirit)",
+   "description": "With this spell the caster will know just how much he can count on being healed. Ever since the spell was invented by a priest of Mystor it has saved many a hero from dying on the battlefield."
+  },
+  {
+   "name": "34 - Super Heal (spirit)",
+   "description": "This spell is even better than the Heal Wound spell and though it could possibly turn the tide of great battles only few ever get to cast it because it requires so much willpower to control the divine force that is needed."
+  },
+  {
+   "name": "1 - Lower Will (spectral)",
+   "description": "This spell is made for penetrating the opponent's spell resistance so that the spells that follow, like a nasty Fireball, don't go to waste being resisted."
+  },
+  {
+   "name": "2 - Evil Eye (spectral)",
+   "description": "The Evil Eye will cause the foe to miss more often than usual"
+  },
+  {
+   "name": "3 - Plague (spectral)",
+   "description": "Cast Plague on your foe and his attacks will cause less damage."
+  },
+  {
+   "name": "4 - Dispel Magic (spectral)",
+   "description": "Dispel Magic is one of those spells that have a nasty habit of fizzling in just the wrong moment, namely when you most need it to work. When the spell actually works, which is most of the time after all, it cancels Invisibility and Holy Aura."
+  },
+  {
+   "name": "5 - Attraction (spectral)",
+   "description": "If you are confident in your own close quarter abilities then you should really employ this spell as it will draw your opponent closer. This may interrupt his own move actions, causing an otherwise great battle plan to crumble!"
+  },
+  {
+   "name": "6 - Confusion (spectral)",
+   "description": "If your foe tries to move under the influence of this spell he will not be able to control where to go and will thus move in random directions."
+  },
+  {
+   "name": "7 - Fear (spectral)",
+   "description": "It's about time your foes fear you properly! They will litterally run away from you now."
+  },
+  {
+   "name": "8 - Construct (spectral)",
+   "description": "Tired of all the destruction? Then use this spell to increase the size of obstacles."
+  },
+  {
+   "name": "9 - Ice Field (bane)",
+   "description": "You must select a field for this spell to target but the damage caused is tremendous. Note that it still requires line of sight!"
+  },
+  {
+   "name": "10 - Paralyze (bane)",
+   "description": "Your foe will move slower than normal when you use this spell."
+  },
+  {
+   "name": "11 - Fire Dart (bane)",
+   "description": "Fry your foe from within with this Fire Dart and watch him dance in pain."
+  },
+  {
+   "name": "12 - Spell Stop (bane)",
+   "description": "The foe's first spell will be cancelled. That'll teach those wizards a lesson!"
+  },
+  {
+   "name": "13 - Poison Acid (bane)",
+   "description": "Here's a nasty trick as the foe will suffer right away but also at the end of the turn."
+  },
+  {
+   "name": "14 - Fire Field (bane)",
+   "description": "Select a target field and watch your foe be toasted by the roaring fire in the blast."
+  },
+  {
+   "name": "15 - Ghosthand (bane)",
+   "description": "This spell will ignore some of the foe's armour and almost go right through."
+  },
+  {
+   "name": "16 - Invisibility (guardian)",
+   "description": "You will be invisible for the rest of the turn unless you do anything else but Move."
+  },
+  {
+   "name": "17 - Baneguard (guardian)",
+   "description": "This is a good way to increase your chances of resisting spells."
+  },
+  {
+   "name": "18 - Reflect pain (guardian)",
+   "description": "If this spell doesn't fizzle the damage caused by the foe's next weapon attack is reflected."
+  },
+  {
+   "name": "19 - Mental Armour (guardian)",
+   "description": "This reduces the damage of spells cast at you so it's almost like armour."
+  },
+  {
+   "name": "20 - Spell Block (guardian)",
+   "description": "This spell will block the foe's next spell. But know that this spell may fizzle."
+  },
+  {
+   "name": "21 - Vanish (guardian)",
+   "description": "You will be almost 100% safe from the foe's targeting for as long as you only move."
+  },
+  {
+   "name": "22 - Reflect Spell (guardian)",
+   "description": "Use this spell to deflect the foe's Bane spells so it will harm him instead of you."
+  },
+  {
+   "name": "23 - Holy Aura (guardian)",
+   "description": "You will be totally immune to damage 2 times if this spell doesn't fizzle!"
+  },
+  {
+   "name": "24 - Neutralize (spirit)",
+   "description": "In addition to healing you a bit this spell makes you immune to Poison Acid."
+  },
+  {
+   "name": "25 - Bless (spirit)",
+   "description": "Holy guidance leads your hand and your attacks will cause more damage."
+  },
+  {
+   "name": "26 - Rain of Life (spirit)",
+   "description": "This provides instant healing as well as at the end of the turn but is a rather slow spell."
+  },
+  {
+   "name": "27 - Bravery (spirit)",
+   "description": "This spell counters the effects of the Fear, Confusion and Attraction spells."
+  },
+  {
+   "name": "28 - Mystic Hand (spirit)",
+   "description": "Your attacks will hit much better when they are guided by this spell."
+  },
+  {
+   "name": "RAVARCIL",
+   "description": "(Still to come...)"
+  }
+ ],
+ "items5": [
+  {
+   "name": "Introduction",
+   "description": "The three Queens of Eidolon have declared that any person must start training in the Doomsphere when he or she becomes 15 years old. A certain amount of time must be spent training each day, depending on age and natural talent and this usually varies from 1-2 hours daily. However, some spend all day in the great Arena, not because they want to but because they have to. These are the Gladiators who are all former criminals that have been caught and sentenced to serve as training partners...some for a month, some for life!"
+  },
+  {
+   "name": "The Gimp",
+   "description": "To ensure that even the youngest boys and girls that start their training in the Arena have someone to train with the wizards of Orumant created this being, the Gimp. He, or 'it' as most would call the being, is a simple golem that has been commanded to do certain things: shout helpful advice, make simple attacks...and lose horribly!"
+  },
+  {
+   "name": "1 - Scarboy",
+   "description": "Scarboy is little more than a boy, and is thus the youngest of the town's gladiators. Scarboy is not exactly a natural gladiator and he often loses his fights in a horrible manner. As a result his entire body is covered by hideous scars that he has earned in the many fights. It has become almost a tradition for spectators to bet on what part of his body will be severed first in a fight. Needless to say, Scarboy can't wait till his sentence has been served so that he no longer has to endure this cruel punishment that doesn't really correspond to his crime of begging."
+  },
+  {
+   "name": "2 - Eliana",
+   "description": "Eliana is the only female gladiator of Orumant. Her crime is considered one of the worst in Eidolon; she tried to hide the birth of her boy so that he wouldn't have to go to the arena for training. Ironically this is where she now serves as a gladiator herself and she has even trained her own boy some years ago! Many an opponent has made the mistake of underestimating her because she is a woman."
+  },
+  {
+   "name": "3 - Swifter",
+   "description": "Swifter is only 5' tall but what he lacks in volume he makes up for in speed and agility. These traits served him well as a cat burglar but now he makes use of them in the arena. You could say that Swifter is somewhat dense for the reason he is a gladiator is that he was caught trying to rob the Queen's Guard of Orumant. Everyone knows how heavily guarded that place is!"
+  },
+  {
+   "name": "4 - Mr. Traps",
+   "description": "As his name implies, this gladiator has a knack for setting up traps everywhere. This dangerous habit has already resulted in the loss of an arm and many wonder when he will blow the rest apart. The crime that this gladiator committed was to place a trap in a business rival's shop, blowing up several noble persons. Mr. Traps is 'trapped' in the arena for life."
+  },
+  {
+   "name": "5 - Blaster",
+   "description": "Like his brother, Mr. Traps, Blaster is very fond of blowing up things. Blaster is not as subtle, though, preferring to hurl nasty bombs at his opponents instead of setting up tricky traps. Before he joined the ranks of gladiators, Blaster worked in one of the mountain mines as head of the explosives. However, one day he suddenly snapped and blew up the whole supply of explosives, which caused many of the mine tunnels to collapse. He is now paying for the crime by serving his time as a gladiator and by the looks of it he will never leave the arena!"
+  },
+  {
+   "name": "6 - Rascalion",
+   "description": "Born in the streets of Orumant, Rascalion has always known to take care of himself. Ultimately he was caught stealing bread at the market and as a punishment he must now fight as a gladiator in the arena. Unlike most of the other gladiators, Rascalion likes his new 'career' since he is no longer a nobody but has earned the respect of the people of the town."
+  },
+  {
+   "name": "7 - Conjuman",
+   "description": "Conjuman is the oldest of the Orumant gladiators and he is reputed for his fondness for spells. He comes from one of the mountains of Blissmor and it is said that it was Queen Sorena herself that selected him for the position as a gladiator since he tried to magically steal one of the royal spell books."
+  },
+  {
+   "name": "8 - Fitorius",
+   "description": "Fitorius is a strong and fast gladiator that has won many fights in the arena. His mighty Doomhammer is an heirloom from his father and you might say that it is the reason why he is now a gladiator. Fitorius used the weapon in a bar brawl and being very drunk he didn't even realise that he managed to kill several men before he was arrested by the town's guard."
+  },
+  {
+   "name": "9 - Stronghand",
+   "description": "Nobody really knows that much about the mysterious Stronghand who is the most recent addition to the group of gladiators of Orumant. One of the things that most have learned, however, is that he's a formidable foe who hates anyone that comes in his way!"
+  },
+  {
+   "name": "10 - Multinios",
+   "description": "Multinios is currently the champion of the gladiators of Orumant. Multinios is very much a Jack of all trades and finding his weak spot isn't something that many will have a chance to do before he defeats them in the arena. His crime was to refuse enrolment in the army of Eidolon. He said that it goes against his beliefs to kill others! Somehow, though, Queen Sorena's wizards have managed to 'persuade' Multinios into fighting in the arena and he has certainly become a very skilled gladiator. However, when he fights he always says prayers for his opponents."
+  },
+  {
+   "name": "1 - Hexman",
+   "description": "Hexman likes spells and preferably lots of them. What a spell does is not so important, but that does not mean that he lacks the understanding of how to use them properly! A properly used Fireball can cause a lot of destruction\u2026and can send a man to prison in a hurry."
+  },
+  {
+   "name": "2 - Gammicor",
+   "description": "Gammicor is a warrior at heart and comes from the outer wastelands of Vulcor where such talents are necessary in order to survive. He is both fast and strong and is known for delivering deadly strikes within the first minute or two of a fight. A dispute over Clan territory resulted in Gammicor's crime of maiming a man."
+  },
+  {
+   "name": "3 - Luron",
+   "description": "Luron is a crafty man that discovered that spells are excellent for augmenting a thief's skills when breaking into mansions and castles. However, suffering greatly from arrogance and self-confidence can bring down even the best thief, and this was also the case with Luron who is now serving as a Gladiator."
+  },
+  {
+   "name": "4 - Ratface",
+   "description": "This Gladiator has earned his named due to the facial features that makes him resemble a rodent. His pronounced upper teeth also make him lisp and all in all he is quite unpleasant to be around. However, he is not to be underestimated as a fighter as he is very fast and agile. His style of fighting is mainly based around run-by attacks, which seem to work against most opponents. What his crime was, nobody really knows or cares...they are just happy that he is behind bars."
+  },
+  {
+   "name": "5 - Tarran",
+   "description": "Tarran is a former wizard that mainly delved into the art of controlling the element of earth. His great powers were once highly sought by builders as it would allow them to work faster. Alas, even the best wizard can make mistakes and so did Tarran \u2013 at least if causing a major landslide and thus killing 500 villagers can be called a mistake."
+  },
+  {
+   "name": "6 - Ogrilar",
+   "description": "'Ugly' and 'huge' is probably the easiest and best way to describe this Gladiator! Ogrilar is a typical example of how wrong it can go for someone who spends far too much time under the blazing sun of Vulcor. You could say that the role as Gladiator is perfect for him as his crime was to slaughter countless men and women in the small mountain villages north of Dagonar."
+  },
+  {
+   "name": "7 - Micella",
+   "description": "Micella is currently the only female Gladiator from Vulcor, but nevertheless she is a dangerous adversary on the Arena floor. She has a reputation resisting most spells and for gutting her opponents. Actually, that was also how she murdered her late husband, whom she claimed to have beaten her on a daily basis."
+  },
+  {
+   "name": "8 - Sir Zircon",
+   "description": "This Gladiator is a former noble but the titles he held were immediately stripped away from him when he was caught stealing from the royal coffers. His background has formed him into a quite versatile warrior and he is more or less a Jack of all trades much like Multinios."
+  },
+  {
+   "name": "9 - Wraular",
+   "description": "Wizards' experiments sometimes go wrong - Wraular is the perfect example of this! He is half man, half beast and is covered in coarse hair from top to toe. His demeanour is also that of a primitive animal and he can only utter a few words. Wraular has not committed a crime as such but the authorities of Vulcor have deemed him too dangerous to run free."
+  },
+  {
+   "name": "10 - Father Silmo",
+   "description": "Father Silmo, a former priest of Dagonar, is actually the father of Multinios who is the leading Gladiator from Orumant. As they are linked in blood so you could say they are in crime. When Multinios was arrested it was too much for Silmo who in a fit of anger 'accidentally' punched one of the royal guardsmen in the head."
+  },
+  {
+   "name": "RAVARCIL",
+   "description": "(Still to come...)"
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+MIDlet-Name: EoE Orumant
+MIDlet-Vendor: watAgame
+MIDlet-Version: 5.2.8
+MIDlet-1: EoE Orumant, /icon.png, com.watAgame.eoe_town.EoETown
+Nokia-MIDlet-Category: Game
+MIDlet-Jar-URL: http://wap.pokeplay.com/apps/files/orumant_k700_en_trial.jar
+MIDlet-Jar-Size: 107614
+PID-CHKSUM: 20

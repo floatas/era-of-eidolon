@@ -1,0 +1,9 @@
+MIDlet-Version: 5.2.2
+MIDlet-Vendor: watAgame
+Nokia-MIDlet-Category: Game
+PID-CHKSUM: internal
+MIDlet-Jar-URL: orumant_no60_en_trial.jar
+MIDlet-1: EoE Orumant, /icon.png, com.watAgame.eoe_town.EoETown
+MIDlet-Jar-Size: 107829
+MIDlet-Name: EoE Orumant
+PID-CHKSUM: 20

@@ -1,0 +1,268 @@
+========================================================================
+TILEMAPS (type 2)
+========================================================================
+  location 0x01  25 x 35    875 tiles, 27 distinct
+  location 0x02  35 x 50   1750 tiles, 20 distinct
+  location 0x03  40 x 40   1600 tiles, 26 distinct
+  location 0x04  40 x 40   1600 tiles, 33 distinct
+  location 0x05  40 x 40   1600 tiles, 30 distinct
+  location 0x06  40 x 40   1600 tiles, 31 distinct
+  location 0x07  20 x 35    700 tiles, 28 distinct
+  location 0x08  36 x 29   1044 tiles, 19 distinct
+  location 0x09  40 x 8     320 tiles, 18 distinct
+  location 0x0a  12 x 9     108 tiles, 14 distinct
+  location 0x0b  30 x 30    900 tiles, 24 distinct
+  location 0x0c  35 x 25    875 tiles, 25 distinct
+  location 0x0d  20 x 20    400 tiles, 21 distinct
+  location 0x0e  10 x 20    200 tiles, 16 distinct
+  location 0x0f  12 x 6      72 tiles, 13 distinct
+  location 0x10  20 x 10    200 tiles, 14 distinct
+  location 0x11  15 x 15    225 tiles, 13 distinct
+  location 0x12  15 x 15    225 tiles, 19 distinct
+
+========================================================================
+LOCATION TEXT (type 3)
+========================================================================
+
+  --- location 0x01 ---
+    [1959] Village
+    [1834] Gorrak attacks
+    [1973] Hrom: HELP! Brave Hero please save me from this vile Gorrak...
+    [1972] Villager: Make sure to check the crates and barrels that you find along your way. Maybe they contain something useful!
+    [19ac] Talk to Hrom
+    [19a8] Talk to villager
+    [1971] Villager: You should speak with the dwarf Hrom. He knows more about this than we do. He is near the small lava streams North of here.
+    [19a9] Destroy Crate
+    [196b] You can move to another location by stepping onto the red tiles marked with green arrows
+    [1974] Hrom: Thank you for killing the beast! If you want to go further into the volcano let me give you some advice. /  / In order to restore the lava strea
+    [19aa] Fight Gorrak
+    [1958] The wizard Shirard has gone mad from too many years under the relentless sun of Vulcor. He is now working on a project that he sees as a grand tribute
+    [1970] Villager: Please save us from the mad wizard Shirard! His experiments will soon kill us all if you don't stop him.
+
+  --- location 0x02 ---
+    [195a] Lava Island
+    [1834] Gorrak attacks
+    [1946] Beetle attacks
+    [1978] Trader: Hello there adventurer! May I interest you with something from my stock? Perhaps a new weapon, a suit of armour or a skill or spell...
+    [1988] You destroy the crate and notice a lever that was hidden inside it. /  / As you pull the lever you see a bridge appear from beneath the lava. Now ther
+    [1975] Hi again. To get to the island guarded by beetles you must find a hidden lever that can raise a bridge over the lava. I have updated your quest log, w
+    [19ac] Talk to Hrom
+    [194e] Fight Beetle
+    [1976] Hrom: So you found the 1st cogwheel! /  / I think I heard a bunch of Gorrak speak of the 2nd one. Maybe it's in the Dwarven Hall North of here... /  /
+    [19a9] Destroy Crate
+    [198a] The crate contained a small greasy cogwheel that is labelled 1 of 3. /  / Obviously, there must be 2 more cogwheels to find.
+    [1987] This crate has holes in it and it looks as if it contains a lever of some kind.
+    [19aa] Fight Gorrak
+    [19ab] Trade
+
+  --- location 0x03 ---
+    [195b] Dwarven Hall
+    [198b] You find yet another cogwheel similar to the first you find. Just one more to go and you have them all!
+    [1978] Trader: Hello there adventurer! May I interest you with something from my stock? Perhaps a new weapon, a suit of armour or a skill or spell...
+    [1947] Skeleton attacks
+    [19ac] Talk to Hrom
+    [196c] At first sight this cave looks like any other cave, but on closer inspection you notice traces of ancient architecture. /  / It looks like this was on
+    [19a9] Destroy Crate
+    [1977] Hrom: You found the 2nd cogwheel already? /  / I don't know where the 3rd one is hidden, but perhaps Mira can help you. She is the rogue that hides in
+    [194f] Fight Skeleton
+    [19ab] Trade
+    [1992] You destroy the crate but there is nothing inside. Better luck next time.
+
+  --- location 0x04 ---
+    [195c] Mira's Hideout
+    [19ad] Fight Mira
+    [196d] That's strange... Somewhere near you can hear a woman sing!
+    [194d] Fight Fungusman
+    [1a37] Mira attacks
+    [1979] Mira: Hah, do you really think that you can sneak in here unnoticed? I already know why you are here...you want to know where Shirard put the 3rd cogw
+    [19a9] Destroy Crate
+    [197a] Mira: Impressive! For your efforts I will tell you that the 3rd cogwheel is hidden in a cave called the Lair East of here. It is guarded by a colony o
+    [198e] You managed to defeat Mira the rogue! When the fight is over she drinks a healing potion that takes care of her wounds.
+    [19ae] Speak with Mira
+    [1a12] You destroy the crate and a magical portal suddenly appears!
+    [1992] You destroy the crate but there is nothing inside. Better luck next time.
+    [1837] Fungusman attacks
+    [19b8] You destroy the crate and hear a low "click" nearby. Aside from that there is nothing special about the crate. Better luck next time.
+
+  --- location 0x05 ---
+    [195d] The Lair
+    [1834] Gorrak attacks
+    [1946] Beetle attacks
+    [1978] Trader: Hello there adventurer! May I interest you with something from my stock? Perhaps a new weapon, a suit of armour or a skill or spell...
+    [1989] Hrom: So you finally managed to find the 3rd cogwheel! / All that remains now is to place them in Shirard's statue, which is in the Forge somewhere to
+    [19ac] Talk to Hrom
+    [194e] Fight Beetle
+    [19a9] Destroy Crate
+    [19aa] Fight Gorrak
+    [19ab] Trade
+    [198c] You smash the crate and find a third cogwheel! Now you just need to find the place to insert them.
+    [1992] You destroy the crate but there is nothing inside. Better luck next time.
+
+  --- location 0x06 ---
+    [195e] The Core
+    [1978] Trader: Hello there adventurer! May I interest you with something from my stock? Perhaps a new weapon, a suit of armour or a skill or spell...
+    [1993] You destroy the barrel but it is empty. Better luck next time.
+    [1945] Golem attacks
+    [194c] Fight Golem
+    [1952] Destroy barrel
+    [19ab] Trade
+
+  --- location 0x07 ---
+    [195f] The Forge
+    [1986] Shirard: You fool! Have you any idea what you have just done? You have destroyed my statue...my dream...and for that you shall die!
+    [1956] Use cogwheels
+    [1949] Fight Shirard
+    [17f4] The wizard before you is clearly mad and his eyes shine with rage and hatred. He attacks you so get ready to fight!
+    [1996] You put in the 3 cogwheels and immediately you hear a mechanism inside the statue beginning to turn. /  / Slowly the lava streams revert to their norm
+    [196e] You have finally reached your destination and you can hear the heavy sounds of the Forge somewhere ahead.
+    [1957] You have restored the lava streams and all that remains now is to make sure that Shirard does not repeat his mistake...
+    [1995] As you open a small hatch at the base of the statue you can see that there is room for 3 cogwheels. Obviously you don't have all cogwheels yet!
+
+  --- location 0x08 ---
+    [1960] Old Shrine
+    [198d] Secret exposed!
+    [197e] Dreyfus: Good, good! I can see that you have put all the undead creatures to rest. /  / As a small token of my gratitude please take these 3 Gold coin
+    [1993] You destroy the barrel but it is empty. Better luck next time.
+    [1947] Skeleton attacks
+    [19af] Speak to Dreyfus
+    [197d] Dreyfus: Oh, hallo there young one! I am Dreyfus, the priest. /  / I see that you have found your way here, but I must warn you. The shrine beyond is 
+    [19a9] Destroy Crate
+    [194f] Fight Skeleton
+    [19b9] "Click"
+    [1952] Destroy barrel
+    [197f] Dreyfus: Already back? I think that there are still some undead lurking around in there...I would be forever thankful if you could also take care of t
+    [1992] You destroy the crate but there is nothing inside. Better luck next time.
+
+  --- location 0x09 ---
+    [1961] The Long Run
+    [198d] Secret exposed!
+    [1834] Gorrak attacks
+    [19a9] Destroy Crate
+    [19aa] Fight Gorrak
+
+  --- location 0x0a ---
+    [1962] Cave of Doom
+    [198d] Secret exposed!
+    [194d] Fight Fungusman
+    [1952] Destroy barrel
+    [1837] Fungusman attacks
+
+  --- location 0x0b ---
+    [1964] Aldor's Outpost
+    [19b6] Aldor attacks
+    [198d] Secret exposed!
+    [1834] Gorrak attacks
+    [1951] Fight Aldor
+    [19a9] Destroy Crate
+    [197c] Aldor: Okay, you brought it on yourself then. Prepare to feel my blade!
+    [196f] This relatively small cave is apparently inhabited by someone...you can hear someone whistling somewhere ahead.
+    [19aa] Fight Gorrak
+    [197b] Aldor: Hey, get out of here you scum! This is my loot and I will rather kill you than let you touch it.
+    [1992] You destroy the crate but there is nothing inside. Better luck next time.
+
+  --- location 0x0c ---
+    [1963] Fire Cave
+    [1946] Beetle attacks
+    [17f5] Fire Devils are unnatural creations that burn everything in their path. It seems you are blocking the path of this one!
+    [1985] Tillic: I see that you don't have my gem yet. I take it that the fire devils still live then. Please return to me once you have taken care of them.
+    [1978] Trader: Hello there adventurer! May I interest you with something from my stock? Perhaps a new weapon, a suit of armour or a skill or spell...
+    [1984] Tillic: Wow, it must really have taken all your strength to defeat those two fire devils, but you did it! I would like to give you these few Gold coin
+    [1955] Talk to Tillic
+    [1983] Tillic: Hello there, stranger. Just a word of caution - a pair of ugly fire devils live at the far end of the cave and they don't really care for visi
+    [194e] Fight Beetle
+    [198f] Having slain the two fire devils, you notice a small gem stone that one of them must have held. It fits the description of Tillic's gem so perhaps you
+    [194b] Fight Fire Devil
+    [19ab] Trade
+
+  --- location 0x0d ---
+    [1965] The Evil Eye
+    [198d] Secret exposed!
+    [1954] Talk to Milas
+    [17f6] Floating like a balloon with a giant eye the beholder approaches you...and attacks!
+    [1980] Milas: Over here! You should be very careful around here. A dangerous beholder has made it's lair in this area and it has a very bad temper. /  / I ha
+    [19a9] Destroy Crate
+    [1981] Milas: Hurrah, you actually managed to slay the beholder! I would never have thought that. Please take these 5 Gold coins as a small reward for helpin
+    [194a] Fight Beholder
+    [1982] Milas: Oh no, please don't tell me that the beholder is too hard for you to handle! Perhaps you could try to slay it again or perhaps come back later?
+
+  --- location 0x0e ---
+    [1966] Ilrik's Tomb
+    [198d] Secret exposed!
+    [1947] Skeleton attacks
+    [194f] Fight Skeleton
+
+  --- location 0x0f ---
+    [1967] Dune Burrow
+    [198d] Secret exposed!
+    [1946] Beetle attacks
+    [194e] Fight Beetle
+
+  --- location 0x10 ---
+    [1968] Crypt
+    [198d] Secret exposed!
+    [17f5] Fire Devils are unnatural creations that burn everything in their path. It seems you are blocking the path of this one!
+    [1950] Fight Ghost
+    [19bc] This crate is surrounded by a magical barrier that must be removed somehow before you can destroy the crate.
+    [19be] Talk to ghost
+    [19bd] Behind thick walls the entrapped soul has waited an eternity. The key to its release lies not in boxes all but in stone columns.
+    [19ba] Touch pillar
+    [19a9] Destroy Crate
+    [1948] Ghost Attacks
+    [194b] Fight Fire Devil
+    [19bf] Ghost: Greetings stranger. I have been trapped in here since I died long ago but now that you have opened the door I am free at last. I thank you of a
+    [19bb] You touch the pillar and hear a low buzzing sound nearby.
+    [19b8] You destroy the crate and hear a low "click" nearby. Aside from that there is nothing special about the crate. Better luck next time.
+
+  --- location 0x11 ---
+    [1969] Lava Pit
+    [198d] Secret exposed!
+    [1946] Beetle attacks
+    [194e] Fight Beetle
+    [19a9] Destroy Crate
+
+  --- location 0x12 ---
+    [196a] Golem Secret
+    [198d] Secret exposed!
+    [194d] Fight Fungusman
+    [1945] Golem attacks
+    [194c] Fight Golem
+    [19a9] Destroy Crate
+    [1837] Fungusman attacks
+
+========================================================================
+QUESTS / OBJECTIVES (type 10 id 0)
+========================================================================
+    [19a2] Find 3rd cogwheel
+    [19a4] Defeat Shirard
+    [19c7] 3rd Cogwheel
+    [199f] Find lever to extend bridge
+    [19a3] Restore lava stream
+    [17f3] This metal cogwheel is quite heavy and smeared with dirty oil. It looks like it will fit into some sort of machinery.
+    [19a7] Slay the Beholder
+    [19c5] Gemstone
+    [19a6] Return gem from fire devils to Tillic
+    [1953] Seek out Mira
+    [19c4] 1st Cogwheel
+    [17eb] This small gemstone sparkles as you hold it in the light of your torch. It must be the one that Tillic is missing so perhaps you should return it to h
+    [19a0] Find 1st cogwheel
+    [199e] Rescue Hrom from the Gorrak
+    [19a1] Find 2nd cogwheel
+    [19a5] Clear the Shrine of undead
+    [19c6] 2nd Cogwheel
+
+========================================================================
+CREATURE CATALOGUE (types 7/8/11, shared ids)
+========================================================================
+  id 0x00: sprite, anim, props
+  id 0x0e: sprite, anim, props
+  id 0x18: sprite, anim, props
+  id 0x19: sprite, anim, props
+  id 0x1b: sprite, anim, props
+  id 0x1c: sprite, anim, props
+  id 0x1d: sprite, anim, props
+  id 0x20: sprite, anim, props
+  id 0x22: sprite, anim, props
+  id 0x23: sprite, anim, props
+  id 0x2a: sprite, anim, props
+
+MISSING (server-supplied, lost): type 1 (placed entities), type 9 (map nodes)

@@ -1,0 +1,16 @@
+Summary for jars/EoE-Orumant-no30-trial.jar
+Decompiled with CFR 0.152
+
+
+com.watAgame.eoe_town.b
+----------------------------
+
+keyPressed(int )
+  Unable to fully structure code
+
+
+com.watAgame.eoe_town.d
+----------------------------
+
+run()
+  Unable to fully structure code

@@ -1,0 +1,22 @@
+Summary for jars/EoE-ShiradsForge.jar
+Decompiled with CFR 0.152
+
+
+b
+----------------------------
+
+run()
+  Exception : org.benf.cfr.reader.util.ConfusedCFRException: Started 2 blocks at once
+
+
+i
+----------------------------
+
+a(e boolean )
+  Unable to fully structure code
+a(e b java.lang.Throwable )
+  Unable to fully structure code
+g()
+  Unable to fully structure code
+h()
+  Loose catch block
