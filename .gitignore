@@ -34,3 +34,9 @@ extracted/
 # Rendered maps — derived from the jars, regenerate with:
 #   python3 tools/render_map.py ShiradsForge && python3 tools/render_map.py SterlingLake
 assets/maps/
+
+# MicroEmulator jars, fetched from Maven Central:
+#   for a in microemu-javase microemu-cldc microemu-midp microemu-device-large; do
+#     curl -O https://repo1.maven.org/maven2/org/microemu/$a/2.0.4/$a-2.0.4.jar
+#   done
+tools/microemu/

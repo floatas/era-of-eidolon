@@ -1080,3 +1080,39 @@ is more to it.
 
 Worth finishing — sub-second scripted playthroughs would beat driving the
 emulator by synthetic keystrokes and screenshots — but it is unfinished.
+
+---
+
+# Emulator choice, reconsidered
+
+FreeJ2ME-Plus was picked early because it was the obvious open-source option,
+not because it was compared for this job. Having now hit two of its limits,
+the landscape is worth writing down.
+
+**FreeJ2ME-Plus** — what the game actually runs on, and it runs well: desktop,
+and in a browser via CheerpJ. The original is abandoned; the -Plus fork is
+maintained. Two costs for our purposes:
+  * HTTP is a stub. A real `HttpConnectionImpl` had to be written twice, once
+    for the desktop build and once for freej2me-web (whose Connector refuses
+    every scheme but sms://).
+  * `Display.setCurrent` queues a request without notifying the event thread.
+    An AWT frontend hides it; headless the game never gets a screen.
+
+**MicroEmulator** (org.microemu on Maven Central, 2.0.4) — pure Java, LGPL,
+explicitly built to be embedded, and **`org.microemu.cldc.http.Connection` is a
+real `java.net.HttpURLConnection` wrapper**, so no shim at all. Its docs
+describe an `org.microemu.app.Headless` entry point, though that class is not
+in the 2.0.4 Maven artifact; driving `org.microemu.app.Common` directly needs
+an `EmulatorContext`, which the Swing and SWT frontends supply and a headless
+one would have to provide. Last released 2010, so compatibility with this game
+is unproven.
+
+**KEmulator nnmod** — the accuracy leader, with real debug tooling (Memory
+View, Class Watcher, Profiler) and UEI integration for Eclipse and NetBeans.
+Windows-first, so it would need Wine here.
+
+The sensible split: keep FreeJ2ME-Plus for *playing*, since it demonstrably
+works including in the browser, and try MicroEmulator for the *test harness*,
+where being embeddable and already having networking is worth more than
+rendering fidelity. Both talk to the same server and load the same jar, so
+they can coexist.
