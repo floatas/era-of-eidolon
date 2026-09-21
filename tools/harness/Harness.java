@@ -9,7 +9,15 @@ import org.recompile.mobile.Mobile;
 import org.recompile.mobile.MobilePlatform;
 
 /**
- * Run the MIDlet headless, drive it from a script, and print its state.
+ * Run the MIDlet headless under FreeJ2ME, drive it from a script, and print
+ * its state.
+ *
+ * Superseded by MEHarness, which does the same job under MicroEmulator and
+ * actually reaches the game. This one stops at the front door: FreeJ2ME's
+ * Display queues setCurrent on an event thread that, with no AWT frontend to
+ * wake it, never runs, so MobilePlatform.displayable stays null and there is
+ * nothing to drive. Kept because FreeJ2ME is still the emulator we play on,
+ * and a fix there would be worth having.
  *
  * The emulator is a slow way to test a server: fifteen seconds to boot, then
  * synthetic keystrokes and screenshots to find out what happened. But
