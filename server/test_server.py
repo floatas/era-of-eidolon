@@ -186,6 +186,21 @@ def main():
         check(f"{game}: the patch leaves the ground and drops the obstacle",
               not wrong, str(wrong[:2]))
 
+        # A door is not a chute. Every transition has to land the player
+        # beside the doorway that leads back, or the way home is across the
+        # map and the link reads as one-way even though it is not.
+        stranded = []
+        for r in w.entity_table():
+            if r[12] != 4:
+                continue
+            src, dst, ax, ay = r[1], r[14], r[15], r[16]
+            back = [t for t, d in w.EXITS.get(dst, []) if d == src]
+            if not back or not any(max(abs(ax - bx), abs(ay - by)) <= 1
+                                   for bx, by in back):
+                stranded.append((src, dst, (ax, ay)))
+        check(f"{game}: every doorway lands you beside the way back",
+              not stranded, f"{len(stranded)} do not, e.g. {stranded[:2]}")
+
         # monsters must not borrow the townsfolk sheet
         check(f"{game}: monsters are not NPCs",
               all(m.creature != w.npc_creature for m in w.living()))

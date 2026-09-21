@@ -477,10 +477,31 @@ class World:
                         best = (d, x, y)
         return (best[1], best[2]) if best else (1, 1)
 
-    def arrival(self, location):
-        """Where to drop the hero when entering a location. Same rule as a
-        fresh spawn: outside every doorway's trigger box, or the two
-        locations bounce the player between them forever."""
+    def arrival(self, location, came_from=None):
+        """Where to drop the hero when entering a location.
+
+        Beside the doorway that leads BACK to where they came from, which is
+        the whole difference between a door and a chute. Without the
+        `came_from` half of it every route into a location lands on the same
+        tile, so half the time the player steps out next to some other
+        chapter's doorway and the way home is across the map — it reads as
+        one-way even though the link is not.
+
+        Never ON the doorway: that fires it again as the map loads and the
+        two locations bounce the player back and forth.
+        """
+        mp = self.map(location)
+        if mp and came_from is not None:
+            back = [t for t, dest in self.exits.get(location, [])
+                    if dest == came_from]
+            doors = {t for t, _ in self.exits.get(location, [])}
+            for bx, by in back:
+                for dx, dy in ((0, 1), (1, 0), (0, -1), (-1, 0),
+                               (1, 1), (-1, -1), (1, -1), (-1, 1)):
+                    x, y = bx + dx, by + dy
+                    if (0 <= x < mp.w and 0 <= y < mp.h
+                            and mp.walkable(x, y) and (x, y) not in doors):
+                        return x, y
         return self.spawn_point(location)
 
     # -- population ---------------------------------------------------------
@@ -818,7 +839,7 @@ class World:
         rows, state = [], 1
         for loc in self.locations:
             for n, ((x, y), dest) in enumerate(self.EXITS.get(loc, [])):
-                dx, dy = self.arrival(dest)
+                dx, dy = self.arrival(dest, came_from=loc)
                 if local:
                     mp = self.map(loc)
                     dest = loc
