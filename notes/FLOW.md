@@ -71,3 +71,38 @@ puts it exactly where it belongs.
 Enough to order the story — Fishking, then Black Eye at the Pirate Den, then
 back to the Holy Site — but not to name which island is north of the Harbour.
 Three candidates fit. Left unwired rather than guessed.
+
+## The bestiary was in the strings too
+
+Each location's type 3 table carries the action labels its context menu
+needs, and among them are the `Fight <name>` lines. Which means the jar
+states, exactly, which creatures fight where:
+
+    Beetle        Lava Island, The Lair, Fire Cave, Dune Burrow, Lava Pit
+    Gorrak        Village, Lava Island, The Lair, The Long Run, Aldor's Outpost
+    Skeleton      Dwarven Hall, Old Shrine, Ilrik's Tomb
+    Fungusman     Mira's Hideout, Cave of Doom, Golem Secret
+    Golem         The Core, Golem Secret
+    Fire Devil    Fire Cave, Crypt
+    Ghost         Crypt          Beholder   The Evil Eye
+    Shirard       The Forge      Mira       Mira's Hideout    Aldor  Aldor's Outpost
+
+Eleven names for Shirad's Forge, eight for Sterling Lake, twelve for Mistral
+Grove, and the keys are shared between chapters — `0x194f` is Skeleton in both
+Shirad's Forge and Sterling Lake, `0x1a1f` is Swarm in both Sterling Lake and
+Mistral Grove. One bestiary across the series.
+
+That is the species half of the lost type 9 table, recovered. The other half —
+which tile each one stands on, with what hit points — is still ours.
+
+**Which sheet draws which name is inference, not recovery.** Nothing states
+it; `CREATURE_SPRITE` is read off the art, and the confident ones are
+unmistakable: a skeleton, a crab, a swarm of flies, a spark of light, a stand
+of tree trunks. Two constraints help. Names appearing in both chapters must be
+drawn by a sheet present in both, which pins Ghost, Gorrak and Beholder to
+Shirad's Forge and Mistral Grove's three shared sheets. And a name the text
+uses in only one place, spelled like a proper noun — Mira, Shirard, Aldor — is
+a person rather than a species, and wears the chapter's people sheet.
+
+Sterling Lake's fishmen are the exception that had to be allowed for: they are
+drawn on the same sheet as the Fishking, because he is one of them.

@@ -13,6 +13,7 @@ The checks assert against what the decompiled client actually does, with the
 source line noted, so a failure says which client expectation was broken.
 """
 
+import collections
 import os
 import struct
 import sys
@@ -215,9 +216,43 @@ def main():
         check(f"{game}: eleven quest objectives", len(w.quests()) == 11,
               f"found {len(w.quests())}")
 
-        # monsters must not borrow the townsfolk sheet
-        check(f"{game}: monsters are not NPCs",
-              all(m.creature != w.npc_creature for m in w.living()))
+        # The chapters name their own monsters, location by location, in the
+        # "Fight <name>" strings. Every one has to resolve to a sheet this
+        # jar carries, and two different species must not share one.
+        names = sorted({n for l in w.locations for n in w.fights(l)})
+        check(f"{game}: every location names its creatures", len(names) >= 8,
+              f"only {len(names)} names found")
+        unknown = [n for n in names if w.creature_for(n) not in w.creatures]
+        check(f"{game}: every named creature has a sheet", not unknown,
+              str(unknown))
+        recurring = [n for n in names
+                     if sum(1 for l in w.locations if n in w.fights(l)) > 1]
+        sprites = [w.creature_for(n) for n in recurring]
+        check(f"{game}: recurring species do not share a sheet",
+              len(set(sprites)) == len(sprites),
+              str(sorted(collections.Counter(sprites).items())))
+
+        # a location's monsters come from its own list, not from a bag
+        wrong = [l for l in w.locations if w.fights(l)
+                 and any(m.creature not in
+                         {w.creature_for(n) for n in w.fights(l)}
+                         for m in w.mobs.values()
+                         if m.location == l and not m.npc)]
+        check(f"{game}: monsters match the location's own list", not wrong,
+              f"{len(wrong)} locations differ, e.g. {wrong[:3]}")
+
+        # A monster used to be forbidden the townsfolk sheet, because back
+        # when species were chosen arbitrarily, using it meant a bug. Now the
+        # chapters name their own monsters and Sterling Lake's fishmen are
+        # drawn on the same sheet as the Fishking, who is one of them. So the
+        # rule is narrower: a monster may wear that sheet only if the text
+        # names a fight against something that resolves to it.
+        by_sheet = {w.creature_for(n) for l in w.locations
+                    for n in w.fights(l)}
+        check(f"{game}: monsters wear a sheet their chapter names",
+              all(m.creature in by_sheet for m in w.living()),
+              str(sorted({hex(m.creature) for m in w.living()}
+                         - {hex(c) for c in by_sheet})))
 
         # nodes index the tag 21/25 arrays and d.n, sized from tag 25
         top = max((m.node for m in w.mobs.values()), default=0)

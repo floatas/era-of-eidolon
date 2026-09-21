@@ -622,6 +622,71 @@ class World:
             self.mobs[m.node] = m
             self.next_node += 1
 
+    # Which creature fights where, recovered from each chapter's own text.
+    # Every location's type 3 table carries the action labels it needs, and
+    # among them are the "Fight <name>" lines the context menu shows. So the
+    # jar states, exactly, that Beetles are in Lava Island, The Lair, Fire
+    # Cave, Dune Burrow and Lava Pit — and nowhere else. That is the species
+    # half of the lost type 9 table, and it was sitting in the strings all
+    # along.
+    FIGHT = re.compile(r"Fight ([A-Za-z][A-Za-z' ]{0,18})$")
+
+    def fights(self, location):
+        """The creature names that fight in a location, as the game names
+        them. Authoritative: this is watAgame's own text."""
+        out = []
+        for _, v in sorted(self.text(location).items()):
+            m = self.FIGHT.fullmatch(v.strip())
+            if m and m.group(1) not in out:
+                out.append(m.group(1))
+        return out
+
+    # Which sheet draws which name is NOT stated anywhere, so this is read off
+    # the art and is inference, not recovery. The ones here are unmistakable —
+    # a skeleton, a crab, a swarm of flies, a fishman with a trident, a spark
+    # of light, a stand of tree trunks. Anything absent falls back to a stable
+    # arbitrary choice, which still beats the old behaviour of picking a
+    # different species every time a location was populated.
+    CREATURE_SPRITE = {
+        # Shirad's Forge
+        "Skeleton": 0x1d, "Beetle": 0x19, "Ghost": 0x1b, "Beholder": 0x23,
+        "Gorrak": 0x1c, "Fire Devil": 0x2a, "Fungusman": 0x20, "Golem": 0x18,
+        # Sterling Lake — 0x3c is the fishman sheet, and the Fishking is a
+        # fishman, which is why it doubles as the chapter's NPC art
+        "Fishman": 0x3c, "Sandleech": 0x33, "Crab": 0x3a, "Swarm": 0x37,
+        "Aquamental": 0x2f, "Black Eye": 0x3b, "Jaques": 0x3b,
+        # Mistral Grove
+        "will o' wisp": 0x45, "treeman": 0x43, "spider": 0x42,
+        "demon dog": 0x40, "reaperweed": 0x41, "Trix": 0x44,
+        "guard": 0x3f, "Salar": 0x3f,
+    }
+
+    def creature_for(self, name):
+        """A sheet for a creature name, the same one every time."""
+        if not hasattr(self, "_species"):
+            self._species = {}
+        if name in self._species:
+            return self._species[name]
+        pinned = self.CREATURE_SPRITE.get(name)
+        if pinned in self.creatures:
+            self._species[name] = pinned
+            return pinned
+        # A name the text uses in only one place, spelled like a proper noun,
+        # is a person or a boss rather than a species — Mira, Shirard, Aldor —
+        # and those wear the chapter's people sheet.
+        here = sum(1 for l in self.locations if name in self.fights(l))
+        if here == 1 and name[:1].isupper() and self.npc_creature:
+            self._species[name] = self.npc_creature
+            return self.npc_creature
+        fighters = [c for c in self.creatures if c != self.npc_creature]
+        taken = set(self._species.values())
+        spare = [c for c in fighters
+                 if c not in taken and c not in self.CREATURE_SPRITE.values()]
+        pool = spare or [c for c in fighters if c not in taken] or fighters
+        pick = pool[sum(map(ord, name)) % len(pool)]
+        self._species[name] = pick
+        return pick
+
     def populate_location(self, loc):
         """Which creatures a chapter has is in its jar (types 7/8/11 share an
         id per creature); where they stood was in the lost tables, so scatter a
@@ -632,12 +697,16 @@ class World:
         ax, ay = self.spawn_point(loc)
         # Deterministic per location, so a save reloads the same encounter.
         rng = random.Random(f"{self.game}:{loc}")
-        fighters = [c for c in self.creatures if c != self.npc_creature]
+        # The species are the location's own — the tiles they stand on are
+        # still ours, because that half of type 9 really is gone.
+        named = [self.creature_for(n) for n in self.fights(loc)]
+        fighters = named or [c for c in self.creatures
+                             if c != self.npc_creature]
         if not fighters:
             return
         placed = 0
-        for _ in range(2):
-            creature = fighters[rng.randrange(len(fighters))]
+        for _ in range(max(1, min(2, len(fighters)))):
+            creature = fighters[placed % len(fighters)]
             for _ in range(80):
                 x, y = ax + rng.randint(-5, 5), ay + rng.randint(-5, 5)
                 if (x, y) == (ax, ay) or self.mob_at(x, y, loc):
