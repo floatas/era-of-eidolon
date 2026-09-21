@@ -57,6 +57,36 @@ def centre_px(w, loc):
     return tile_px(w, loc, mp.w // 2, mp.h // 2)
 
 
+# What each marker means, and — the part that matters — whether the position
+# is watAgame's or ours.
+MARKERS = {
+    "crate":  ((205, 160,  90), "crates and barrels, from the tilemap"),
+    "barrel": ((205, 160,  90), None),
+    "spawn":  ((250, 250, 250), "where the player arrives (reconstructed)"),
+    "foe":    ((225,  80,  80), "creatures (reconstructed)"),
+    "npc":    (( 90, 205, 225), "townsfolk (reconstructed)"),
+}
+
+
+def markers(w, loc):
+    """Everything worth drawing on a location.
+
+    Only the containers are real. Crates and barrels are cut into the tilemap
+    itself — the obstacle nibble says which — so those squares are exactly
+    where watAgame put them. Every creature and every arrival point is this
+    server's invention, because the tables that held them were the ones the
+    real server sent.
+    """
+    out = [((x, y), kind) for x, y, kind in w.containers(loc)]
+    out.append((w.spawn_point(loc), "spawn"))
+    if not any(m.location == loc for m in w.mobs.values()):
+        w.populate_location(loc)
+    for m in w.mobs.values():
+        if m.location == loc:
+            out.append(((m.x, m.y), "npc" if getattr(m, "label", None) else "foe"))
+    return out
+
+
 def way_back(w, loc, to):
     """The doorway in `loc` that leads to `to`, if it has one."""
     for tile, dest in w.EXITS.get(loc, []):
@@ -190,6 +220,24 @@ def main():
         sheet.alpha_composite(img, (int(x + shift[0]), int(y + shift[1])))
 
     draw = ImageDraw.Draw(sheet)
+
+    for loc in imgs:
+        x, y = pos[loc]
+        for (tx, ty), kind in markers(w, loc):
+            px, py = tile_px(w, loc, tx, ty)
+            px += x + shift[0]
+            py += y + shift[1] + STEP_Y   # sit on the tile, not above it
+            colour = MARKERS[kind][0] + (255,)
+            if kind in ("crate", "barrel"):
+                draw.rectangle([px - 5, py - 5, px + 5, py + 5],
+                               outline=colour, width=3)
+            elif kind == "spawn":
+                draw.ellipse([px - 8, py - 8, px + 8, py + 8],
+                             outline=colour, width=3)
+            else:
+                draw.ellipse([px - 6, py - 6, px + 6, py + 6], fill=colour,
+                             outline=(0, 0, 0, 255))
+
     for (ax, ay), (bx, by) in edges:
         draw.line([(ax + shift[0], ay + shift[1]),
                    (bx + shift[0], by + shift[1])],
@@ -217,8 +265,18 @@ def main():
     note = ("tilemaps from the jar; which doorway leads where is "
             "reconstructed, not original")
     draw.text((margin, 20 + 56), note, font=label_font, fill=(150, 150, 165, 255))
+    legend_y = 20 + 56 + 38
+    for kind, (colour, caption) in MARKERS.items():
+        if not caption:
+            continue
+        draw.ellipse([margin + 4, legend_y + 8, margin + 18, legend_y + 22],
+                     fill=colour + (255,))
+        draw.text((margin + 30, legend_y + 4), caption, font=label_font,
+                  fill=(190, 190, 205, 255))
+        legend_y += 34
+
     if stray:
-        draw.text((margin, 20 + 56 + 38),
+        draw.text((margin, legend_y + 6),
                   f"right-hand column: {len(stray)} locations the "
                   f"reconstructed graph gives no way into",
                   font=label_font, fill=(150, 150, 165, 255))
