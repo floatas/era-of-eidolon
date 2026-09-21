@@ -145,6 +145,9 @@ public class MEHarness {
                     type(p[1]);
                 } else if ("shot".equals(p[0])) {
                     shot(out, step.split(":", 2)[1]);
+                } else if ("goto".equals(p[0])) {
+                    walkTo(out, Integer.parseInt(p[1]), Integer.parseInt(p[2]),
+                           p.length > 3 ? Long.parseLong(p[3]) : 15000);
                 } else if ("entities".equals(p[0])) {
                     entities(out);
                 } else if ("await".equals(p[0])) {
@@ -390,6 +393,67 @@ public class MEHarness {
     }
 
     /**
+     * Walk to a tile. Movement is velocity based and the game advances on its
+     * own thread, so a fixed hold moves an unpredictable distance; steering
+     * by the hero's actual position each step is what makes a scripted walk
+     * repeatable. Stops early if the location changes — crossing a doorway is
+     * usually the point.
+     */
+    private static void walkTo(PrintStream out, int tx, int ty, long timeoutMs)
+            throws Exception {
+        long until = System.currentTimeMillis() + timeoutMs;
+        Object start = field(currentScreen(), "I");
+        int stalled = 0;
+        int[] was = {-1, -1};
+        while (System.currentTimeMillis() < until) {
+            Object screen = currentScreen();
+            Object loc = field(screen, "I");
+            if (loc != null && !loc.equals(start)) {
+                return;                       // through a doorway
+            }
+            Object ox = field(screen, "Q"), oy = field(screen, "R");
+            if (!(ox instanceof Integer) || !(oy instanceof Integer)) {
+                return;
+            }
+            int x = (Integer) ox, y = (Integer) oy;
+            if (x == tx && y == ty) {
+                return;
+            }
+            stalled = (x == was[0] && y == was[1]) ? stalled + 1 : 0;
+            if (stalled > 6) {
+                out.println("MEH stuck at " + x + "," + y
+                    + " heading for " + tx + "," + ty);
+                return;
+            }
+            was[0] = x;
+            was[1] = y;
+            // one axis at a time; the isometric keys move a single tile step
+            int code = x != tx ? (x < tx ? -4 : -3) : (y < ty ? -2 : -1);
+            key(code, 400);
+        }
+    }
+
+    /** Wait for whichever of these screens turns up first; -1 if none does. */
+    private static int awaitAny(PrintStream out, int[] want, long timeoutMs)
+            throws Exception {
+        long until = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < until) {
+            Object u = field(currentScreen(), "u");
+            if (u instanceof Integer) {
+                for (int w : want) {
+                    if (((Integer) u).intValue() == w) {
+                        return w;
+                    }
+                }
+            }
+            Thread.sleep(50);
+        }
+        out.print("MEH timed out waiting for a screen; ");
+        dump(out);
+        return -1;
+    }
+
+    /**
      * Splash to walkable map in one step: the preamble every scripted run
      * shares, with a fresh hero so a run never depends on what the last one
      * left in the record store.
@@ -399,10 +463,16 @@ public class MEHarness {
             return;
         }
         key(-6, 60);
-        if (await(out, "6", 15000)) {
+        // With MEH_RMS=file the account token survives the run, so opcode 1
+        // answers with "Select hero" (screen 5) rather than hero creation
+        // (screen 6). Handle both, so the same script works cold or warm.
+        int screen = awaitAny(out, new int[] {5, 6, 8}, 15000);
+        if (screen == 6) {
             setText(0, name);
             pick(1, 0);
             choose(out, "Create hero");
+        } else if (screen == 5) {
+            choose(out, entriesHave(name) ? name : labelOf(entries().elementAt(0)));
         }
         if (!await(out, "8", 15000)) {
             return;

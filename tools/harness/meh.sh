@@ -34,4 +34,4 @@ cp=$(find "$lib" -name '*.jar' ! -name '*sources*' | tr '\n' ':')
 exec "$java" \
     -Djava.awt.headless=true \
     -Dmeh.rms="${MEH_RMS:-memory}" \
-    -cp "$root/tools/harness:$root/tools/harness/nokia:$cp" MEHarness "$@"
+    -cp "$root/tools/harness/mepatch:$root/tools/harness:$root/tools/harness/nokia:$cp" MEHarness "$@"
