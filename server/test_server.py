@@ -71,7 +71,7 @@ def chunks_of(resp):
 
 def main():
     print("world")
-    for game in ("ShiradsForge", "SterlingLake"):
+    for game in ("ShiradsForge", "SterlingLake", "MistralGrove"):
         w = World(game)
         rows = w.entity_table()
         check(f"{game}: locations found", len(w.locations) > 10,

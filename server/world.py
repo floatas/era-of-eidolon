@@ -348,18 +348,47 @@ class World:
             ("The Lair", "The Core"),          # "when you go through the Core"
             ("The Core", "The Forge"),         # "the Forge somewhere to the North"
         ],
+        "MistralGrove": [
+            ("Outskirts", "Mirror Pool"),      # "the small pond called Mirror Pool"
+            ("Mirror Pool", "Spiderwood"),     # "the first part is in Spiderwood"
+            ("Spiderwood", "Hollow Hill"),     # the handle is in Hollow Hill's crate
+            ("Hollow Hill", "The Hedge"),      # "your way is blocked by a magical hedge"
+            ("The Hedge", "Mistral Grove"),    # "the altar at Mistral Grove"
+            ("Mistral Grove", "Deadwood"),     # "the Deadwood North of here"
+        ],
     }
 
     def story_links(self):
-        """The recovered route, as location ids."""
+        """The main chain, as location ids.
+
+        Two chapters give their route away in dialogue, and in both the route
+        is exactly the location ids in order:
+
+            Village 1, Lava Island 2, Dwarven Hall 3, Mira's Hideout 4,
+            The Lair 5, The Core 6, The Forge 7
+            Outskirts 40, Mirror Pool 41, Spiderwood 42, Hollow Hill 43,
+            The Hedge 44, Reaperwood 45, Mistral Grove 46, Deadwood 47
+
+        watAgame numbered their locations in the order you walk them. So the
+        chain is the run of consecutive ids up to the last place the script
+        names, and the dialogue is what tells us where that run ends — after
+        it come the side chambers, which the script never mentions and which
+        each have a single doorway.
+
+        Reaperwood is the case that proves the rule: nothing says a word
+        about it, but it sits at 45 between The Hedge and Mistral Grove, and
+        chaining by id puts it where it belongs.
+        """
         by_name = {}
         for loc in self.locations:
             by_name.setdefault(self.name(loc), loc)
-        out = []
-        for a, b in self.STORY_ROUTE.get(self.game, ()):
-            if a in by_name and b in by_name:
-                out.append((by_name[a], by_name[b]))
-        return out
+        named = [by_name[n] for pair in self.STORY_ROUTE.get(self.game, ())
+                 for n in pair if n in by_name]
+        if not named:
+            return []
+        end = self.locations.index(max(named))
+        chain = self.locations[:end + 1]
+        return list(zip(chain, chain[1:]))
 
     def _build_exits(self):
         """Wire the locations together.

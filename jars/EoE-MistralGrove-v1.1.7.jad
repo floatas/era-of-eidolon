@@ -1,0 +1,13 @@
+Manifest-Version: 1.0
+MIDlet-Data-Size: 5000
+MicroEdition-Configuration: CLDC-1.0
+MIDlet-Name: Mistral Grove
+Created-By: 1.5.0_01-b08 (Sun Microsystems Inc.)
+Ant-Version: Apache Ant 1.6.1
+MIDlet-Vendor: watAgame
+MIDlet-1: Mistral Grove, /icon.png, Main
+MIDlet-Version: 1.1.7
+MicroEdition-Profile: MIDP-2.0
+MIDlet-Jar-Size: 158793
+MIDlet-Jar-URL: Remote  Technologies Egypt Mystery.jar
+Nokia-MIDlet-Category: Game

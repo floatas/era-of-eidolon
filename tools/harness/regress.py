@@ -136,7 +136,8 @@ def main():
         return 2
 
     for jar, name in (("EoE-ShiradsForge.jar", "Shirad's Forge"),
-                      ("EoE-SterlingLake.jar", "Sterling Lake")):
+                      ("EoE-SterlingLake.jar", "Sterling Lake"),
+                      ("EoE-MistralGrove.jar", "Mistral Grove")):
         chapter(jar, name)
     transition()
 

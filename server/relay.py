@@ -63,7 +63,10 @@ class Tee:
 
 sys.stdout = Tee(sys.stdout, os.path.join(LOGS, "relay.log"))
 
-GAMES = {"prod4": "ShiradsForge", "prod5": "SterlingLake"}
+# Each chapter shipped pointing at its own production host, which is how a
+# request says which game it belongs to.
+GAMES = {"prod4": "ShiradsForge", "prod5": "SterlingLake",
+         "prod6": "MistralGrove"}
 _seq = 0
 
 # What each jar already carries, so a want-list can be shown as have/missing.

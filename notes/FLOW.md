@@ -29,6 +29,38 @@ Secret — are named in no dialogue at all, and each has exactly one painted
 doorway. They are side chambers, and where they hang off the chain is not
 recoverable from anything in the jar.
 
+## Mistral Grove says as much, and settles the rule
+
+    Outskirts      0x1be5  "seek out the druid, Horus ... He hangs out near
+                            the small pond that is called Mirror Pool"
+    Mirror Pool    0x1bfa  "You need a special sickle to cut through the hedge.
+                            ... the first part is in the area called Spiderwood"
+    Spiderwood     0x1c00  "the sharp, curved blade of a sickle"
+    Hollow Hill    0x1c02  "a short wooden rod that looks like the handle"
+    The Hedge      0x1bf3  "your way is blocked by some a magical hedge!"
+    The Hedge      0x1bfb  "release the boy from the altar at Mistral Grove"
+    Mistral Grove  0x1c1e  "She is probably hiding in the Deadwood North of here"
+
+    Outskirts -> Mirror Pool -> Spiderwood -> Hollow Hill -> The Hedge
+              -> Mistral Grove -> Deadwood
+
+Now put the two routes next to their location ids:
+
+    Village 1, Lava Island 2, Dwarven Hall 3, Mira's Hideout 4,
+    The Lair 5, The Core 6, The Forge 7
+    Outskirts 40, Mirror Pool 41, Spiderwood 42, Hollow Hill 43,
+    The Hedge 44, Reaperwood 45, Mistral Grove 46, Deadwood 47
+
+**watAgame numbered their locations in the order you walk them.** Two
+chapters, two independent scripts, and in both the dialogue order is the id
+order exactly. The chain is therefore the run of consecutive ids up to the
+last place the script names; everything after it is a side chamber, never
+mentioned, with a single doorway each.
+
+Reaperwood is the case that proves it. Nothing in the game says a word about
+it, but it sits at 45 between The Hedge and Mistral Grove, and chaining by id
+puts it exactly where it belongs.
+
 ## Sterling Lake says less
 
     Harbour     0x1a26  "one can be found on the small island just North of here"

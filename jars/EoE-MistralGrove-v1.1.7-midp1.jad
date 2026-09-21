@@ -1,0 +1,14 @@
+Manifest-Version: 1.0
+MIDlet-Data-Size: 5000
+MicroEdition-Configuration: CLDC-1.0
+MIDlet-Name: Mistral Grove
+Created-By: 1.5.0_01-b08 (Sun Microsystems Inc.)
+Ant-Version: Apache Ant 1.6.1
+MIDlet-Vendor: watAgame
+MIDlet-1: Mistral Grove, /icon.png, Main
+MIDlet-Version: 1.1.7
+MicroEdition-Profile: MIDP-1.0
+Nokia-MIDlet-Category: Game
+MIDlet-Jar-Size: 62426
+MIDlet-Jar-URL: Watagame_Mistral_Grove[1].v1.17_Retail_BiNPDA.jar
+Nokia-MIDlet-Category: Game
