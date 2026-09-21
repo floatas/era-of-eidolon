@@ -535,8 +535,42 @@ class World:
                 rows.append(exit_entity(state, loc, x, y, dest, dx, dy,
                                         radius=pad))
                 state += 1
+        # Interactables, built from the location's own action labels. The
+        # crates and NPCs are drawn into the tilemap, so their real positions
+        # were in the lost table; these are placed near where you arrive so
+        # they are at least reachable.
+        self.interactables = {}
+        for loc in self.locations:
+            mp = self.map(loc)
+            if not mp:
+                continue
+            ax, ay = self.spawn_point(loc)
+            spots = [(ax + dx, ay + dy) for dx, dy in
+                     ((2, 0), (-2, 0), (0, 2), (0, -2), (3, 1), (-3, -1))]
+            for (key, label), (x, y) in zip(self.action_labels(loc), spots):
+                if not mp.walkable(x, y):
+                    x, y = ax, ay
+                rows.append(interact_entity(state, loc, x, y, key))
+                self.interactables[state] = (loc, label, key)
+                state += 1
+
         self.entity_count = state
         return rows
+
+    ACTION_VERBS = ("destroy", "talk", "speak", "trade", "use", "search",
+                    "open", "pick", "read")
+
+    def action_labels(self, location):
+        """The short command-like strings in a location's text table. These
+        are the labels the lost entities carried: "Destroy Crate", "Talk to
+        Hrom", "Trade". Fights are excluded — those are kind 2, not kind 3."""
+        out = []
+        for key, v in sorted(self.text(location).items()):
+            low = v.lower()
+            if len(v) < 26 and ":" not in v and "\n" not in v \
+                    and low.startswith(self.ACTION_VERBS):
+                out.append((key, v))
+        return out
 
     def entity_states(self):
         """tag 21 -> d.i. An entity only fires while its state is 2
@@ -638,6 +672,24 @@ def exit_entity(state, location, x, y, dest, dx, dy, radius=0):
     return entity(state, location, kind=4, tail=bytes([dest, dx, dy]),
                   box=(max(0, x - radius), max(0, y - radius),
                        x + 1 + radius, y + 1 + radius))
+
+
+def interact_entity(state, location, x, y, label_key, w=2, h=2):
+    """Something you can walk up to and use — a crate, an NPC.
+
+    trigger 1 puts it in d.S instead of firing on entry, and pressing the
+    action key in exploration builds a "Choose action" menu out of everything
+    in range (d.java:1539). The label comes from the text key at [7][8], so
+    these read exactly as the game wrote them: "Destroy Crate", "Talk to Hrom".
+
+    kind 3 sends opcode 11 with the entity's state index, which is how the
+    server gets to decide what was inside.
+    """
+    r = entity(state, location, kind=3, tail=b"",
+               box=(max(0, x - 1), max(0, y - 1), x + w, y + h), trigger=1)
+    r[7] = (label_key >> 8) & 0xFF
+    r[8] = label_key & 0xFF
+    return r
 
 
 def message_entity(state, location, x, y, text_key, w=1, h=1):

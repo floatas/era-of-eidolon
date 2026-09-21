@@ -963,3 +963,29 @@ a genuinely helpful error.
 Both are fetched once, at opcode 8, and never re-requested — which is why each
 record carries a location field. Send only the current location's rows and
 everything else is empty: no monsters anywhere else, and no way back.
+
+---
+
+# Interactables: trigger 1 + kind 3
+
+An entity with `trigger == 1` is not fired by walking into it. `d.b()` puts it
+into `d.S` instead, and pressing the action key in exploration builds a
+"Choose action" menu from everything currently in range (d.java:1539):
+
+    var3.addElement(new f(this.a(var5[7], var5[8]), var6));
+
+so the menu label is the text key at **[7][8]** — note, not [9][10]. Choosing
+one with `kind == 3` sends opcode 11 with the entity's state index in tag 1,
+and the server decides what happened.
+
+That is the whole NPC-and-crate mechanism, and the labels are still in each
+location's type 3 table, written as commands: "Destroy Crate", "Talk to Hrom",
+"Talk to villager", "Trade", "Speak with Mira", "Use cogwheels". Building the
+entities from those strings gives back the real interactions —
+"Talk to Hrom" in the Village answers with his own line:
+
+    Hrom: HELP! Brave Hero please save me from this vile Gorrak...
+
+What cannot be recovered is *where* they stood: crates and NPCs are drawn into
+the tilemap, and their coordinates were in the lost table. These are placed
+near the arrival point so they are at least reachable.

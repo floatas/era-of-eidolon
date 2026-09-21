@@ -707,58 +707,54 @@ def fetch_resources(req):
 
 @handler(11)
 def interact(req):
-    """Opcode 11 — sent by a type 1 kind-3 entity ("ask the server"), tag 1 =
-    the entity's state index.
+    """Opcode 11 — a type 1 kind-3 entity was used. tag 1 is its state index
+    (d.java:907, `new b(11, this).b(1, var2[0])`).
 
-    The reply goes to d.c(b), which shows the stat-raise screen when tag 21 is
-    non-zero, with the six ability scores as a byte[6] in tag 22. Message tags
-    1 and 2 are handled generically by the client, so this is also how an NPC
-    or a crate says something.
+    The reply goes to d.c(b): a non-zero tag 21 opens the stat-raise screen
+    with the six abilities as a byte[6] in tag 22. Message tags 1 and 2 are
+    handled generically by the client, so they are how a crate or an NPC
+    actually says something.
     """
     w, _, hero = session_world(req)
+    state = req.int_(1)
+    entry = getattr(w, "interactables", {}).get(state)
     chunks = []
-    if w.raises:
+
+    if entry:
+        loc, label, _ = entry
+        text = w.text(loc)
+        low = label.lower()
+
+        if low.startswith("trade"):
+            body = (f"The trader looks you over.\n\nYou have {w.gold} gold.\n"
+                    f"Visit the Market from the menu to spend it.")
+        elif low.startswith(("talk", "speak")):
+            who = label.split()[-1].lower()
+            body = next((v for v in text.values()
+                         if v.lower().startswith(who + ":")), None) \
+                or next((v for v in text.values() if ":" in v and len(v) > 40),
+                        "They have nothing to say.")
+        else:
+            # a crate, a barrel: prefer a line that talks about opening one
+            body = next((v for k, v in sorted(text.items())
+                         if len(v) > 30
+                         and any(word in v.lower()
+                                 for word in ("crate", "barrel", "inside"))),
+                        "You find nothing.")
+            if "cogwheel" in body.lower() or "lever" in body.lower():
+                w.gold += 10
+        chunks.append(chunk_str(1, body[:250]))
+    elif w.raises:
         chunks += [chunk_int(21, w.raises),
-                   chunk_raw(22, 0, bytes(min(255, w.stats[s])
-                                          for s in w.STATS))]
+                   chunk_raw(22, 0, bytes(min(255, w.stats[s]) for s in w.STATS))]
     else:
-        # nothing pending: say something from this location's own text
-        t = w.text()
-        line = next((v for k, v in sorted(t.items())
-                     if len(v) > 40 and ":" in v), "Nothing happens.")
-        chunks.append(chunk_str(1, line[:180]))
+        chunks.append(chunk_str(1, "Nothing happens."))
+
+    if hero:
+        saves().save(hero, w.game)
+    print(f"    \033[35minteract: state {state} -> "
+          f"{entry[1] if entry else 'unknown'}\033[0m")
     return build_response(status=1, chunks=chunks)
-
-
-@handler(25)
-def skills_or_spells(req):
-    """tag 1 = 9 for skills, 13 for spells (i.java case 9)."""
-    w, _, _ = session_world(req)
-    spells = req.int_(1) == 13
-    title = "Spells" if spells else "Skills"
-    rows = ["Firebolt - 150", "Mend - 90"] if spells else \
-           ["Strike - 120", "Shoot - 100", "Block - 60"]
-    return build_response(status=1, chunks=[chunk_str(21, title)] +
-                          [chunk_str(20, r) for r in rows])
-
-
-@handler(27)
-def help_text(req):
-    w, _, _ = session_world(req)
-    rows = [f"{s}: {w.STAT_HELP[s]}" for s in w.STATS]
-    rows.append("A turn is 720 units of time, spent by both sides.")
-    rows.append("The clock also runs in real time, so thinking costs you.")
-    return build_response(status=1, chunks=[chunk_str(21, "Help")] +
-                          [chunk_str(20, r) for r in rows])
-
-
-@handler(26)
-def rankings(req):
-    st = saves()
-    rows = sorted(((v.get("level", 1), n.split(":", 1)[-1])
-                   for n, v in st.data["heroes"].items()), reverse=True)[:10]
-    return build_response(status=1, chunks=[chunk_str(21, "Rankings")] +
-                          [chunk_str(20, f"{n} - level {lv}") for lv, n in rows])
 
 
 def default(req):
