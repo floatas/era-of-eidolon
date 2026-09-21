@@ -27,6 +27,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "server"))
 sys.path.insert(0, HERE)
 
+from atlas import markers, sprite  # noqa: E402
 from render_map import STEP_X, STEP_Y, render  # noqa: E402
 from world import World  # noqa: E402
 
@@ -199,6 +200,33 @@ def main():
         return ((gx + tx - gy - ty) * STEP_X + shift[0],
                 (gx + tx + gy + ty) * STEP_Y + shift[1])
 
+    # Everything that stands on the ground, drawn back to front across the
+    # whole world rather than per map, so a creature near the front of one
+    # location correctly overlaps the location behind it.
+    standing = []
+    for loc in imgs:
+        for (tx, ty), kind, creature in markers(w, loc):
+            gx, gy = at[loc]
+            standing.append((gx + tx + gy + ty, loc, tx, ty, kind, creature))
+    for _, loc, tx, ty, kind, creature in sorted(standing):
+        cx, cy = px(loc, tx, ty)
+        cy += STEP_Y                       # stand on the tile, not above it
+        if kind in ("crate", "barrel"):
+            draw.rectangle([cx - 6, cy - 6, cx + 6, cy + 6],
+                           outline=(205, 160, 90, 255), width=2)
+            continue
+        if kind == "spawn":
+            draw.ellipse([cx - 8, cy - 8, cx + 8, cy + 8],
+                         outline=(250, 250, 250, 255), width=3)
+            continue
+        drawn = sprite(w, creature) if creature is not None else None
+        if drawn:
+            img2, (ox2, oy2) = drawn
+            sheet.alpha_composite(img2, (int(cx + ox2), int(cy + oy2)))
+        else:
+            draw.ellipse([cx - 6, cy - 6, cx + 6, cy + 6],
+                         fill=(225, 80, 80, 255), outline=(0, 0, 0, 255))
+
     # Every doorway, marked. Half of watAgame's carry the red tile and half
     # are bare ground you would only find by walking into it, so the bare
     # ones are annotated here — on the map, not in the game.
@@ -212,19 +240,22 @@ def main():
             elif (w.map(loc).tile(tx, ty) & 15) != w.marker and tile:
                 sheet.alpha_composite(tile, (int(cx) - 16, int(cy) - 7))
 
+    # A portal is drawn the way a road map shows a junction that leaves the
+    # page: a ring where it stands and the number of the place it goes. A
+    # line across the whole world only looked like a road.
     joined = {(min(a, b), max(a, b)) for a, _, b, _, _ in seams(w)}
+    stub = font(22)
     for a, links in w.EXITS.items():
         for ta, b in links:
-            if (min(a, b), max(a, b)) in joined or b not in at or a not in at:
+            if (min(a, b), max(a, b)) in joined or a not in at or b not in at:
                 continue
-            back = [tb for tb, d in w.EXITS.get(b, []) if d == a]
-            if not back:
-                continue
-            p, q = px(a, *ta), px(b, *back[0])
-            draw.line([p, q], fill=(180, 120, 255, 200), width=3)
-            for c in (p, q):
-                draw.ellipse([c[0] - 6, c[1] - 6, c[0] + 6, c[1] + 6],
-                             fill=(200, 150, 255, 255))
+            cx, cy = px(a, *ta)
+            draw.ellipse([cx - 13, cy - 9, cx + 13, cy + 9],
+                         outline=(205, 155, 255, 255), width=3)
+            tag = f"->{b}"
+            draw.text((cx + 17, cy - 11), tag, font=stub, fill=(0, 0, 0, 255))
+            draw.text((cx + 16, cy - 12), tag, font=stub,
+                      fill=(215, 175, 255, 255))
 
     label, title = font(26), font(46)
     for loc in imgs:
@@ -240,13 +271,14 @@ def main():
     draw.text((margin + 2, 22), head, font=title, fill=(0, 0, 0, 255))
     draw.text((margin, 20), head, font=title, fill=(245, 245, 250, 255))
     sub = (f"{len(seams(w))//2} shared borders laid out flat. A purple ring "
-           f"is a stone arch, which teleports; its partner is on the other "
-           f"end of the purple line. Faded red tiles are doorways watAgame "
-           f"left unmarked.")
+           f"is a portal, labelled with the location it reaches. Faded red "
+           f"tiles are doorways watAgame left unmarked.")
     draw.text((margin, 78), sub, font=label, fill=(160, 160, 180, 255))
     draw.text((margin, 112),
-              "doorways and placement are watAgame's" if real
-              else "doorways are reconstructed, so this layout is a guess",
+              "creatures, townsfolk, crates and doorways are all watAgame's, "
+              "from the tables an early build shipped locally" if real
+              else "doorways and creature positions are reconstructed, "
+                   "so this layout is a guess",
               font=label, fill=(160, 160, 180, 255))
 
     path = os.path.join(OUT, f"{game}-world.png")
