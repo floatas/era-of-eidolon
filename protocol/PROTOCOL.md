@@ -1034,3 +1034,49 @@ Sterling Lake's equivalent is 0x3c. `World.npc_creature` finds it that way.
 k() renders a node at state 1 or 2, but only state 2 is added to `aF`, and the
 draw loop walks `aF` (d.java:528). A node left at state 1 therefore exists,
 blocks movement and takes its turn while never being drawn.
+
+---
+
+# Testing without the emulator
+
+`server/test_server.py` runs in **0.09s** and encodes, as assertions, every
+data-shape bug this project actually hit — each one paired with the client line
+that punishes it:
+
+    type 9 rows are 19 bytes
+    type 1 records carry all four trailing blocks   a(Object) computes the
+                                                    second block's offset
+                                                    unconditionally
+    turn results carry >= 2 payload bytes           d.java:1077 reads as[p]
+                                                    and as[p+1] before the
+                                                    kind switch
+    every animation id exists for its creature      j.java throws rather than
+                                                    degrading
+    opcode 12 lists at least two entities           d.a(b) ends on
+                                                    aF.elementAt(1)
+    hero row sends max HP and damage                not current and max
+    all six action slots are f records              d.java:1059 casts them
+                                                    unguarded
+    status is non-zero on every opcode              0 reads as "Second login
+                                                    detected!"
+    node ids fit the state arrays                   d.n is sized from tag 25
+
+## Running the MIDlet itself headless
+
+FreeJ2ME is a plain Java library implementing MIDP — its AWT window is only one
+frontend — so in principle the game can run in-process with no window, driven
+by `MobilePlatform.keyPressed()` and inspected by reflecting over the
+obfuscated fields. `tools/harness/Harness.java` gets most of the way: the jar
+loads, the MIDlet is constructed and `startApp()` runs, in about a second.
+
+It does not finish. `MobilePlatform.displayable` stays null, so the game never
+gets a screen and its own thread never starts. The likely cause is in
+FreeJ2ME's `Display`: `setCurrent` puts a request in an AtomicReference and
+does **not** notify the event thread, which is asleep in
+`serializedEvents.wait()`. With the AWT frontend attached a paint event wakes
+it a moment later and nobody notices; headless, nothing ever does. Poking it
+with `callSerially()` (which does notify) was not enough on its own, so there
+is more to it.
+
+Worth finishing — sub-second scripted playthroughs would beat driving the
+emulator by synthetic keystrokes and screenshots — but it is unfinished.
