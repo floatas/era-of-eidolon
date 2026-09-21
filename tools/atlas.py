@@ -31,6 +31,7 @@ from world import World  # noqa: E402
 
 PAD = 64          # render_map's own margin; the tile origin sits inside it
 GAP = 40          # clear space between two joined locations
+LABEL = 44        # room above each map for its name
 OUT = os.path.join(os.path.dirname(HERE), "assets")
 
 
@@ -47,10 +48,18 @@ def font(size):
     return ImageFont.load_default()
 
 
+# A rendered map is a diamond in a rectangle, so most of it is empty. Each
+# one is trimmed to its own art and the crop recorded here, or the layout
+# spaces the sheet out by margins nobody can see.
+TRIM = {}
+
+
 def tile_px(w, loc, x, y):
     """Where a tile lands inside that location's rendered image."""
     mp = w.map(loc)
-    return (mp.h * STEP_X + PAD + (x - y) * STEP_X, PAD + (x + y) * STEP_Y)
+    ox, oy = TRIM.get((w.game, loc), (0, 0))
+    return (mp.h * STEP_X + PAD + (x - y) * STEP_X - ox,
+            PAD + (x + y) * STEP_Y - oy)
 
 
 def centre_px(w, loc):
@@ -192,70 +201,63 @@ def overlaps(box, placed, slack=24):
 
 
 def layout(w, imgs):
-    """Breadth-first from the busiest location, pushing each neighbour out
-    along the direction of the doorway that reaches it."""
-    graph = {loc: list(w.EXITS.get(loc, [])) for loc in imgs}
-    root = max(graph, key=lambda l: len(graph[l]))
+    """Lay the chapter out as what it is: a chain.
 
-    pos = {root: (0, 0)}
-    boxes = [(0, 0) + imgs[root].size]
-    edges = []
-    queue = [root]
-    seen = {root}
-
+    Breadth-first from the location a new hero starts in, one row per step
+    away from it, top to bottom. The reconstructed graph is very nearly
+    linear — Shirad's Forge runs Village, Dwarven Hall, Lava Island and
+    Mira's Hideout side by side, then The Lair, The Core, The Forge and on
+    down — so a layered layout reads like the walk itself, where the old
+    radial one read like spilled cards.
+    """
+    start = w.locations[0] if w.locations else next(iter(imgs))
+    depth, parent = {start: 0}, {}
+    queue, order = [start], [start]
     while queue:
         loc = queue.pop(0)
+        for _, dest in w.EXITS.get(loc, []):
+            if dest in imgs and dest not in depth:
+                depth[dest] = depth[loc] + 1
+                parent[dest] = loc
+                queue.append(dest)
+                order.append(dest)
+
+    deepest = max(depth.values(), default=0)
+    for loc in imgs:                       # anything the walk never reached
+        depth.setdefault(loc, deepest + 1)
+
+    rows = {}
+    for loc in order + [l for l in imgs if l not in order]:
+        rows.setdefault(depth[loc], []).append(loc)
+
+    # keep a child under its parent: order each row by where its parent sits
+    for d in sorted(rows)[1:]:
+        above = rows.get(d - 1, [])
+        rows[d].sort(key=lambda l: (above.index(parent[l])
+                                    if l in parent and parent[l] in above
+                                    else len(above)))
+
+    pos, y = {}, 0
+    for d in sorted(rows):
+        row = rows[d]
+        width = sum(imgs[l].size[0] for l in row) + GAP * (len(row) - 1)
+        x = -width // 2
+        for loc in row:
+            pos[loc] = (x, y)
+            x += imgs[loc].size[0] + GAP
+        y += max(imgs[l].size[1] for l in row) + GAP + LABEL
+
+    # every link, drawn doorway to doorway
+    edges, drawn = [], set()
+    for loc in imgs:
         lx, ly = pos[loc]
-        for tile, dest in graph.get(loc, []):
-            if dest in seen or dest not in imgs:
-                continue
-            # the doorway we leave by, in world pixels
-            dx, dy = tile_px(w, loc, *tile)
-            door = (lx + dx, ly + dy)
-            cx, cy = centre_px(w, loc)
-            away = (dx - cx, dy - cy)
-            norm = max(1.0, (away[0] ** 2 + away[1] ** 2) ** 0.5)
-            step = (away[0] / norm, away[1] / norm)
-
-            # the doorway we arrive at, inside the destination's own image
-            back = way_back(w, dest, loc)
-            ax, ay = (tile_px(w, dest, *back) if back
-                      else centre_px(w, dest))
-
-            img = imgs[dest]
-            push = GAP
-            while True:
-                ox = door[0] + step[0] * push - ax
-                oy = door[1] + step[1] * push - ay
-                box = (ox, oy, ox + img.size[0], oy + img.size[1])
-                if not overlaps(box, boxes) or push > 4000:
-                    break
-                push += 40
-
-            pos[dest] = (ox, oy)
-            boxes.append(box)
-            edges.append((door, (ox + ax, oy + ay)))
-            seen.add(dest)
-            queue.append(dest)
-
-    # The walk above is a spanning tree — it only follows an edge to a
-    # location it has not placed yet. Every other doorway is a real link too,
-    # so draw those as well once everything has a position.
-    drawn = {(a, b) for a, b in
-             [(min(e), max(e)) for e in
-              [(tuple(x), tuple(y)) for x, y in edges]]}
-    for loc in list(pos):
-        lx, ly = pos[loc]
-        for tile, dest in graph.get(loc, []):
+        for tile, dest in w.EXITS.get(loc, []):
             if dest not in pos:
                 continue
             dx, dy = tile_px(w, loc, *tile)
-            # the graph is not symmetric — a doorway can lead somewhere that
-            # has no doorway back — so fall back to any doorway, then the
-            # middle of the map
             back = way_back(w, dest, loc)
             if not back:
-                others = [t for t, _ in graph.get(dest, [])]
+                others = [t for t, _ in w.EXITS.get(dest, [])]
                 back = others[0] if others else None
             bx, by = (tile_px(w, dest, *back) if back else centre_px(w, dest))
             a = (lx + dx, ly + dy)
@@ -266,14 +268,7 @@ def layout(w, imgs):
             drawn.add(key)
             edges.append((a, b))
 
-    # anything the graph never reaches still deserves to be on the sheet
-    far_right = max((b[2] for b in boxes), default=0)
-    stray_y = 0
-    for loc in imgs:
-        if loc not in pos:
-            pos[loc] = (far_right + GAP, stray_y)
-            stray_y += imgs[loc].size[1] + GAP
-    return pos, edges, root, seen
+    return pos, edges, start, set(depth) & set(imgs)
 
 
 def main():
@@ -283,8 +278,13 @@ def main():
     imgs = {}
     for loc in w.locations:
         img = render(w, loc, annotate=False, bg=(0, 0, 0, 0))
-        if img:
-            imgs[loc] = img
+        if not img:
+            continue
+        box = img.getbbox()
+        if box:
+            TRIM[(w.game, loc)] = (box[0], box[1])
+            img = img.crop(box)
+        imgs[loc] = img
     if not imgs:
         print("no maps")
         return 1
@@ -296,7 +296,7 @@ def main():
 
     xs = [pos[l][0] for l in imgs] + [pos[l][0] + imgs[l].size[0] for l in imgs]
     ys = [pos[l][1] for l in imgs] + [pos[l][1] + imgs[l].size[1] for l in imgs]
-    margin = 60
+    margin = 120
     width = int(max(xs) - min(xs)) + margin * 2
     height = int(max(ys) - min(ys)) + margin * 2
     shift = (margin - min(xs), margin - min(ys))
@@ -355,7 +355,7 @@ def main():
         cx, _ = centre_px(w, loc)
         label = f"{loc}  {w.name(loc)}"
         tx = x + shift[0] + cx - draw.textlength(label, font=label_font) / 2
-        ty = y + shift[1] + 14
+        ty = y + shift[1] - LABEL + 10
         draw.text((tx + 2, ty + 2), label, font=label_font, fill=(0, 0, 0, 255))
         draw.text((tx, ty), label, font=label_font,
                   fill=(255, 235, 140, 255) if loc == root
