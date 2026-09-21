@@ -37,10 +37,43 @@ requirements. It fits an author inventing a tuning table by hand about equally
 well. It does not fit a dump of watAgame's server, which would not take two
 days to enter.
 
-So: better grounded than the numbers I made up, and not established fact. The
-shape of them argues for transcription — requirements land on multiples of 3
-(3, 12, 15, 21, 27, 36, 42, 48), weapon damage on 95/100/105/120 — but that is
-an impression, not evidence.
+**Cross-checked, and the verdict changed.** All of the above was written
+before testing the numbers against the two things we hold independently: the
+official rules PDF and the official site's own listings. Four checks, none of
+which they had to pass.
+
+**1. The fields are the documented ones.** The PDF's SKILL CHARACTERISTICS
+section names exactly *Ability requirements*, *Time (Ti)* and *Effect*, and
+adds "Items have the same characteristics as skills". The export carries
+`req`, `speed` and `value`.
+
+**2. The spell categories match, on an unlabelled array index.** The PDF puts
+Spectral and Bane under INTELLIGENCE BASED, Guardian and Spirit under
+WILLPOWER BASED. In the export a requirement is a bare six-slot array —
+`[0,0,0,24,0,0]`, nothing named. Against the site's own categories:
+
+    bane      Intelligence 19/19        guardian  Willpower 19/19
+    spectral  Intelligence 12/12        spirit    Willpower 12/12
+
+Sixty-two spells, four categories, no exceptions. Gear agrees too: swords and
+hammers on Strength, bows and bombs on Dexterity.
+
+**3. The requirements rise with the site's own ordering.** Read each list in
+document order — they restart at 1 per class, which is why sorting by the
+printed number scrambles them into two interleaved series — and 165 of 171
+steps rise. The six exceptions are single adjacent swaps.
+
+**4. The steps are irregular.** Increments run 2, 3, 4, 6, 8, 9, 10, 12, 13,
+15, 18, 20, 21, 24, 27, 33, mean 7.6. A number derived from an item's rank
+would come out of a formula and step smoothly. This is what hand tuning looks
+like.
+
+To fabricate this you would have to invent a rising per-class curve matching
+an ordering you had no reason to encode, and then place the
+Intelligence/Willpower split correctly sixty-two times in an array slot with
+no name on it. **These are watAgame's numbers.** There is still no provenance
+statement anywhere, so it is not proof — but the reading that someone made
+them up does not survive the evidence.
 
 **Shape.**
 
