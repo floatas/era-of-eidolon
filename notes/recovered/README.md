@@ -47,3 +47,40 @@ invented doorway, the hub-and-spokes graph, the scattered creatures — all of
 that was reconstruction for Shirad's Forge and can now be checked against the
 real thing. Sterling Lake and Mistral Grove still have no such build, so for
 them the reconstruction stands.
+
+## Why this build and not the others
+
+It is not chronology. Shirad's Forge 1.0.0 exists in two packagings with the
+same version, both dated 29 April 2005, and only one carries the tables:
+
+    EoE-ShiradsForge-v1.0.0-midp1.jar     63 KB    4 resources   no tables
+    EoE-ShiradsForge-v1.0.0-176x208.jar  155 KB   76 resources   TABLES
+
+Sorting every jar we hold by what it carries gives three kinds of build:
+
+**Thin — 4 resources.** One tilemap-less shell that downloads the entire world
+as it plays. Every MIDP-1.0 chapter build we have is one of these: Shirad's
+Forge, Sterling Lake and Mistral Grove alike.
+
+**Data-local — 66 to 77 resources, no type 1 or 9.** Tilemaps, text, sprites
+and animation all in the jar; only *what stands where* comes from the server.
+This is what the MIDP-2.0 builds are, and what we play.
+
+**Fully offline — 76 resources including type 1 and 9.** Exactly one jar in
+fifteen.
+
+So the split is per handset, not per release. A guess at why, and it is only a
+guess: the site published what the game cost to play, a tenth of a megabyte an
+hour billed by the operator, from 0,14 Euro in Denmark to 0,60 in Italy. A
+build that needs no connection costs nothing to run, and 176x208 was the
+S60 screen of the phones sold where that mattered most.
+
+## What to look for, if anyone ever looks again
+
+A chapter jar that is both data-local **and** contains resources named `10`
+and `90`. That is the whole signature — two file names nothing else has.
+
+Sterling Lake and Mistral Grove have no such build among the fifteen we hold,
+and the candidates are gone: Mistral Grove's Motorola 128x128 and 176x220
+adaptations survive only as descriptors on mox.su, whose jars are dead on the
+live web and absent from the Wayback Machine's copy of that site.
