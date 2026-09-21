@@ -342,6 +342,53 @@ def interface_sheet(w, path_out):
     img.convert("RGB").save(path_out)
 
 
+# The Arena (jars/EoE-Dagonar, jars/EoE-Orumant) builds its gladiator out of
+# four pieces rather than drawing him. From b.java's compositor:
+#
+#     head    7 wide   — downloaded per player (pgethead.pl); gone with the server
+#     torso  16 x 14   — torso.png
+#     legs   12 wide   — legs.png
+#     weapon 13 wide   — weapons.png, drawn only in certain poses
+#
+# Note what is NOT in that list: armour. The plate is painted into every
+# torso cell. What a player could actually see of your kit was the weapon in
+# your hand, and what made you look like you was your head.
+ARENA_SHEETS = [("torso.png", 16, 14), ("legs.png", 12, 7),
+                ("weapons.png", 13, 13), ("ammu.png", 10, 10)]
+
+
+def arena_sheets(jar_path, out_dir, scale=6):
+    """The Arena's paper-doll art, cut on the grid the client reads it with."""
+    import zipfile
+    os.makedirs(out_dir, exist_ok=True)
+    made = 0
+    with zipfile.ZipFile(jar_path) as z:
+        names = set(z.namelist())
+        for name, cw, ch in ARENA_SHEETS:
+            if name not in names:
+                continue
+            im = Image.open(io.BytesIO(z.read(name))).convert("RGBA")
+            cols, rows = im.width // cw, max(1, im.height // ch)
+            pad, label = 10, font(13)
+            out = Image.new("RGBA",
+                            (cols * (cw * scale + pad) + pad,
+                             rows * (ch * scale + pad + 16) + pad),
+                            (16, 16, 22, 255))
+            d = ImageDraw.Draw(out)
+            for r in range(rows):
+                for c in range(cols):
+                    cell = im.crop((c * cw, r * ch, (c + 1) * cw, (r + 1) * ch))
+                    big = cell.resize((cw * scale, ch * scale), Image.NEAREST)
+                    x = pad + c * (cw * scale + pad)
+                    y = pad + r * (ch * scale + pad + 16)
+                    out.alpha_composite(big, (x, y))
+                    d.text((x, y + ch * scale + 2), str(r * cols + c),
+                           font=label, fill=(130, 130, 150, 255))
+            out.convert("RGB").save(os.path.join(out_dir, name))
+            made += 1
+    return made
+
+
 def main():
     games = sys.argv[1:] or ["ShiradsForge", "SterlingLake"]
     for game in games:
@@ -365,6 +412,12 @@ def main():
         interface_sheet(w, os.path.join(sheets, f"{game}-interface.png"))
         print(f"{game}: {made} walk cycles, {moves} move sheets, "
               f"4 reference sheets -> {OUT}")
+
+    jars = os.path.join(os.path.dirname(HERE), "jars")
+    arena = os.path.join(jars, "EoE-Dagonar-v5.3.3.jar")
+    if os.path.exists(arena):
+        n = arena_sheets(arena, os.path.join(OUT, "arena"))
+        print(f"Arena: {n} paper-doll sheets -> {OUT}/arena")
     return 0
 
 

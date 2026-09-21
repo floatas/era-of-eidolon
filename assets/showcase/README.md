@@ -60,3 +60,33 @@ A creature has only some of these. The townsfolk sheet has no walk at all,
 which is why they stand where they are put — and why asking for one a
 creature lacks kills the client's animation thread with "Unable to get anim N
 for monster id M".
+
+## Armour is not drawn. Weapons are.
+
+A natural question, and the answer differs between the two games.
+
+**The chapters** give the hero exactly one appearance. `d.java` loads his
+sheet from the hardcoded resource `/70` in three places and never branches on
+anything (lines 161, 254, 1641). Armour changes damage reduction and a line in
+your inventory; it does not change a pixel.
+
+**The Arena** really does assemble its gladiator, but not out of armour. Its
+compositor (`decompiled-arena/.../b.java`, the `a(Graphics, int[][], boolean)`
+method) stacks four pieces:
+
+    head     7 wide    per player, downloaded (pgethead.pl)
+    torso   16 x 14    torso.png, 40 poses
+    legs    12 wide    legs.png, 17 poses
+    weapon  13 wide    weapons.png, 18 of them, drawn only in some poses
+
+`arena/` has all four, cut on exactly that grid. Look at the torso sheet and
+the point is obvious: every one of the forty cells wears the same grey plate.
+The poses change — holding, drawing a bow, bleeding, casting, dying,
+exploding — the armour never does.
+
+So what another player could see of your kit was **the weapon in your hand**,
+and what made you look like *you* was **your head**, which the client fetched
+from the server per player. Those heads are gone with it.
+
+`mail.png` is not chainmail. It is the icon for your messages, next to
+`read.png`.
