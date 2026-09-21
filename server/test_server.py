@@ -109,12 +109,45 @@ def main():
 
         # byte 15 starts animation 14 on spawn (d.java:226); the townsfolk
         # sheet has no animation 14, and asking kills the client's paint thread
-        rows = {r[0]: r for r in w.mob_table()}
+        mob_rows = {r[0]: r for r in w.mob_table()}
         wrong = [m.node for m in w.mobs.values()
-                 if rows[m.node][15]
+                 if mob_rows[m.node][15]
                  and 14 not in w.res.anims(11, m.creature)]
         check(f"{game}: spawn animation only where the creature has one",
               not wrong, f"nodes {wrong[:5]}")
+
+        # A doorway's trigger box is checked as x1 <= heroX < x2 (d.java b()).
+        # Arriving inside one fires it again on the first frame, and the two
+        # locations bounce the player between them forever.
+        boxes = {}
+        for r in w.entity_table():
+            if r[12] == 4:
+                boxes.setdefault(r[1], []).append((r[2], r[3], r[4], r[5]))
+
+        def inside(loc, x, y):
+            return any(x1 <= x < x2 and y1 <= y < y2
+                       for x1, y1, x2, y2 in boxes.get(loc, []))
+
+        bounces = [(r[1], r[14], (r[15], r[16])) for r in w.entity_table()
+                   if r[12] == 4 and inside(r[14], r[15], r[16])]
+        check(f"{game}: no exit lands inside another exit's box", not bounces,
+              str(bounces[:3]))
+        stuck = [l for l in w.locations if inside(l, *w.spawn_point(l))]
+        check(f"{game}: no location spawns you inside a doorway", not stuck,
+              f"locations {stuck[:5]}")
+
+        # and the box has to cover ground you can actually stand on: the
+        # doorway tile itself is not walkable, d.b() inverts the test for it
+        unreachable = []
+        for loc, bs in boxes.items():
+            mp = w.map(loc)
+            for x1, y1, x2, y2 in bs:
+                if mp and not any(mp.walkable(x, y)
+                                  for y in range(y1, y2)
+                                  for x in range(x1, x2)):
+                    unreachable.append((loc, x1, y1))
+        check(f"{game}: every doorway can be walked into", not unreachable,
+              str(unreachable[:3]))
 
         # monsters must not borrow the townsfolk sheet
         check(f"{game}: monsters are not NPCs",

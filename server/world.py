@@ -273,27 +273,50 @@ class World:
     EXITS = property(lambda self: self.exits)
 
     def spawn_point(self, location):
-        """A walkable tile to stand on: next to a doorway if there is one (but
-        not on it, or you would bounce straight back), else near the middle."""
+        """A walkable tile to stand on: just outside a doorway's trigger box if
+        there is one, else near the middle.
+
+        "Just outside" is the whole point. An exit tile itself is not walkable
+        — d.b() inverts the walk test for high nibble 1, so a doorway laid on
+        ordinary ground reads as blocked — which is why the trigger box has to
+        cover the tiles AROUND the doorway rather than the doorway. Arrive
+        inside that box and the exit fires again the instant the map loads,
+        and the two locations bounce the player back and forth forever.
+        """
         mp = self.map(location)
         if not mp:
             return 1, 1
-        for (ex, ey) in self.exit_tiles(location):
-            for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0), (1, 1), (-1, -1)):
-                x, y = ex + dx, ey + dy
-                if mp.walkable(x, y) and not mp.is_exit(x, y):
-                    return x, y
+        exits = list(self.exit_tiles(location))
+
+        def clear(x, y):
+            if not mp.walkable(x, y) or mp.is_exit(x, y):
+                return False
+            return all(max(abs(x - ex), abs(y - ey)) > EXIT_RADIUS
+                       for ex, ey in exits)
+
+        # the first ring outside every trigger box, nearest doorway first
+        r = EXIT_RADIUS + 1
+        for (ex, ey) in exits:
+            for dy in range(-r, r + 1):
+                for dx in range(-r, r + 1):
+                    if max(abs(dx), abs(dy)) != r:
+                        continue
+                    if clear(ex + dx, ey + dy):
+                        return ex + dx, ey + dy
         cx, cy = mp.w // 2, mp.h // 2
         best = None
         for y in range(mp.h):
             for x in range(mp.w):
-                if mp.walkable(x, y) and not mp.is_exit(x, y):
+                if clear(x, y):
                     d = abs(x - cx) + abs(y - cy)
                     if best is None or d < best[0]:
                         best = (d, x, y)
         return (best[1], best[2]) if best else (1, 1)
 
     def arrival(self, location):
+        """Where to drop the hero when entering a location. Same rule as a
+        fresh spawn: outside every doorway's trigger box, or the two
+        locations bounce the player between them forever."""
         return self.spawn_point(location)
 
     # -- population ---------------------------------------------------------
@@ -573,24 +596,6 @@ class World:
         5: [((3, 4), 1)],
     }
 
-    def arrival(self, location):
-        """Where to drop the hero when entering a location: next to its exit
-        tile but not on it, or the map centre if there is none. Landing on the
-        tile would re-fire the exit and bounce straight back."""
-        mp = self.map(location)
-        if not mp:
-            return 1, 1
-        tiles = [t for t, _ in self.EXITS.get(location, [])]
-        for (ex, ey) in tiles:
-            for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0), (1, 1), (-1, -1)):
-                x, y = ex + dx, ey + dy
-                if mp.walkable(x, y) and not mp.is_exit(x, y):
-                    return x, y
-        for y in range(mp.h // 2, mp.h):
-            for x in range(mp.w // 2, mp.w):
-                if mp.walkable(x, y):
-                    return x, y
-        return 1, 1
 
     def entity_table(self):
         """The type 1 resource for this location: currently its exits.
@@ -606,7 +611,7 @@ class World:
         # resource fetch. That isolates "does the entity fire at all" from
         # "does the location reload work".
         mode = os.environ.get("EOE_TEST_EXIT", "")
-        pad = 3 if mode else 0
+        pad = 3 if mode else EXIT_RADIUS
         local = mode == "2"
         rows, state = [], 1
         for loc in self.locations:
@@ -755,15 +760,21 @@ def entity(state, location, kind, tail=b"", box=None, trigger=0,
     return r
 
 
-def exit_entity(state, location, x, y, dest, dx, dy, radius=0):
+# How far the trigger box reaches around a doorway tile. It must be at least
+# 1: the doorway tile itself cannot be stood on (see spawn_point), so a box
+# covering only the tile can never fire.
+EXIT_RADIUS = 1
+
+
+def exit_entity(state, location, x, y, dest, dx, dy, radius=EXIT_RADIUS):
     """A red exit tile.
 
     The trigger is this bounding box, NOT the tile's appearance — d.b() checks
     `x1 <= heroX < x2 && y1 <= heroY < y2` and nothing about the tilemap. The
     red-and-green tiles are only the artist telling you where the boxes are.
 
-    radius widens the box, which is how EOE_TEST_EXIT makes transitions
-    testable without walking across a 40x40 map to find a doorway.
+    radius widens the box further, which is how EOE_TEST_EXIT makes
+    transitions testable without walking across a 40x40 map to find a doorway.
     """
     return entity(state, location, kind=4, tail=bytes([dest, dx, dy]),
                   box=(max(0, x - radius), max(0, y - radius),
