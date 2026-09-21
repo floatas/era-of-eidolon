@@ -62,6 +62,11 @@ Recovered and saved:
                                 manifest by the site, game unchanged)
     EoE-ShiradsForge-v1.0.0-midp1   an earlier MIDP-1.0 build of the chapter
     EoE-SterlingLake-v1.1.1-midp1   likewise
+    EoE-ShiradsForge-v1.0.0-176x208 the small-screen build, 155 KB against the
+                                    64 KB of the other 1.0.0 — a different
+                                    binary, not a rename (dertz.in, which
+                                    files it under the typo "Edidolon")
+    EoE-BadazPoker-v1.0.2-176x208   likewise a distinct build
 
 Known to exist and NOT recovered:
 
@@ -74,6 +79,20 @@ Known to exist and NOT recovered:
 Every live site that once served these has since dropped them; the copies
 survive only inside the Internet Archive item `J2MEArchive`, in `Sites5.7z`
 (3.1 GB, the mox.su crawl) and `Find.7z` (26.7 GB, clean versioned releases).
-macOS's bsdtar lists those archives but extracts nothing from them — the codec
-is beyond libarchive — so getting them needs a real 7z (`brew install
-sevenzip`) and the download.
+bsdtar extracts nothing from those archives, and the reason turned out to be
+more interesting than a missing codec: **the whole hoard is deduplicated with
+symlinks**. Every repeated file is stored as a symlink to an absolute path on
+the archivist's own machine, `/home/octt/Desktop/Javante/...`. bsdtar wrote the
+dangling links and they read as nothing. 7-Zip proper (`brew install
+sevenzip`, then `7zz`) shows them for what they are.
+
+The consequence is that the *bodies* nearly all live in `Find.7z`: the copies
+in the smaller per-site archives are links pointing into it. Both Dagonar
+entries in FSN2.7z, for instance, are links to
+`Find/packs-1/TOC Mobile/7210/...` and `Find/sites-x19/arhiva.50webs.com/...`.
+So a small download may well yield nothing but links.
+
+The live web is exhausted for Mistral Grove: my-moto.ru, iceload.ru, xwap.me
+and andrew-lviv.net all 404 now, mascha2.jw.lt serves a page with no file
+behind it, mox.su answers everything with the same error page, seclub.org
+redirects away, and dertz.in has never had it.
