@@ -989,3 +989,48 @@ entities from those strings gives back the real interactions —
 What cannot be recovered is *where* they stood: crates and NPCs are drawn into
 the tilemap, and their coordinates were in the lost table. These are placed
 near the arrival point so they are at least reachable.
+
+---
+
+# Obstacles, crates and barrels are in the TILEMAP, not entities
+
+The tile's **high nibble** picks an obstacle sprite (d.java:551):
+
+    var66 = (tile & 240) >> 4;
+    if (var66 >= 2) {
+        var67 = (var66 - 2) << 3;        // 8 bytes per entry
+        drawRegion(C, x = D[v67+2..3], y = D[v67+4..5],
+                      w = D[v67+0],     h = D[v67+1],
+                      dx = D[v67+6],    dy = D[v67+7]);
+    }
+
+where C is type 5 id 2 (the obstacle sheet) and D is type 6 id 2 (the rect
+table). So the nibble means:
+
+    0 bare ground    1 exit tile ("red, marked with green arrows")
+    2+ obstacle index (nibble - 2)
+
+For Shirad's Forge that decodes to:
+
+    2 glowing capsule   3 small crystal   4 crystal cluster   5 small rock
+    6 rock              7 large rock      8 broken pillar     9 mossy rock
+   10 WOODEN CRATE     11 BARREL         12 pentagram        13 bones
+
+which means every crate and barrel in the game can be found by scanning for
+its nibble — 30 crates and 4 barrels across Shirad's Forge, 14 and 14 across
+Sterling Lake. `World.containers()` does exactly that, so "Destroy Crate"
+entities now sit on the real crates instead of being guessed at.
+
+# Identifying the townsfolk sheet
+
+Type 7 id 0x0e in Shirad's Forge is not a creature — it is a statue, a robed
+figure, a woman, a green-clad man and a dwarf in a red hat: the NPCs. It gives
+itself away in the type 11 props table, because it has animation **3**, which
+no fighting creature does (they all carry the combat set 14/15/17 instead).
+Sterling Lake's equivalent is 0x3c. `World.npc_creature` finds it that way.
+
+# Node state 2, not 1
+
+k() renders a node at state 1 or 2, but only state 2 is added to `aF`, and the
+draw loop walks `aF` (d.java:528). A node left at state 1 therefore exists,
+blocks movement and takes its turn while never being drawn.

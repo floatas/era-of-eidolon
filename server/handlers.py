@@ -459,14 +459,14 @@ def resolve(w, actions):
 
         if kind == "move":
             _, x, y = ev
-            if not w.can_stand(x, y) or w.mob_at(x, y):
+            if not w.can_stand(x, y) or w.mob_at(x, y):   # NPCs block too
                 continue          # blocked: skip this step, keep the rest
             w.hero_x, w.hero_y = x, y
             script.append(res_walk(0, x, y, w.anim(0, "walk")))
 
         elif kind == "attack":
             _, tx, ty = ev
-            target = w.mob_at(tx, ty)
+            target = w.mob_at(tx, ty, include_npcs=False)
             if target is None:
                 near = [m for m in w.living()
                         if max(abs(m.x - w.hero_x), abs(m.y - w.hero_y)) <= 1]

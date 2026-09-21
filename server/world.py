@@ -99,6 +99,15 @@ class TileMap:
         base = (self.mask_lo >> (t & 15)) & (self.mask_hi >> ((t & 240) >> 4)) & 1
         return bool((base == 1) ^ ((t & 240) == 16))
 
+    def obstacle(self, x, y):
+        """The tile's HIGH nibble picks an obstacle sprite (d.java:551):
+        `(tile & 240) >> 4`, where 0 is bare ground, 1 is an exit tile, and
+        anything >= 2 indexes the 8-bytes-per-entry table in type 6 id 2.
+        For Shirad's Forge that makes 10 a wooden crate and 11 a barrel."""
+        return (self.tile(x, y) & 240) >> 4
+
+    CRATE, BARREL = 10, 11
+
     def is_exit(self, x, y):
         """High nibble 1 flips the walkability test — in practice these are the
         'red tiles marked with green arrows' that move you between locations."""
@@ -108,7 +117,9 @@ class TileMap:
 # ------------------------------------------------------------------ game state
 
 class Mob:
-    def __init__(self, node, location, x, y, creature, hp=12, anim=1):
+    def __init__(self, node, location, x, y, creature, hp=12, anim=1,
+                 npc=False):
+        self.npc = npc
         self.node = node
         self.location = location
         self.x, self.y = x, y
@@ -294,6 +305,33 @@ class World:
         self.next_node = 1
         for loc in self.locations:
             self.populate_location(loc)
+            self.place_npcs(loc)
+
+    def place_npcs(self, loc):
+        """One standing figure per "Talk to ..." label the location carries.
+
+        They are ordinary type 9 nodes using the townsfolk sheet, with their
+        node state left at 1: k() renders anything at state 1 or 2, but only
+        state 2 goes into aF, so these are visible and never fight.
+        """
+        creature = self.npc_creature
+        mp = self.map(loc)
+        if creature is None or not mp:
+            return
+        ax, ay = self.spawn_point(loc)
+        spots = [(2, -1), (-2, 1), (1, 2), (-1, -2), (3, 0), (0, 3)]
+        talkers = [(k, v) for k, v in self.action_labels(loc)
+                   if v.lower().startswith(("talk", "speak", "trade"))]
+        for (key, label), (dx, dy) in zip(talkers, spots):
+            x, y = ax + dx, ay + dy
+            if not mp.walkable(x, y) or self.mob_at(x, y, loc):
+                x, y = ax, ay
+            m = Mob(self.next_node, loc, x, y, creature, hp=1, npc=True)
+            m.anim = self.anim(creature, "idle")
+            m.label = label
+            m.text_key = key
+            self.mobs[m.node] = m
+            self.next_node += 1
 
     def populate_location(self, loc):
         """Which creatures a chapter has is in its jar (types 7/8/11 share an
@@ -305,9 +343,12 @@ class World:
         ax, ay = self.spawn_point(loc)
         # Deterministic per location, so a save reloads the same encounter.
         rng = random.Random(f"{self.game}:{loc}")
+        fighters = [c for c in self.creatures if c != self.npc_creature]
+        if not fighters:
+            return
         placed = 0
         for _ in range(2):
-            creature = self.creatures[rng.randrange(len(self.creatures))]
+            creature = fighters[rng.randrange(len(fighters))]
             for _ in range(80):
                 x, y = ax + rng.randint(-5, 5), ay + rng.randint(-5, 5)
                 if (x, y) == (ax, ay) or self.mob_at(x, y, loc):
@@ -424,6 +465,31 @@ class World:
         "hurt":   (5, 6, 1),
     }
 
+    @property
+    def npc_creature(self):
+        """The townsfolk sheet. Every fighting creature has the combat
+        animations 14/15/17; the NPC sheet instead has 3, which nothing else
+        does — 0x0e in Shirad's Forge, 0x3c in Sterling Lake."""
+        for c in self.creatures:
+            if 3 in self.res.anims(11, c):
+                return c
+        return None
+
+    def containers(self, location):
+        """Every crate and barrel on a map, found by its obstacle nibble."""
+        mp = self.map(location)
+        if not mp:
+            return []
+        out = []
+        for y in range(mp.h):
+            for x in range(mp.w):
+                o = mp.obstacle(x, y)
+                if o == TileMap.CRATE:
+                    out.append((x, y, "crate"))
+                elif o == TileMap.BARREL:
+                    out.append((x, y, "barrel"))
+        return out
+
     def anim(self, creature, kind="idle"):
         """A valid animation id for this creature, degrading gracefully."""
         have = self.res.anims(11, creature)
@@ -449,13 +515,20 @@ class World:
     # -- queries ------------------------------------------------------------
 
     def living(self):
+        """Fighting creatures here. NPCs are nodes too, but they never fight,
+        so they stay out of the combat list and out of tag 22."""
         return [m for m in self.mobs.values()
-                if m.alive and m.location == self.location]
+                if m.alive and m.location == self.location and not m.npc]
 
-    def mob_at(self, x, y, location=None):
+    def npcs(self):
+        return [m for m in self.mobs.values()
+                if m.alive and m.location == self.location and m.npc]
+
+    def mob_at(self, x, y, location=None, include_npcs=True):
         loc = self.location if location is None else location
         for m in self.mobs.values():
-            if m.alive and m.location == loc and m.x == x and m.y == y:
+            if m.alive and m.location == loc and m.x == x and m.y == y \
+                    and (include_npcs or not m.npc):
                 return m
         return None
 
@@ -469,11 +542,16 @@ class World:
     # -- state arrays the client needs --------------------------------------
 
     def node_states(self):
-        """tag 25 -> d.l. 1 or 2 = present, 3 = gone (d.java:216).
-        Covers every location, like the table it indexes."""
+        """tag 25 -> d.l, covering every location like the table it indexes.
+
+        State 2, not 1. k() renders anything at 1 or 2, but only state 2 is
+        added to aF — and the draw loop walks aF (d.java:528), so a node at
+        state 1 exists, blocks movement and takes its turn while never being
+        drawn. 3 means gone.
+        """
         s = bytearray(self.node_count)
         for m in self.mobs.values():
-            s[m.node] = 1 if m.alive else 3
+            s[m.node] = 2 if m.alive else 3
         return bytes(s)
 
     # -- type 1 entities ----------------------------------------------------
@@ -544,15 +622,26 @@ class World:
             mp = self.map(loc)
             if not mp:
                 continue
-            ax, ay = self.spawn_point(loc)
-            spots = [(ax + dx, ay + dy) for dx, dy in
-                     ((2, 0), (-2, 0), (0, 2), (0, -2), (3, 1), (-3, -1))]
-            for (key, label), (x, y) in zip(self.action_labels(loc), spots):
-                if not mp.walkable(x, y):
-                    x, y = ax, ay
+            labels = dict(self.action_labels(loc))
+            by_text = {v.lower(): k for k, v in labels.items()}
+
+            # Crates and barrels sit on known tiles, so their entities go
+            # exactly where the art is.
+            for x, y, what in self.containers(loc):
+                key = next((k for t, k in by_text.items() if what in t), None)
+                if key is None:
+                    continue
                 rows.append(interact_entity(state, loc, x, y, key))
-                self.interactables[state] = (loc, label, key)
+                self.interactables[state] = (loc, labels[key], key)
                 state += 1
+
+            # The talkers stand where place_npcs() put them.
+            for m in self.mobs.values():
+                if m.location == loc and m.npc and getattr(m, "text_key", None):
+                    rows.append(interact_entity(state, loc, m.x, m.y,
+                                                m.text_key))
+                    self.interactables[state] = (loc, m.label, m.text_key)
+                    state += 1
 
         self.entity_count = state
         return rows
@@ -705,6 +794,18 @@ def _travel(self, location):
     self.hero_x, self.hero_y = self.arrival(location)
 
 
+def _refresh_npcs(self):
+    """Re-place the townsfolk after loading a save.
+
+    from_dict() restores the saved mob list wholesale, and saves written
+    before NPCs existed simply have none — so they would never reappear.
+    """
+    for loc in self.locations:
+        if not any(m.npc and m.location == loc for m in self.mobs.values()):
+            self.place_npcs(loc)
+
+
+World.refresh_npcs = _refresh_npcs
 World.travel = _travel
 
 
@@ -741,7 +842,10 @@ def _world_to_dict(self):
         "inventory": self.inventory, "equipped": self.equipped,
         "mobs": [{"node": m.node, "location": m.location, "x": m.x, "y": m.y,
                   "creature": m.creature, "hp": m.hp, "max_hp": m.max_hp,
-                  "alive": m.alive} for m in self.mobs.values()],
+                  "alive": m.alive, "npc": m.npc,
+                  "label": getattr(m, "label", None),
+                  "text_key": getattr(m, "text_key", None)}
+                 for m in self.mobs.values()],
     }
 
 
@@ -759,12 +863,17 @@ def _world_from_dict(self, d):
     self.raises = d.get("raises", 0)
     self.inventory = d.get("inventory") or self.inventory
     self.equipped = d.get("equipped") or self.equipped
+    self.refresh_npcs()
     self.mobs = {}
     for md in d.get("mobs", []):
         m = Mob(md["node"], md["location"], md["x"], md["y"], md["creature"],
-                hp=md.get("max_hp", 12))
+                hp=md.get("max_hp", 12), npc=md.get("npc", False))
         m.hp = md.get("hp", m.max_hp)
         m.alive = md.get("alive", True)
+        if md.get("label"):
+            m.label = md["label"]
+        if md.get("text_key"):
+            m.text_key = md["text_key"]
         self.mobs[m.node] = m
     return self
 
