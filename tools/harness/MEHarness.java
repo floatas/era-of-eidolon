@@ -145,6 +145,8 @@ public class MEHarness {
                     type(p[1]);
                 } else if ("shot".equals(p[0])) {
                     shot(out, step.split(":", 2)[1]);
+                } else if ("dismiss".equals(p[0])) {
+                    dismiss(out);
                 } else if ("tile".equals(p[0])) {
                     tile(out, Integer.parseInt(p[1]), Integer.parseInt(p[2]));
                 } else if ("goto".equals(p[0])) {
@@ -395,6 +397,25 @@ public class MEHarness {
     }
 
     /**
+     * Get back to the map. An entity can greet you the moment a location
+     * loads, and on the map the soft key opens the action list rather than
+     * closing anything, so a dialog has to be popped rather than keyed away.
+     */
+    private static void dismiss(PrintStream out) throws Exception {
+        for (int i = 0; i < 6; i++) {
+            Object screen = currentScreen();
+            if (screen == null || "d".equals(screen.getClass().getSimpleName())) {
+                return;
+            }
+            DisplayAccess da = access();
+            pop(da == null ? null : da.getCurrent(), screen);
+            Thread.sleep(250);
+        }
+        out.print("MEH could not get back to the map; ");
+        dump(out);
+    }
+
+    /**
      * Read a tile out of the client's LIVE map (d.aA, width d.ay), which is
      * the only way to see whether a kind 6 patch actually landed.
      */
@@ -434,6 +455,13 @@ public class MEHarness {
         int[] was = {-1, -1};
         while (System.currentTimeMillis() < until) {
             Object screen = currentScreen();
+            if (screen != null
+                    && !"d".equals(screen.getClass().getSimpleName())) {
+                // something spoke to us on the way — Hrom calling for help
+                // the moment you leave the Village. Read it and walk on.
+                dismiss(out);
+                screen = currentScreen();
+            }
             Object loc = field(screen, "I");
             if (loc != null && !loc.equals(start)) {
                 return;                       // through a doorway

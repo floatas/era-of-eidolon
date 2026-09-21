@@ -182,6 +182,9 @@ class World:
         self.res = res or Resources(jar_path(game))
         self.maps = {}
         self._marker = None
+        # the real tables, where an early build kept them locally
+        self.real1 = recovered_rows(self.game, 1)
+        self.real9 = recovered_rows(self.game, 9)
         self._names = {}
         self.locations = sorted(
             int(n[1:], 16) for n in self.res.files
@@ -395,6 +398,38 @@ class World:
         chain = self.locations[:end + 1]
         return list(zip(chain, chain[1:]))
 
+    def _adopt_real_creatures(self):
+        """Build the live creature list from the recovered type 9 table.
+
+        The row is richer than the one we were synthesising: [5:7] is a name
+        key, [7:9] the key of the "Fight <name>" label — which is how the
+        bestiary read off the art can be checked, and it agrees — [11] the
+        hit points, [12] the sheet, [13] the animation.
+        """
+        self.mobs = {}
+        for r in self.real9:
+            if len(r) < 16:
+                continue
+            node, loc = r[0], r[1]
+            m = Mob(node, loc, r[3], r[4], r[12],
+                    hp=r[11] or 10, anim=r[13],
+                    npc=r[12] == self.npc_creature)
+            m.text_key = int.from_bytes(r[7:9], "big") or None
+            self.mobs[node] = m
+        self.next_node = max(self.mobs, default=0) + 1
+        self.node_count = max(getattr(self, "node_count", 0),
+                              self.next_node + 8)
+
+    def _recovered_exits(self):
+        """The doorway graph as watAgame wired it: kind 4 rows carry the
+        destination at [14] and the arrival at [15][16]."""
+        out = {loc: [] for loc in self.locations}
+        for r in self.real1 or ():
+            if len(r) > 16 and r[12] == 4 and r[1] in out:
+                # the box is the trigger; its top-left is the doorway tile
+                out[r[1]].append(((r[2], r[3]), r[14]))
+        return out
+
     def _build_exits(self):
         """Wire the locations together.
 
@@ -414,6 +449,9 @@ class World:
         artist showing you where the boxes were. So a location the artist
         never marked still gets one, invented on walkable ground.
         """
+        if self.real1:
+            return self._recovered_exits()
+
         locs = list(self.locations)
         if len(locs) < 2:
             return {loc: [] for loc in locs}
@@ -592,6 +630,9 @@ class World:
         """
         self.mobs.clear()
         self.next_node = 1
+        if self.real9:
+            self._adopt_real_creatures()
+            return
         for loc in self.locations:
             self.populate_location(loc)
             self.place_npcs(loc)
@@ -688,6 +729,10 @@ class World:
         return pick
 
     def populate_location(self, loc):
+        # nothing to invent when the real placement survived
+        if self.real9:
+            return
+
         """Which creatures a chapter has is in its jar (types 7/8/11 share an
         id per creature); where they stood was in the lost tables, so scatter a
         couple on walkable ground near where the player arrives."""
@@ -957,7 +1002,11 @@ class World:
     # (high nibble 1 = the "red tiles marked with green arrows" the Village
     # text tells you about); the destinations are a reconstruction.
     def entity_table(self):
-        """The type 1 resource for this location: currently its exits.
+        """The type 1 resource: what stands where.
+
+        When the real table survived we serve it unchanged — 235 entities for
+        Shirad's Forge, watAgame's own. Everything below is the
+        reconstruction, still used by the chapters that have no early build.
 
         Set EOE_TEST_EXIT=1 to widen every doorway's trigger box by 3 tiles,
         so a transition fires almost as soon as you can walk. Useful because
@@ -979,6 +1028,17 @@ class World:
         quests = self.quests()
         quest_for = {loc: quests[i][0] for i, loc in
                      enumerate(self.locations[:len(quests)])}
+
+        if self.real1:
+            self.interactables = {}
+            for r in self.real1:
+                if len(r) > 12 and r[12] == 3:
+                    key = int.from_bytes(r[7:9], "big")
+                    self.interactables[r[0]] = (r[1], self.text(r[1]).get(key, "Use"), key)
+            self.entity_count = max((r[0] for r in self.real1), default=0) + 1
+            # both state arrays are u8-indexed, so they can hold 255
+            self.node_count = max(self.node_count, self.entity_count)
+            return list(self.real1)
 
         painted = {loc: set(self.exit_tiles(loc)) for loc in self.locations}
         rows, state = [], 1
@@ -1067,16 +1127,70 @@ class World:
 
     def entity_states(self):
         """tag 21 -> d.i. An entity only fires while its state is 2
-        (d.java b()), so everything armed has to be marked here."""
+        (d.java b()), so everything armed has to be marked here.
+
+        With the real table we can do better than arming everything: an
+        entity that some other entity's arms block switches on must have
+        started dormant, at 1. The table describes its own progression.
+        """
         s = bytearray(self.node_count)
         for i in range(1, getattr(self, "entity_count", 1)):
             s[i] = 2
+        for i in self.armed_later():
+            if i < len(s):
+                s[i] = 1
         return bytes(s)
+
+    def armed_later(self):
+        """State indices that another entity turns on (block 2 of a type 1
+        row), so they begin dormant rather than live."""
+        out = set()
+        for r in self.real1 or ():
+            if len(r) <= 13:
+                continue
+            p = 14 + r[13]
+            if p >= len(r):
+                continue
+            p = p + 1 + r[p]                    # skip the prerequisite block
+            if p >= len(r):
+                continue
+            for k in range(1, r[p] + 1):
+                if p + k < len(r):
+                    out.add(r[p + k])
+        return out
 
     def mob_table(self):
         """The type 9 resource: every node in the WHOLE world."""
+        if self.real9:
+            return list(self.real9)
         return [m.record(Mob.ANIM_ON_SPAWN in self.res.anims(11, m.creature))
                 for m in self.mobs.values()]
+
+
+RECOVERED = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "notes", "recovered")
+
+
+def recovered_rows(game, restype):
+    """The real table, if we have it.
+
+    Shirad's Forge 1.0.0 for 176x208 shipped type 1 and type 9 in the jar,
+    before watAgame moved them to the server. See notes/recovered/README.md.
+    Format is the same byte_table the wire uses: a count, then each row
+    length-prefixed.
+    """
+    path = os.path.join(RECOVERED, f"{game}-type{restype}.bin")
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+    except OSError:
+        return None
+    n, i, rows = raw[0], 1, []
+    while i < len(raw) and len(rows) < n:
+        ln = raw[i]
+        rows.append(bytes(raw[i + 1:i + 1 + ln]))
+        i += 1 + ln
+    return rows if len(rows) == n else None
 
 
 # handlers.py is reloaded on every request, so the live game cannot live there —

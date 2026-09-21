@@ -72,11 +72,9 @@ def centre_px(w, loc):
 MARKERS = {
     "crate":  ((205, 160,  90), "crates and barrels, cut into the tilemap"),
     "barrel": ((205, 160,  90), None),
-    "door":   ((225, 60,  60), "doorways this server painted in "
-                               "(the drawn ones are already on the map)"),
-    "spawn":  ((250, 250, 250), "where the player arrives (reconstructed)"),
-    "foe":    ((225,  80,  80), "creatures, drawn from their own sprites "
-                                "(positions reconstructed)"),
+    "door":   ((225, 60,  60), "a doorway with no red tile drawn on it"),
+    "spawn":  ((250, 250, 250), "where the player arrives"),
+    "foe":    ((225,  80,  80), "creatures, drawn from their own sprites"),
     "npc":    (( 90, 205, 225), None),
 }
 
@@ -367,8 +365,13 @@ def main():
     title = f"{game} - {len(imgs)} locations, {len(edges)} doorways"
     draw.text((margin + 2, 22), title, font=title_font, fill=(0, 0, 0, 255))
     draw.text((margin, 20), title, font=title_font, fill=(245, 245, 250, 255))
-    note = ("tilemaps from the jar; which doorway leads where is "
-            "reconstructed, not original")
+    if getattr(w, "real1", None):
+        note = ("everything here is watAgame's: tilemaps, doorways, arrival "
+                "points and creature positions, from the tables an early "
+                "build shipped locally (notes/recovered)")
+    else:
+        note = ("tilemaps from the jar; which doorway leads where is "
+                "reconstructed, not original")
     draw.text((margin, 20 + 56), note, font=label_font, fill=(150, 150, 165, 255))
     legend_y = 20 + 56 + 38
     for kind, (colour, caption) in MARKERS.items():

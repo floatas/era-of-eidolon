@@ -63,7 +63,7 @@ def chapter(jar, name):
     hero = "Regress"
 
     # boot, look around, walk
-    states, out = play(jar, f"boot:{hero},state,goto:99:99:6000,state")
+    states, out = play(jar, f"boot:{hero},dismiss,state,goto:99:99:6000,dismiss,state")
     check(f"{name}: boots to the map",
           bool(states) and states[0].get("screen") == "d",
           states[0] if states else "no state at all")
@@ -85,30 +85,49 @@ def chapter(jar, name):
           next((l for l in out.splitlines() if "text=" in l), ""))
 
 
+def doorway_of(game):
+    """Where the starting location's first doorway is, asked of the world
+    model rather than hardcoded — the recovered tables moved them."""
+    sys.path.insert(0, os.path.join(ROOT, "server"))
+    from world import World
+    w = World(game)
+    start = w.locations[0]
+    links = w.EXITS.get(start) or []
+    return links[0][0] if links else (10, 10)
+
+
 def transition():
     print("\ncrossing a doorway, and coming back to it")
-    # the doorway north-east of the Shirad's Forge spawn. goto steers by the
-    # hero's real position, so the walk does not depend on emulator timing.
-    walk = "boot:Keeper,goto:10:10,wait:2500,state"
+    # goto steers by the hero's real position, so the walk does not depend on
+    # emulator timing. A key press first, in case an entity greeted us.
+    dx, dy = doorway_of("ShiradsForge")
+    walk = f"boot:Keeper,dismiss,goto:{dx}:{dy},wait:2500,state"
     states, out = play("EoE-ShiradsForge.jar", walk)
-    moved = states and states[-1].get("location") != "1"
+    moved = states and states[-1].get("location") not in (None, "1")
     check("a doorway moves you to another location", bool(moved),
           states[-1].get("location") if states else "no state")
     if not moved:
         return
-    where = (states[-1]["location"], states[-1]["heroX"], states[-1]["heroY"])
+    where = (states[-1].get("location"), states[-1].get("heroX"),
+             states[-1].get("heroY"))
 
     # ... and save there, on a record store that survives the run
     states, out = play("EoE-ShiradsForge.jar",
-                       walk + ",key:-7,wait:900,choose:Save & exit,wait:900,"
+                       walk + ",dismiss,key:-7,wait:900,choose:Save & exit,wait:900,"
                               "choose:Save & exit,wait:1500", rms="file")
     check("Save & exit reaches the server", "opcode=9" in relay_tail(),
           "no opcode 9 in the relay log")
 
-    states, out = play("EoE-ShiradsForge.jar", "boot:Keeper,state", rms="file")
+    states, out = play("EoE-ShiradsForge.jar", "boot:Keeper,dismiss,state",
+                       rms="file")
     back = (states[-1].get("location"), states[-1].get("heroX"),
             states[-1].get("heroY")) if states else None
-    check("resuming puts you back where you saved", back == where,
+    # the same location and within a tile: the hero is still moving when the
+    # client takes its snapshot, so an exact match would be luck
+    near = (back and where and back[0] == where[0]
+            and all(abs(int(a) - int(b)) <= 1 for a, b in
+                    zip(back[1:], where[1:])))
+    check("resuming puts you back where you saved", bool(near),
           f"saved at {where}, resumed at {back}")
 
 
