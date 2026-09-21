@@ -32,7 +32,7 @@ STEP_X, STEP_Y = 16, 8
 OUT = os.path.join(os.path.dirname(HERE), "assets", "maps")
 
 
-def render(w, loc, annotate=True):
+def render(w, loc, annotate=True, bg=(10, 10, 16, 255)):
     mp = w.map(loc)
     if not mp:
         return None
@@ -57,7 +57,7 @@ def render(w, loc, annotate=True):
     ox = mp.h * STEP_X + pad
     oy = pad
 
-    img = Image.new("RGBA", (width, height), (10, 10, 16, 255))
+    img = Image.new("RGBA", (width, height), bg)
 
     def screen(x, y):
         return (ox + (x - y) * STEP_X - TILE_W // 2,

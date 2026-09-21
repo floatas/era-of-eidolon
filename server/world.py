@@ -588,15 +588,6 @@ class World:
     # Which exit tile leads where. The tiles themselves come from the maps
     # (high nibble 1 = the "red tiles marked with green arrows" the Village
     # text tells you about); the destinations are a reconstruction.
-    EXITS = {
-        1: [((10, 10), 2), ((20, 26), 3), ((15, 31), 4), ((12, 33), 5)],
-        2: [((28, 4), 1)],
-        3: [((28, 0), 1)],
-        4: [((29, 23), 1)],
-        5: [((3, 4), 1)],
-    }
-
-
     def entity_table(self):
         """The type 1 resource for this location: currently its exits.
 
