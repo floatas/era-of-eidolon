@@ -47,6 +47,47 @@ def _parse(name):
     return int(m.group(1)), m.group(2), (m.group(3) or "").lower().strip()
 
 
+# --------------------------------------------------- the recovered numbers
+#
+# notes/eoe-arena/ holds watAgame's own item and skill statistics, exported
+# from the Arena's database (see SOURCE.md there). Where a name matches, these
+# replace the values this file used to guess. Roughly 200 of our 203 entries
+# are covered, so the guesses below now only fill gaps.
+
+ARENA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "..", "notes", "eoe-arena")
+
+# req[] indexes abilities in the Arena's order, which is not ours.
+ARENA_ABILITY = {1: "Strength", 2: "Dexterity",
+                 3: "Intelligence", 4: "Willpower"}
+
+
+def _load_jsonl(name):
+    out = {}
+    try:
+        with open(os.path.join(ARENA_DIR, name)) as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    row = json.loads(line)
+                    out[row["name"].lower()] = row
+    except OSError:
+        pass
+    return out
+
+
+_ARENA_ITEMS = _load_jsonl("items_exported.json")
+_ARENA_SKILLS = _load_jsonl("skills_exported.json")
+
+
+def _requirement(req):
+    """The one ability a row actually asks for, and how much of it."""
+    for i, v in enumerate(req or []):
+        if v and i in ARENA_ABILITY:
+            return ARENA_ABILITY[i], int(v)
+    return None, 0
+
+
 class Item:
     def __init__(self, kind, rank, name, cls, desc):
         self.kind = kind          # weapon / armour / charm / skill / spell
@@ -74,7 +115,45 @@ class Item:
             self.effect = int(round(2 + rank * 1.1))
             self.time = int(round(70 + rank * 8))
             self.requirement = max(5, int(4 + rank * 1.4))
-        self.price = max(5, int(self.effect * 12 + rank * 9))
+        self.precision = 100
+        self.weight = 0
+        self.measured = False
+        self._adopt_arena()
+        self.price = max(5, int(self.effect * 12 + rank * 9)
+                         if not self.measured
+                         else self.weight * 14 + self.requirement * 6)
+
+    def _adopt_arena(self):
+        """Replace the guesses with watAgame's numbers, where we have them."""
+        row = _ARENA_SKILLS.get(self.name.lower()) \
+            or _ARENA_ITEMS.get(self.name.lower())
+        if not row:
+            return
+        self.measured = True
+        ability, need = _requirement(row.get("req"))
+        if ability:
+            self.ability, self.requirement = ability, need
+        self.weight = int(row.get("weight", 0) or 0)
+
+        if "speed" in row:                       # a skill or spell
+            self.effect = int(row.get("value", 0) or 0)
+            self.time = int(row.get("speed", 0) or 0)
+            self.precision = int(row.get("precision", 100) or 100)
+            self.energy = int(row.get("energy", 0) or 0)
+            return
+
+        v1 = int(row.get("value1", 0) or 0)
+        v2 = int(row.get("value2", 0) or 0)
+        if self.kind == "armour":
+            self.effect, self.time = v1, 0       # v1 is flat damage reduction
+        elif self.kind == "charm":
+            self.effect, self.time = v2 // 10 or 3, 0
+        else:
+            # A weapon's value1 is a damage PERCENTAGE, 95-120. The rules add
+            # weapon to skill and Strength rather than multiplying, so carry
+            # it as the modifier it is.
+            self.effect = v1 - 100
+            self.precision = v2 or 100
 
     def label(self):
         bits = [self.name]

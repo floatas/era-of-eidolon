@@ -172,6 +172,18 @@ def main():
 
     print("\ncatalogue")
     c = catalogue()
+    measured = [i for k in ("weapon", "armour", "charm", "skill", "spell")
+                for i in c.get(k) if i.measured]
+    check("watAgame's own numbers are loaded", len(measured) > 190,
+          f"only {len(measured)} entries carry measured values")
+
+    # the action bar must cost what the recovered table says, not a guess
+    known = {i.name.lower(): i for k in ("skill", "spell") for i in c.get(k)}
+    drift = [(n, t, known[n.lower()].time) for n, t, _ in handlers.ACTIONS
+             if n.lower() in known and known[n.lower()].time
+             and known[n.lower()].time != t]
+    check("action bar Time costs come from the catalogue", not drift,
+          str(drift))
     check("weapons loaded", len(c.get("weapon")) > 50)
     check("armour loaded", len(c.get("armour")) > 10)
     check("starting kit resolves", len(c.starting_kit()) >= 2)

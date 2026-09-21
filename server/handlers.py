@@ -79,8 +79,6 @@ def handler(opcode):
 #   "Unable to get anim 4 for monster id 1"
 ANIM_IDLE = 1
 
-MOVE_COST = 30       # per tile, against the 720-unit turn budget
-ATTACK_COST = 120
 TURN_BUDGET = 720
 
 # The six server-supplied action-bar slots, in the order the client draws them
@@ -89,15 +87,43 @@ TURN_BUDGET = 720
 # The slot TITLES come from the client (d.java:27):
 #   Movement, Melee attack, Ranged attack, Defence, Offence spells,
 #   Defensive spells
-# These are the entries inside each, named to match their category.
-ACTIONS = [
-    ("Move",     MOVE_COST,   1),
-    ("Strike",   ATTACK_COST, 2),
-    ("Shoot",    100,         2),
-    ("Block",    60,          0),
-    ("Firebolt", 150,         2),
-    ("Mend",     90,          0),
+# The entries inside them are real skills, one per category, chosen as the
+# cheapest of their type — the ones a new hero would actually own. Their Time
+# costs are watAgame's own (notes/eoe-arena), not guesses: Move is 40 a tile
+# and Hit is 60, so a turn is eighteen steps or twelve blows, not the
+# twenty-four and six the invented numbers gave.
+#
+# "Defensive spells" could be either protective magic or healing; a solo hero
+# needs the heal, so that slot is Minor Cure.
+_SLOTS = [
+    ("Move",       1),
+    ("Hit",        2),
+    ("Shoot",      2),
+    ("Dodge",      0),
+    ("Zap",        2),
+    ("Minor Cure", 0),
 ]
+
+# what to fall back to if a name is ever missing from the catalogue
+_SLOT_FALLBACK = {"Move": 40, "Hit": 60, "Shoot": 60,
+                  "Dodge": 40, "Zap": 60, "Minor Cure": 60}
+
+
+def _action_table():
+    c = catalogue()
+    known = {i.name.lower(): i for k in ("skill", "spell")
+             for i in c.get(k)}
+    out = []
+    for name, mode in _SLOTS:
+        it = known.get(name.lower())
+        out.append((name, it.time if it and it.time else _SLOT_FALLBACK[name],
+                    mode))
+    return out
+
+
+ACTIONS = _action_table()
+MOVE_COST = ACTIONS[0][1]
+ATTACK_COST = ACTIONS[1][1]
 
 
 def byte_table(rows=()):
