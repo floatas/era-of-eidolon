@@ -345,6 +345,26 @@ class World:
             out[dest].append((doorway(dest), prev))
             prev = dest
 
+        # Now spend the doorways the artist drew and the structure above did
+        # not need. Where they lead is ours either way, but a door that
+        # watAgame put on the map is better used than left shut while we
+        # invent one somewhere else. Pair them off, spare with spare.
+        spare = [l for l in locs for _ in range(len(marked[l]) - spent[l])
+                 if spent[l] < len(marked[l])]
+        for a, b in zip(spare[0::2], spare[1::2]):
+            if a == b or any(d == b for _, d in out[a]):
+                continue
+            out[a].append((doorway(a), b))
+            out[b].append((doorway(b), a))
+
+        # an odd one out still beats leaving a drawn door shut; the far end of
+        # that link is invented, this end is the artist's
+        for loc in locs:
+            if spent[loc] < len(marked[loc]):
+                other = hub if loc != hub else spokes[0]
+                out[loc].append((doorway(loc), other))
+                out[other].append((doorway(other), loc))
+
         return out
 
     def _invent_doorway(self, location, avoid):
