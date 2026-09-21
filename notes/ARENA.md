@@ -49,3 +49,31 @@ or contradict the numbers we adopted from the remake.
 Two engines means two servers. Nothing in `server/` applies here — it decodes
 a binary protocol these jars never speak. Reviving the Arena is a separate
 piece of work, not an afternoon's adaptation.
+
+
+## What is in jars/, and what is still out there
+
+Recovered and saved:
+
+    EoE-Dagonar-v5.3.3          the Arena, MIDP-1.0, com.watAgame.eoe_town
+    EoE-Orumant-v5.2.10         the same engine, the other town
+    EoE-Blackjack-v1.0.0        "Badaz Blackjack", spin-off
+    EoE-BadazPoker-v1.0.2       spin-off, from sefan.ru (rebranded in its
+                                manifest by the site, game unchanged)
+    EoE-ShiradsForge-v1.0.0-midp1   an earlier MIDP-1.0 build of the chapter
+    EoE-SterlingLake-v1.1.1-midp1   likewise
+
+Known to exist and NOT recovered:
+
+    Mistral Grove v1.1.7        a chapter we did not know about, with MOT
+                                128x128 and 176x220 ports
+    Dagonar v5.4.3              a later Arena build than the one we have
+    Shirad's Forge 176x208      and EoE_Orumant_176x208
+    Sterling Lake s40v2/v3a     "online" variants
+
+Every live site that once served these has since dropped them; the copies
+survive only inside the Internet Archive item `J2MEArchive`, in `Sites5.7z`
+(3.1 GB, the mox.su crawl) and `Find.7z` (26.7 GB, clean versioned releases).
+macOS's bsdtar lists those archives but extracts nothing from them — the codec
+is beyond libarchive — so getting them needs a real 7z (`brew install
+sevenzip`) and the download.

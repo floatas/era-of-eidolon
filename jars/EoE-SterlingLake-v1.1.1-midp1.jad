@@ -1,0 +1,12 @@
+Manifest-Version: 1.0
+MIDlet-Data-Size: 5000
+MicroEdition-Configuration: CLDC-1.0
+MIDlet-Name: Sterling Lake
+Created-By: 1.5.0_01-b08 (Sun Microsystems Inc.)
+Ant-Version: Apache Ant 1.6.1
+MIDlet-Vendor: watAgame
+MIDlet-1: Sterling Lake, /icon.png, Main
+MIDlet-Version: 1.1.1
+MicroEdition-Profile: MIDP-1.0
+MIDlet-Jar-Size: 64550
+MIDlet-Jar-URL: EOESterlingLake.jar

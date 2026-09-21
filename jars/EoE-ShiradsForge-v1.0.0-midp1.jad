@@ -1,0 +1,12 @@
+Manifest-Version: 1.0
+MIDlet-Data-Size: 20000
+MicroEdition-Configuration: CLDC-1.0
+MIDlet-Name: Shirard's Forge
+Created-By: 1.5.0_02-b09 (Sun Microsystems Inc.)
+Ant-Version: Apache Ant 1.6.2
+MIDlet-Vendor: watAgame
+MIDlet-1: Shirard's Forge, /icon.png, Main
+MIDlet-Version: 1.0.0
+MicroEdition-Profile: MIDP-1.0
+MIDlet-Jar-Size: 63626
+MIDlet-Jar-URL: EraOfEidolonShirardsForge.jar
