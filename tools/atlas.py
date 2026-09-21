@@ -297,9 +297,12 @@ def main():
     xs = [pos[l][0] for l in imgs] + [pos[l][0] + imgs[l].size[0] for l in imgs]
     ys = [pos[l][1] for l in imgs] + [pos[l][1] + imgs[l].size[1] for l in imgs]
     margin = 120
+    # the title and legend live in the top-left; give the first row room to
+    # clear them instead of printing its name over the caption
+    top = 300
     width = int(max(xs) - min(xs)) + margin * 2
-    height = int(max(ys) - min(ys)) + margin * 2
-    shift = (margin - min(xs), margin - min(ys))
+    height = int(max(ys) - min(ys)) + margin + top
+    shift = (margin - min(xs), top - min(ys))
 
     sheet = Image.new("RGBA", (width, height), (8, 8, 12, 255))
     for loc, img in imgs.items():
