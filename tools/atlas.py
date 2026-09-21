@@ -16,6 +16,7 @@ _build_exits), so the shape of this atlas is ours and the pieces are
 watAgame's.
 """
 
+import io
 import os
 import sys
 
@@ -60,12 +61,72 @@ def centre_px(w, loc):
 # What each marker means, and — the part that matters — whether the position
 # is watAgame's or ours.
 MARKERS = {
-    "crate":  ((205, 160,  90), "crates and barrels, from the tilemap"),
+    "crate":  ((205, 160,  90), "crates and barrels, cut into the tilemap"),
     "barrel": ((205, 160,  90), None),
     "spawn":  ((250, 250, 250), "where the player arrives (reconstructed)"),
-    "foe":    ((225,  80,  80), "creatures (reconstructed)"),
-    "npc":    (( 90, 205, 225), "townsfolk (reconstructed)"),
+    "foe":    ((225,  80,  80), "creatures, drawn from their own sprites "
+                                "(positions reconstructed)"),
+    "npc":    (( 90, 205, 225), None),
 }
+
+_SPRITES = {}
+
+
+def _i8(b):
+    return b - 256 if b > 127 else b
+
+
+def sprite(w, creature, anim=1):
+    """One standing frame of a creature, assembled the way j.java draws it.
+
+    A creature is not a single image. Its animation script (type 11, keyed by
+    animation id) is a run of groups, each `duration, part count, then that
+    many (dx, dy, frame)` triples, and every part indexes an 8-byte rect in
+    the type 8 table: width, height, source x and y into the type 7 sheet,
+    and its own offset. So a frame is half a dozen pieces stacked — which is
+    why the Arena's art is filed as torso.png and legs.png.
+
+    Returns the composed image and the offset to draw it at, relative to the
+    creature's tile.
+    """
+    key = (w.game, creature, anim)
+    if key in _SPRITES:
+        return _SPRITES[key]
+
+    result = None
+    try:
+        sheet = Image.open(io.BytesIO(w.res.get(7, creature))).convert("RGBA")
+        table = w.res.get(8, creature) or b""
+        script = w.res.props(11, creature).get(anim) or b""
+        parts = []
+        for n in range(script[2] if len(script) > 2 else 0):
+            p = 3 + n * 3
+            if p + 2 >= len(script):
+                break
+            dx, dy, frame = _i8(script[p]), _i8(script[p + 1]), script[p + 2]
+            o = frame * 8
+            if o + 8 > len(table):
+                continue
+            pw, ph = table[o], table[o + 1]
+            sx = int.from_bytes(table[o + 2:o + 4], "big", signed=True)
+            sy = int.from_bytes(table[o + 4:o + 6], "big", signed=True)
+            if pw <= 0 or ph <= 0:
+                continue
+            parts.append((dx + _i8(table[o + 6]), dy + _i8(table[o + 7]),
+                          sheet.crop((sx, sy, sx + pw, sy + ph))))
+        if parts:
+            x0 = min(p[0] for p in parts)
+            y0 = min(p[1] for p in parts)
+            x1 = max(p[0] + p[2].width for p in parts)
+            y1 = max(p[1] + p[2].height for p in parts)
+            img = Image.new("RGBA", (x1 - x0, y1 - y0), (0, 0, 0, 0))
+            for px, py, piece in parts:
+                img.alpha_composite(piece, (px - x0, py - y0))
+            result = (img, (x0, y0))
+    except Exception:
+        result = None                      # a creature we cannot draw is fine
+    _SPRITES[key] = result
+    return result
 
 
 def markers(w, loc):
@@ -77,13 +138,14 @@ def markers(w, loc):
     server's invention, because the tables that held them were the ones the
     real server sent.
     """
-    out = [((x, y), kind) for x, y, kind in w.containers(loc)]
-    out.append((w.spawn_point(loc), "spawn"))
+    out = [((x, y), kind, None) for x, y, kind in w.containers(loc)]
+    out.append((w.spawn_point(loc), "spawn", None))
     if not any(m.location == loc for m in w.mobs.values()):
         w.populate_location(loc)
     for m in w.mobs.values():
         if m.location == loc:
-            out.append(((m.x, m.y), "npc" if getattr(m, "label", None) else "foe"))
+            kind = "npc" if getattr(m, "label", None) else "foe"
+            out.append(((m.x, m.y), kind, m.creature))
     return out
 
 
@@ -223,17 +285,24 @@ def main():
 
     for loc in imgs:
         x, y = pos[loc]
-        for (tx, ty), kind in markers(w, loc):
+        for (tx, ty), kind, creature in sorted(markers(w, loc),
+                                               key=lambda m: sum(m[0])):
             px, py = tile_px(w, loc, tx, ty)
             px += x + shift[0]
             py += y + shift[1] + STEP_Y   # sit on the tile, not above it
             colour = MARKERS[kind][0] + (255,)
             if kind in ("crate", "barrel"):
-                draw.rectangle([px - 5, py - 5, px + 5, py + 5],
-                               outline=colour, width=3)
-            elif kind == "spawn":
+                draw.rectangle([px - 6, py - 6, px + 6, py + 6],
+                               outline=colour, width=2)
+                continue
+            if kind == "spawn":
                 draw.ellipse([px - 8, py - 8, px + 8, py + 8],
                              outline=colour, width=3)
+                continue
+            drawn = sprite(w, creature) if creature is not None else None
+            if drawn:
+                img2, (ox2, oy2) = drawn
+                sheet.alpha_composite(img2, (int(px + ox2), int(py + oy2)))
             else:
                 draw.ellipse([px - 6, py - 6, px + 6, py + 6], fill=colour,
                              outline=(0, 0, 0, 255))

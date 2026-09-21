@@ -57,6 +57,22 @@ class Resources:
             i += ln
         return out
 
+    def props(self, restype, rid):
+        """Props table: u8 count, then u8 key, u8 len, bytes. Returns the
+        whole thing — anims() only wants the keys, but the bodies are the
+        animation scripts themselves."""
+        b = self.get(restype, rid)
+        out, i = {}, 1
+        if not b:
+            return out
+        for _ in range(b[0]):
+            if i + 1 >= len(b):
+                break
+            key, n = b[i], b[i + 1]
+            out[key] = b[i + 2:i + 2 + n]
+            i += 2 + n
+        return out
+
     def anims(self, restype, rid):
         """Props table: u8 count, then u8 key, u8 len, bytes."""
         b = self.get(restype, rid)
