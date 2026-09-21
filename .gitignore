@@ -30,3 +30,7 @@ config/
 # Plain `unzip` output of the jars — regenerate with:
 #   for j in jars/*.jar; do unzip -o -q "$j" -d "extracted/$(basename "$j" .jar)"; done
 extracted/
+
+# Rendered maps — derived from the jars, regenerate with:
+#   python3 tools/render_map.py ShiradsForge && python3 tools/render_map.py SterlingLake
+assets/maps/
