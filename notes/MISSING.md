@@ -43,13 +43,34 @@ under either spelling, across nine independent source sites and a 120 GB
 hoard that holds everything else in the series several times over. The
 likeliest reading is that it was never released.
 
-**Item statistics for the chapters.** The site published names and
-descriptions and never numbers. What we use comes from a remake of the Arena
-and its provenance is unproven — see `eoe-arena/SOURCE.md`.
+**Which items each chapter sold.** This one narrowed rather than closed. The
+statistics themselves turned out to be watAgame's after all — cross-checked
+four ways against the rules PDF and the site listings, see
+`eoe-arena/SOURCE.md` — and they cover the whole series, not just the Arena,
+because the site catalogue is the series catalogue. What is missing is the
+per-chapter *stock*. The chapters name their monsters in their own text but
+never their shop inventory, so which of the 305 entries Shirad's Forge sold is
+server-side and gone.
 
-**The balance curve.** Experience thresholds, shop prices, monster hit points,
-how a level-1 hero is meant to fare against the first thing it meets. All
-ours.
+Only one signal survives, and it is flavour rather than fact: about a quarter
+of the descriptions name a region. Longfang, Bone Crusher, Spike Axe, Lava
+Plate and the Vulcor Suit are all "of Vulcor", which is the volcanic region
+Shirad's Forge is set in; Mystor and Blissmor items cluster the same way.
+Thematic grouping, not a partition.
+
+**The balance curve, in part.** Experience thresholds, shop prices and monster
+hit points are still ours. But the item requirements are real, and the rules
+PDF says a hero starts at level 0, gains 49 levels and takes 2 Ability points
+each — 98 points to spend. A specialist's main ability therefore runs at
+roughly twice their level, which turns every requirement into a level gate:
+
+    requirement   3  ->  about level  1        44  ->  level 22
+                 12  ->  level  6              56  ->  level 28
+                 21  ->  level 10              68  ->  level 34
+                 30  ->  level 15              78  ->  level 39
+
+So the progression a player was meant to walk is recoverable even though the
+shop lists are not.
 
 ## Not missing, but worth writing down
 
