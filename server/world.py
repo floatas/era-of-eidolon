@@ -144,10 +144,10 @@ class Mob:
         self.anim = anim
         self.alive = True
 
-    # d.java:226 reads byte 15 and, when it is set, starts animation 14 on the
-    # creature: `this.n[id].a(14, true)`. Only fighting creatures have that
-    # animation. Setting it for a townsperson kills the paint thread with
-    # "Unable to get anim 14 for monster id N" the moment the hero moves.
+    # d.java:226 reads byte 15 and, when it is set, starts the WALK animation
+    # on the creature: `this.n[id].a(14, true)`. Only creatures that move have
+    # one. Setting it for a townsperson kills the paint thread with "Unable to
+    # get anim 14 for monster id N" the moment the hero moves.
     ANIM_ON_SPAWN = 14
 
     def record(self, animated=True):
@@ -587,16 +587,55 @@ class World:
             lines += ["", f"Raises left: {self.raises}"]
         return "\n".join(lines)
 
-    # Animation ids are per creature — the keys of its type 11 props table —
-    # and they are NOT uniform. Sterling Lake's 0x3a and 0x37 have no attack
-    # (4); Shirad's Forge's 0x2a has no walk (2). Asking for one a creature
-    # lacks throws "Unable to get anim N for monster id M" inside the client's
-    # animation thread, which the game shows as an Error dialog.
+    # What each animation id MEANS, which took a while to pin down.
+    #
+    # The client names exactly one of them. Its exploration key handler
+    # (d.java:1530-1570) turns the four directions into four animations:
+    #
+    #     LEFT   x-1   anim 14         RIGHT  x+1   anim 206 = 78 | 128
+    #     UP     y-1   anim 142 = 14|128   DOWN   y+1   anim 78  = 14 + 64
+    #
+    # So 14 is walk, +64 is the set facing away from the camera, and bit 7
+    # mirrors either one (j.java reads `e & 127` for the script, `e & 128`
+    # for the flip). Everything else was read off the art itself, frame by
+    # frame, with tools/showcase.py — and the ids turn out to mean the same
+    # thing for every creature, which an earlier comment here denied:
+    #
+    #      1 stand      2 a burst of fire *            4 swing
+    #      5 stagger    6 fall down dead               7 die, spirit rises
+    #      8 cast       9 thrust      10/11 throw      12 draw a bow
+    #     14 walk      15 stand, one frame
+    #     17-23 projectiles and impacts: arrow, burning arrow, stone,
+    #           flame, fireball, explosion, green splash
+    #
+    # * 2 is the one that is genuinely unclear. The creature stands, a
+    #   fireball engulfs it, and then — depending on the creature — it is
+    #   either standing again or gone. That is either arriving in a burst of
+    #   fire or being destroyed by one, and nothing in the jar says which.
+    #
+    # A creature has only some of these. Asking for one it lacks throws
+    # "Unable to get anim N for monster id M" inside the client's animation
+    # thread, which the game shows as an Error dialog — so always go through
+    # anim(), never a literal.
+    ANIM_STAND, ANIM_APPEAR, ANIM_SWING = 1, 2, 4
+    ANIM_STAGGER, ANIM_DIE, ANIM_WALK = 5, 6, 14
+    ANIM_AWAY, ANIM_MIRROR = 64, 128
+
+    ANIM_NAMES = {
+        1: "stand", 2: "fire burst", 4: "swing", 5: "stagger", 6: "die",
+        7: "die (spirit)", 8: "cast", 9: "thrust", 10: "throw",
+        11: "throw", 12: "bow", 14: "walk", 15: "stand (1 frame)",
+        17: "arrow",
+        18: "burning arrow", 19: "stone", 20: "flame", 21: "fireball",
+        22: "explosion", 23: "splash",
+    }
+
     ANIM_PREFS = {
-        "idle":   (1, 2, 5, 14),
-        "walk":   (2, 1, 5, 14),
-        "attack": (4, 5, 6, 3, 2, 1),
+        "idle":   (1, 15, 14),
+        "walk":   (14, 1, 15),
+        "attack": (4, 9, 12, 8, 10, 1),
         "hurt":   (5, 6, 1),
+        "die":    (6, 7, 5),
     }
 
     @property
