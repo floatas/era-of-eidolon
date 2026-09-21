@@ -145,6 +145,8 @@ public class MEHarness {
                     type(p[1]);
                 } else if ("shot".equals(p[0])) {
                     shot(out, step.split(":", 2)[1]);
+                } else if ("tile".equals(p[0])) {
+                    tile(out, Integer.parseInt(p[1]), Integer.parseInt(p[2]));
                 } else if ("goto".equals(p[0])) {
                     walkTo(out, Integer.parseInt(p[1]), Integer.parseInt(p[2]),
                            p.length > 3 ? Long.parseLong(p[3]) : 15000);
@@ -390,6 +392,31 @@ public class MEHarness {
         out.print("MEH timed out waiting for u=" + want + "; ");
         dump(out);
         return false;
+    }
+
+    /**
+     * Read a tile out of the client's LIVE map (d.aA, width d.ay), which is
+     * the only way to see whether a kind 6 patch actually landed.
+     */
+    private static void tile(PrintStream out, int x, int y) {
+        Object screen = currentScreen();
+        Object tiles = field(screen, "aA");
+        Object width = field(screen, "ay");
+        if (!(tiles instanceof byte[]) || !(width instanceof Integer)) {
+            out.println("TILE not on the map");
+            return;
+        }
+        byte[] a = (byte[]) tiles;
+        int w = (Integer) width;
+        int i = y * w + x;
+        if (i < 0 || i >= a.length) {
+            out.println("TILE " + x + "," + y + " out of range");
+            return;
+        }
+        int t = a[i] & 255;
+        out.println("TILE " + x + "," + y + " = 0x"
+            + Integer.toHexString(t) + "  ground " + (t & 15)
+            + "  obstacle " + ((t & 240) >> 4));
     }
 
     /**

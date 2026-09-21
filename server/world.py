@@ -227,7 +227,9 @@ class World:
         # Node ids index into the tag-21 and tag-25 state arrays and into
         # d.n (sized from tag 25), and they are global across the whole world,
         # not per location.
-        self.node_count = 128
+        # Both state arrays are indexed by a u8, so 255 is the ceiling. 128
+        # was fine until doorways started carrying a patch entity each.
+        self.node_count = 200
         self.populate()
 
     # -- map access ---------------------------------------------------------
@@ -836,6 +838,7 @@ class World:
         quest_for = {loc: quests[i][0] for i, loc in
                      enumerate(self.locations[:len(quests)])}
 
+        painted = {loc: set(self.exit_tiles(loc)) for loc in self.locations}
         rows, state = [], 1
         for loc in self.locations:
             for n, ((x, y), dest) in enumerate(self.EXITS.get(loc, [])):
@@ -849,6 +852,19 @@ class World:
                                         quest=quest_for.get(loc)
                                         if n == 0 else None))
                 state += 1
+                # A doorway we had to invent has no red tile on it, so the
+                # way back is invisible: you walk onto ordinary ground and
+                # the map changes. Paint one, using the game's own mechanism
+                # and the chapter's own art — a kind 6 patch covering the
+                # whole map, which fires as soon as the location loads.
+                if (x, y) not in painted.get(loc, ()):
+                    mp = self.map(loc)
+                    if mp:
+                        tile = (mp.tile(x, y) & 240) | self.marker
+                        rows.append(patch_entity(state, loc, x, y,
+                                                 bytes([tile]),
+                                                 box=(0, 0, mp.w, mp.h)))
+                        state += 1
         # Interactables, built from the location's own action labels. The
         # crates and NPCs are drawn into the tilemap, so their real positions
         # were in the lost table; these are placed near where you arrive so
@@ -1027,7 +1043,7 @@ def exit_entity(state, location, x, y, dest, dx, dy, radius=EXIT_RADIUS,
                   quest=quest)
 
 
-def patch_entity(state, location, x, y, tiles, w=1, h=1):
+def patch_entity(state, location, x, y, tiles, w=1, h=1, box=None):
     """A kind 6 entity: a rectangle of the tilemap, replaced.
 
     d.java b(byte[]) copies `[18]` rows of `[17]` bytes from offset 19 into
@@ -1040,7 +1056,7 @@ def patch_entity(state, location, x, y, tiles, w=1, h=1):
     """
     return entity(state, location, kind=6,
                   tail=bytes([location, x, y, w, h]) + bytes(tiles),
-                  box=(x, y, x + 1, y + 1))
+                  box=box or (x, y, x + 1, y + 1))
 
 
 def interact_entity(state, location, x, y, label_key, w=2, h=2,

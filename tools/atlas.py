@@ -63,6 +63,8 @@ def centre_px(w, loc):
 MARKERS = {
     "crate":  ((205, 160,  90), "crates and barrels, cut into the tilemap"),
     "barrel": ((205, 160,  90), None),
+    "door":   ((225, 60,  60), "doorways this server painted in "
+                               "(the drawn ones are already on the map)"),
     "spawn":  ((250, 250, 250), "where the player arrives (reconstructed)"),
     "foe":    ((225,  80,  80), "creatures, drawn from their own sprites "
                                 "(positions reconstructed)"),
@@ -129,6 +131,24 @@ def sprite(w, creature, anim=1):
     return result
 
 
+_MARKER = {}
+
+
+def marker_tile(w):
+    """The chapter's own doorway tile, cut from its ground sheet."""
+    if w.game not in _MARKER:
+        import re
+        ids = [int(n[1:] or "0", 16) for n in w.res.files
+               if re.fullmatch(r"4[0-9a-f]*", n)]
+        strip = None
+        if ids:
+            sheet = Image.open(io.BytesIO(w.res.get(4, ids[0]))).convert("RGBA")
+            i = w.marker - 1
+            strip = sheet.crop((0, i * 15, 32, (i + 1) * 15))
+        _MARKER[w.game] = strip
+    return _MARKER[w.game]
+
+
 def markers(w, loc):
     """Everything worth drawing on a location.
 
@@ -138,7 +158,12 @@ def markers(w, loc):
     server's invention, because the tables that held them were the ones the
     real server sent.
     """
-    out = [((x, y), kind, None) for x, y, kind in w.containers(loc)]
+    # Doorways this server had to invent are painted into the live map by a
+    # kind 6 entity when the location loads (see world.entity_table), so the
+    # atlas has to paint them too or it shows a map the player never sees.
+    out = [(t, "door", None) for t, _ in w.EXITS.get(loc, [])
+           if t not in set(w.exit_tiles(loc))]
+    out += [((x, y), kind, None) for x, y, kind in w.containers(loc)]
     out.append((w.spawn_point(loc), "spawn", None))
     if not any(m.location == loc for m in w.mobs.values()):
         w.populate_location(loc)
@@ -291,6 +316,14 @@ def main():
             px += x + shift[0]
             py += y + shift[1] + STEP_Y   # sit on the tile, not above it
             colour = MARKERS[kind][0] + (255,)
+            if kind == "door":
+                strip = marker_tile(w)
+                if strip:
+                    sheet.alpha_composite(strip, (int(px) - 16, int(py) - 15))
+                else:
+                    draw.rectangle([px - 8, py - 5, px + 8, py + 5],
+                                   outline=colour, width=2)
+                continue
             if kind in ("crate", "barrel"):
                 draw.rectangle([px - 6, py - 6, px + 6, py + 6],
                                outline=colour, width=2)
