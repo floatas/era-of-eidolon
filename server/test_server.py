@@ -107,6 +107,15 @@ def main():
             for m in w.mobs.values() for k in ("idle", "walk", "attack"))
         check(f"{game}: every animation id exists for its creature", anims_ok)
 
+        # byte 15 starts animation 14 on spawn (d.java:226); the townsfolk
+        # sheet has no animation 14, and asking kills the client's paint thread
+        rows = {r[0]: r for r in w.mob_table()}
+        wrong = [m.node for m in w.mobs.values()
+                 if rows[m.node][15]
+                 and 14 not in w.res.anims(11, m.creature)]
+        check(f"{game}: spawn animation only where the creature has one",
+              not wrong, f"nodes {wrong[:5]}")
+
         # monsters must not borrow the townsfolk sheet
         check(f"{game}: monsters are not NPCs",
               all(m.creature != w.npc_creature for m in w.living()))

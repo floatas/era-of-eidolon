@@ -55,6 +55,9 @@ public class MEHarness {
         {"ab", "inputMode"}, {"ag", "turnClock"}, {"Y", "barSlot"},
     };
 
+    static final int WIDTH = 240;
+    static final int HEIGHT = 320;
+
     static final DisplayComponent DISPLAY = new NoUiDisplayComponent();
     static DeviceDisplay deviceDisplay;
     static FontManager fontManager;
@@ -121,7 +124,7 @@ public class MEHarness {
             "--quiet",
             // the same 240x320 screen FreeJ2ME gives it, so coordinates and
             // layout bugs seen here are the ones seen when playing
-            "--resizableDevice", "240", "320",
+            "--resizableDevice", String.valueOf(WIDTH), String.valueOf(HEIGHT),
             "--rms", System.getProperty("meh.rms", "memory"),
             jar.getAbsolutePath());
         common.initParams(params, null, J2SEDevice.class);
@@ -140,6 +143,10 @@ public class MEHarness {
                     key(Integer.parseInt(p[1]), Long.parseLong(p[2]));
                 } else if ("type".equals(p[0])) {
                     type(p[1]);
+                } else if ("shot".equals(p[0])) {
+                    shot(out, step.split(":", 2)[1]);
+                } else if ("entities".equals(p[0])) {
+                    entities(out);
                 } else if ("await".equals(p[0])) {
                     await(out, p[1], p.length > 2 ? Long.parseLong(p[2]) : 10000);
                 } else if ("boot".equals(p[0])) {
@@ -262,6 +269,102 @@ public class MEHarness {
     private static int pressesFor(int key, char c) {
         int d = key - '0';
         return d >= 2 && d <= 9 ? PAD[d].indexOf(c) + 1 : 1;
+    }
+
+    /**
+     * Paint the game into a PNG. Headless the emulator never draws anything,
+     * but the Canvas will paint on demand into any Graphics, and half the
+     * bugs in this project were things that looked right in a field dump and
+     * wrong on screen: an empty health bar, townsfolk standing on a tile the
+     * camera never showed.
+     */
+    private static void shot(PrintStream out, String path) throws Exception {
+        DisplayAccess da = access();
+        Object canvas = da == null ? null : da.getCurrent();
+        if (canvas == null) {
+            out.println("SHOT nothing to paint");
+            return;
+        }
+        javax.microedition.lcdui.Image buffer =
+            javax.microedition.lcdui.Image.createImage(WIDTH, HEIGHT);
+        java.lang.reflect.Method paint = canvas.getClass().getMethod(
+            "paint", javax.microedition.lcdui.Graphics.class);
+        paint.setAccessible(true);
+        paint.invoke(canvas, buffer.getGraphics());
+
+        Object impl = field(buffer, "image");
+        if (impl == null) {
+            impl = buffer;
+        }
+        java.lang.reflect.Method getImage =
+            impl.getClass().getMethod("getImage");
+        java.awt.Image awt = (java.awt.Image) getImage.invoke(impl);
+        java.awt.image.BufferedImage png = new java.awt.image.BufferedImage(
+            WIDTH, HEIGHT, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics g = png.getGraphics();
+        g.drawImage(awt, 0, 0, null);
+        g.dispose();
+        File file = new File(path);
+        if (file.getParentFile() != null) {
+            file.getParentFile().mkdirs();
+        }
+        javax.imageio.ImageIO.write(png, "png", file);
+        out.println("SHOT " + file.getPath());
+    }
+
+    /**
+     * What the map screen is actually drawing, and why. d.j holds one row per
+     * creature in the world and d.l its node state; a creature is loaded when
+     * its row names this location, but only drawn when its state is 2, so a
+     * creature that is present and missing from the draw list is a node-state
+     * problem rather than a placement one.
+     */
+    private static void entities(PrintStream out) {
+        Object screen = currentScreen();
+        if (!"d".equals(screen.getClass().getSimpleName())) {
+            out.println("ENTITIES not on the map");
+            return;
+        }
+        Object here = field(screen, "I");
+        Object rows = field(screen, "j");
+        Object states = field(screen, "l");
+        Object drawn = field(screen, "aF");
+
+        java.util.Set<Integer> shown = new java.util.HashSet<Integer>();
+        if (drawn instanceof Vector) {
+            for (Object e : (Vector<?>) drawn) {
+                Object b = field(e, "b");
+                if (b instanceof Integer) {
+                    shown.add((Integer) b);
+                }
+            }
+        }
+
+        out.println("ENTITIES location=" + here
+            + " drawn=" + (drawn instanceof Vector ? ((Vector<?>) drawn).size() : -1));
+        if (!(rows instanceof byte[][]) || !(states instanceof byte[])) {
+            out.println("  no creature table");
+            return;
+        }
+        for (byte[] row : (byte[][]) rows) {
+            int id = row[0] & 255;
+            int loc = row[1];
+            int state = ((byte[]) states)[id];
+            out.println("  node " + id + " loc=" + loc + " state=" + state
+                + " sheet=" + (row[12] & 255)
+                + " anim=" + (row[13] & 255)
+                + (shown.contains(Integer.valueOf(id)) ? " DRAWN" : "")
+                + "  " + hex(row));
+        }
+    }
+
+    private static String hex(byte[] b) {
+        StringBuilder sb = new StringBuilder();
+        for (byte x : b) {
+            sb.append(Character.forDigit((x >> 4) & 15, 16));
+            sb.append(Character.forDigit(x & 15, 16));
+        }
+        return sb.toString();
     }
 
     /**
@@ -440,7 +543,9 @@ public class MEHarness {
                 sb.append(" items=").append(labels);
             }
         } else if ("h".equals(cls)) {
-            sb.append(" text=").append(field(screen, "b"));
+            // h.a is the body text; h.b is a layout counter, not the message
+            String text = String.valueOf(field(screen, "a"));
+            sb.append(" text=").append(text.replace('\n', '|'));
         }
         out.println(sb);
     }

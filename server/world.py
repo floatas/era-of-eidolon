@@ -128,7 +128,13 @@ class Mob:
         self.anim = anim
         self.alive = True
 
-    def record(self):
+    # d.java:226 reads byte 15 and, when it is set, starts animation 14 on the
+    # creature: `this.n[id].a(14, true)`. Only fighting creatures have that
+    # animation. Setting it for a townsperson kills the paint thread with
+    # "Unable to get anim 14 for monster id N" the moment the hero moves.
+    ANIM_ON_SPAWN = 14
+
+    def record(self, animated=True):
         """A 19-byte type 9 row."""
         r = bytearray(19)
         r[0] = self.node
@@ -137,7 +143,7 @@ class Mob:
         r[4] = self.y
         r[12] = self.creature
         r[13] = self.anim
-        r[15] = 1
+        r[15] = 1 if animated else 0
         return r
 
 
@@ -671,7 +677,8 @@ class World:
 
     def mob_table(self):
         """The type 9 resource: every node in the WHOLE world."""
-        return [m.record() for m in self.mobs.values()]
+        return [m.record(Mob.ANIM_ON_SPAWN in self.res.anims(11, m.creature))
+                for m in self.mobs.values()]
 
 
 # handlers.py is reloaded on every request, so the live game cannot live there —
