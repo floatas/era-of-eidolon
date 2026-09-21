@@ -1,0 +1,14 @@
+Manifest-Version: 1.0
+MIDlet-Data-Size: 5000
+MicroEdition-Configuration: CLDC-1.0
+MIDlet-Name: Sterling Lake
+Created-By: 1.5.0_01-b08 (Sun Microsystems Inc.)
+Ant-Version: Apache Ant 1.6.1
+MIDlet-Vendor: watAgame /brought to you by pascha
+MIDlet-1: Sterling Lake, /icon.png, Main
+MIDlet-Version: 1.1.1
+MicroEdition-Profile: MIDP-2.0
+MIDlet-Jar-Size: 153700
+MIDlet-Jar-URL: http://mox.su/files/games/Samsung/D600,_D8xx,_D900,_E9xx/!Rolevye/Era_of_Eidolon___Sterling_Lake.jar
+MIDlet-Delete-Confirm: java game from mox.su
+MIDlet-Description: java game from mox.su

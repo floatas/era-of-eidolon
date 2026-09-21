@@ -1,0 +1,15 @@
+Manifest-Version: 1.0
+MIDlet-Data-Size: 5000
+MicroEdition-Configuration: CLDC-1.0
+MIDlet-Name: Mistral Grove
+Ant-Version: Apache Ant 1.6.1
+Created-By: 1.5.0_01-b08 (Sun Microsystems Inc.)
+GSINSTR: 1167893316958
+MIDlet-Vendor: watAgame
+MIDlet-1: Mistral Grove, /icon.png, Main
+MIDlet-Version: 1.1.7
+MicroEdition-Profile: MIDP-2.0
+MIDlet-Jar-Size: 189302
+MIDlet-Jar-URL: http://mox.su/files/games/Motorola/P1000,_E6,_V3x,_V3xx/!Rolevyee/Era_of_Eidolon_Mistral_Grove.jar
+MIDlet-Delete-Confirm: java game from mox.su
+MIDlet-Description: java game from mox.su

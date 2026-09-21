@@ -1,0 +1,14 @@
+Manifest-Version: 1.0
+MIDlet-Data-Size: 5000
+MicroEdition-Configuration: CLDC-1.0
+MIDlet-Name: Mistral Grove
+Created-By: 1.5.0_01-b08 (Sun Microsystems Inc.)
+Ant-Version: Apache Ant 1.6.1
+MIDlet-Vendor: watAgame
+MIDlet-1: Mistral Grove, /icon.png, Main
+MIDlet-Version: 1.1.7
+MicroEdition-Profile: MIDP-2.0
+MIDlet-Jar-Size: 162389
+MIDlet-Jar-URL: http://mox.su/files/games/Motorola/E398,_E770,_L7,_E1,_V3i,_Vxxx/!Rolevyee/MistralGrove_MOT_176x220_adapted.jar
+MIDlet-Delete-Confirm: java game from mox.su
+MIDlet-Description: java game from mox.su

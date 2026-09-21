@@ -1,0 +1,13 @@
+Manifest-Version: 1.0
+MicroEdition-Configuration: CLDC-1.0
+MIDlet-Name: EoE Orumant
+Created-By: 1.4.2_05-b04 (Sun Microsystems Inc.)
+Ant-Version: Apache Ant 1.6.1
+MIDlet-Vendor: cooller.waps.cn
+MIDlet-1: EoE Orumant, /icon.png, com.watAgame.eoe_town.EoETown
+MIDlet-Version: 5.2.10
+MicroEdition-Profile: MIDP-1.0
+MIDlet-Jar-Size: 129276
+MIDlet-Jar-URL: http://mox.su/files/games/Motorola/E398,_E770,_L7,_E1,_V3i,_Vxxx/!Rolevyee/Era_of_Eidolon_Orumant.jar
+MIDlet-Delete-Confirm: java game from mox.su
+MIDlet-Description: java game from mox.su

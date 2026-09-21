@@ -1,0 +1,14 @@
+Manifest-Version: 1.0
+MIDlet-Data-Size: 10000
+MicroEdition-Configuration: CLDC-1.0
+MIDlet-Name: Badaz Poker
+Created-By: 1.5.0_02-b09 (Sun Microsystems Inc.)
+Ant-Version: Apache Ant 1.6.5
+MIDlet-Vendor: watAgame
+MIDlet-1: Badaz Poker, /icon.png, Main
+MIDlet-Version: 1.0.2
+MicroEdition-Profile: MIDP-2.0
+MIDlet-Jar-Size: 122529
+MIDlet-Jar-URL: http://mox.su/files/games/Motorola/E398,_E770,_L7,_E1,_V3i,_Vxxx/!Azartnyee/Era_of_Eidolon_Poker.jar
+MIDlet-Delete-Confirm: java game from mox.su
+MIDlet-Description: java game from mox.su
