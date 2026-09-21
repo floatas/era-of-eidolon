@@ -424,11 +424,25 @@ public class MEHarness {
         return false;
     }
 
-    /** The entries of the list screen currently on show. */
+    /**
+     * What the current screen offers. A list screen keeps its rows in a
+     * Vector; a dialog keeps its buttons in a String[].
+     */
     private static Vector<?> entries() {
         Object screen = currentScreen();
         Object b = field(screen, "b");
-        return b instanceof Vector ? (Vector<?>) b : null;
+        if (b instanceof Vector) {
+            return (Vector<?>) b;
+        }
+        Object buttons = field(screen, "e");
+        if (buttons instanceof String[]) {
+            Vector<Object> v = new Vector<Object>();
+            for (String s : (String[]) buttons) {
+                v.addElement(s);
+            }
+            return v;
+        }
+        return null;
     }
 
     private static String labelOf(Object entry) {
@@ -465,8 +479,18 @@ public class MEHarness {
     private static void choose(PrintStream out, String label) throws Exception {
         Object screen = currentScreen();
         Vector<?> items = entries();
+        DisplayAccess access = access();
+        Object top = access == null ? null : access.getCurrent();
+        // Back and Cancel are never passed to the command handler — the
+        // screen pops itself on the key press — and a dialog with no buttons
+        // still has to be dismissable.
+        if ("Back".equals(label) || "Cancel".equals(label)) {
+            pop(top, screen);
+            return;
+        }
         if (items == null) {
-            out.println("MEH nothing to choose on " + screen.getClass().getSimpleName());
+            out.println("MEH nothing to choose on "
+                + screen.getClass().getSimpleName());
             return;
         }
         for (int i = 0; i < items.size(); i++) {
@@ -474,8 +498,7 @@ public class MEHarness {
             if (!label.equals(labelOf(entry))) {
                 continue;
             }
-            DisplayAccess da = access();
-            Object canvas = da.getCurrent();
+            Object canvas = top;
             for (java.lang.reflect.Method m
                     : canvas.getClass().getDeclaredMethods()) {
                 Class<?>[] sig = m.getParameterTypes();
@@ -484,6 +507,9 @@ public class MEHarness {
                         && sig[0].isInstance(screen)) {
                     m.setAccessible(true);
                     m.invoke(canvas, screen, Integer.valueOf(i), entry);
+                    // the handler only queues the next screen; g.keyPressed
+                    // commits it with d(), and so must we
+                    method(canvas, "d").invoke(canvas);
                     return;
                 }
             }
@@ -496,6 +522,20 @@ public class MEHarness {
             have.add(labelOf(o));
         }
         out.println("MEH no entry \"" + label + "\" in " + have);
+    }
+
+    /** g.b(e) drops a screen; g.d() commits the swap, as keyPressed does. */
+    private static void pop(Object canvas, Object screen) throws Exception {
+        for (java.lang.reflect.Method m : canvas.getClass().getMethods()) {
+            Class<?>[] sig = m.getParameterTypes();
+            if ("b".equals(m.getName()) && sig.length == 1
+                    && sig[0].isInstance(screen)) {
+                m.setAccessible(true);
+                m.invoke(canvas, screen);
+                break;
+            }
+        }
+        method(canvas, "d").invoke(canvas);
     }
 
     private static void dump(PrintStream out) {

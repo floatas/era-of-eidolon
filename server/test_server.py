@@ -126,7 +126,10 @@ def main():
               top < len(w.node_states()), f"max node {top}")
 
     print("\nhandlers")
-    for op in (1, 4, 5, 8, 10, 11, 12, 13, 16, 20, 21, 22, 23, 25, 26, 27):
+    check("every opcode the client can send has a handler",
+          set(handlers.HANDLERS) == set(range(1, 29)),
+          f"missing {sorted(set(range(1, 29)) - set(handlers.HANDLERS))}")
+    for op in range(1, 29):
         resp = handlers.dispatch(Req(op))
         magic, status, count = frame(resp)
         check(f"opcode {op}: well-formed frame",

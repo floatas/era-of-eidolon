@@ -308,11 +308,18 @@ def enter_world(req):
         this.i = (byte[]) var6.d.get(21)   this.l = (byte[]) var6.d.get(25)
         this.n = new j[this.l.length]      <- NPE if tag 25 is absent
 
-    status 2 (not 1) sets d.k, and d.a() then fires the first opcode 12 — the
-    turn loop. With status 1 d.c stays false and movement keys do nothing.
+    The status picks the mode: i.java case 8 passes `var2.c == 2` to the map
+    screen as its "in combat" flag. Status 1 is free-roam exploration, which is
+    how the game should start; status 2 drops the player straight into a fight.
+
+    This was status 2 for a long while, because with status 1 nothing appeared
+    to respond to the movement keys. That turned out not to be the mode at all
+    — the first step killed the client's paint thread on a missing animation
+    (see Mob.record), and a dead paint thread looks exactly like a game that
+    ignores input.
     """
     w, _, _ = session_world(req)
-    return build_response(status=2, chunks=[
+    return build_response(status=1, chunks=[
         push_resource(1, 0x0100, byte_table(w.entity_table())),  # type 1
         push_resource(3, 0x0900, byte_table(w.mob_table())),   # type 9
         chunk_raw(21, 0, w.entity_states()),
@@ -588,10 +595,12 @@ def end_turn(req):
 
 @handler(20)
 def hero_sheet(req):
-    w, _, _ = session_world(req)
+    w, _, hero = session_world(req)
     which = req.int_(1)
     if which == 2:
-        body = (f"{w.name()}\n\nLevel {w.level}\nXP {w.xp}/{w.xp_for_next()}\n"
+        # w.name() with no argument is the LOCATION's name, not the hero's
+        body = (f"{hero or 'Hero'}\n\nLevel {w.level}\n"
+                f"XP {w.xp}/{w.xp_for_next()}\n"
                 f"Gold {w.gold}\nCreatures here: {len(w.living())}")
         title = "Score info"
     else:
@@ -755,6 +764,231 @@ def interact(req):
     print(f"    \033[35minteract: state {state} -> "
           f"{entry[1] if entry else 'unknown'}\033[0m")
     return build_response(status=1, chunks=chunks)
+
+
+# --- the rest of the opcode table --------------------------------------------
+#
+# Response shapes are all from i.java's a(e, b, Throwable), which is the one
+# method that says what every reply is allowed to look like:
+#
+#    2, 3   like 1: status 1 -> the hero list from tag 20
+#    6      no response screen; the client has already dropped the hero
+#    7, 28  list from tag 20, title tag 21 -> screen 29
+#    9      pops the screen; the payload is the client's own snapshot
+#   14      no response screen
+#   15      list from tag 20, title tag 21 -> screen 12
+#   17      screen 33
+#   18      status 1 -> main menu; status 2 -> h(23, tag 20) + Balance/Cancel
+#   19      like 1: status 4 -> screen 33
+#   24      no response screen; the row is already gone client-side
+#   26      list from tag 20, title tag 21 -> screen 29
+#
+# "No response screen" still needs a well-formed non-zero frame: status 0 reads
+# as "Second login detected!" and throws the player out.
+
+
+@handler(2)
+@handler(3)
+def account(req):
+    """Opcodes 2 and 3 — the original login and registration, which took a
+    username and password against watAgame's account server.
+
+    There is no account server to check against, and the client is happy with
+    the token model opcode 1 already uses, so both answer exactly as 1 does:
+    here is your key, here are your heroes. Opcode 3 is re-dispatched by the
+    client as 2 (i.java case 3), so they must agree.
+    """
+    return hello(req)
+
+
+@handler(6)
+def delete_hero(req):
+    """Opcode 6 — delete a hero (tag 1 = its name). The client removes the row
+    itself before asking, so the reply only has to be well formed."""
+    st = saves()
+    _, key, _ = session_world(req)
+    name = req.get(1).decode("utf-8", "replace").strip()
+    slot = st._slot(key, req.game)
+    if name in slot:
+        slot.remove(name)
+        st.data["heroes"].pop(f"{req.game}:{name}", None)
+        st.live.pop(f"{req.game}:{name}", None)
+        st.flush()
+    print(f"    \033[35mdelete hero: {name!r} -> {slot}\033[0m")
+    return build_response(status=1, chunks=[])
+
+
+@handler(9)
+def save_game(req):
+    """Opcode 9 — Save & exit, and the only place the client volunteers its
+    own view of the world (d.java d(b)):
+
+        tag 10  byte[]  entity states, d.i
+        tag 11  int     location          tag 12/13  hero x, y
+        tag 14  byte[]  node states, d.l
+        tag 15/16 int   camera
+
+    Taking these rather than our own bookkeeping means a save records where
+    the player actually was, including anything they triggered in a location
+    we never heard about.
+    """
+    w, _, hero = session_world(req)
+    if req.get(11):
+        w.location = req.int_(11)
+        w.hero_x, w.hero_y = req.int_(12), req.int_(13)
+    nodes = req.get(14)
+    for m in w.mobs.values():
+        if m.node < len(nodes):
+            m.alive = nodes[m.node] != 3
+    if hero:
+        saves().save(hero, w.game)
+    print(f"    \033[35msave: {hero} at {w.location} ({w.hero_x},{w.hero_y})"
+          f" {sum(1 for m in w.mobs.values() if m.alive)} alive\033[0m")
+    return build_response(status=1, chunks=[])
+
+
+@handler(14)
+def map_message(req):
+    """Opcode 14 — a string typed on the map screen (d.java f(), field aI).
+    Whatever it addressed is gone; log it and acknowledge."""
+    text = req.get(1).decode("utf-8", "replace")
+    print(f"    \033[35mmap message: {text!r}\033[0m")
+    return build_response(status=1, chunks=[])
+
+
+@handler(15)
+def interest(req):
+    """Opcode 15 — the detail behind a "Pick interest" row (type 1 entity kind
+    10). The client renders tag 20 as a list under the tag 21 title."""
+    w, _, _ = session_world(req)
+    which = req.int_(1)
+    lines = [l for l in w.text().values() if 20 < len(l) < 200]
+    body = lines[which % len(lines)] if lines else "Nothing of interest."
+    return build_response(status=1, chunks=[
+        chunk_str(21, "Interest"),
+        chunk_str(20, body[:200])])
+
+
+@handler(17)
+def scripted(req):
+    """Opcode 17 — a type 1 entity of kind 11, the one kind that asked the
+    server what should happen. Its script is lost; the client only needs a
+    valid frame, and shows screen 33 either way."""
+    print(f"    \033[35mscripted entity: tag1={req.int_(1)}\033[0m")
+    return build_response(status=1, chunks=[])
+
+
+@handler(18)
+def bank(req):
+    """Opcode 18 — the coin purse. Status 2 keeps the dialog up with the text
+    from tag 20; status 1 drops back to the main menu."""
+    w, _, hero = session_world(req)
+    if req.int_(1) != 1:
+        return build_response(status=1, chunks=[])
+    return build_response(status=2, chunks=[
+        chunk_str(20, f"{hero or 'Hero'}\n\nGold: {w.gold}\n"
+                      f"Level {w.level}, XP {w.xp}/{w.xp_for_next()}")])
+
+
+@handler(19)
+def accept_offer(req):
+    """Opcode 19 — the player accepted whatever offer opcode 1 status 5 made.
+    Status 4 sends them to screen 33."""
+    return build_response(status=4, chunks=[])
+
+
+@handler(24)
+def delete_item(req):
+    """Opcode 24 — drop an item (tag 1 = its name)."""
+    w, _, hero = session_world(req)
+    raw = req.get(1).decode("utf-8", "replace")
+    wanted = raw.split(":")[-1].split(" E")[0].strip(" -")
+    gone = w.drop(wanted) if hasattr(w, "drop") else None
+    if gone is None:
+        for name in list(w.inventory):
+            if name.lower().startswith(wanted.lower()[:12]):
+                w.inventory.remove(name)
+                for slot, held in list(w.equipped.items()):
+                    if held == name:
+                        w.equipped[slot] = None
+                gone = name
+                break
+    if hero:
+        saves().save(hero, w.game)
+    print(f"    \033[35mdelete item: {wanted!r} -> {gone}\033[0m")
+    return build_response(status=1, chunks=[])
+
+
+@handler(25)
+def spellbook(req):
+    """Opcode 25 — Skills (tag 1 = 9) or Spells (tag 1 = 13), rendered as a
+    list under the tag 21 title. Both come out of the recovered catalogue."""
+    w, _, _ = session_world(req)
+    spells = req.int_(1) == 13
+    kind = "spell" if spells else "skill"
+    title = "Spells" if spells else "Skills"
+    known = [w.item(n) for n in w.inventory]
+    rows = [i.label() for i in known if i and i.kind == kind]
+    if not rows:
+        rows = [f"None learned.", f"The Market sells {title.lower()}."]
+    return build_response(status=1, chunks=[
+        chunk_str(21, title)] + [chunk_str(20, r) for r in rows[:14]])
+
+
+@handler(26)
+def rankings(req):
+    """Opcode 26 — the ladder. The original ranked every player on the
+    servers; ours ranks the heroes this install has created, which is at
+    least true."""
+    st = saves()
+    rows = []
+    for slot, saved in st.data["heroes"].items():
+        if ":" not in slot:
+            continue
+        game, _, name = slot.partition(":")
+        rows.append((saved.get("level", 1), saved.get("xp", 0), name, game))
+    rows.sort(reverse=True)
+    lines = [f"{n}. {name} - level {lvl}, {xp} XP ({game})"
+             for n, (lvl, xp, name, game) in enumerate(rows[:12], 1)]
+    return build_response(status=1, chunks=[
+        chunk_str(21, "Rankings")] +
+        [chunk_str(20, l) for l in lines or ["No heroes yet."]])
+
+
+HELP_TOPICS = [
+    "Move with the direction keys. Walk into a creature to attack it.",
+    "A turn gives you 720 time. Moving costs 30 a tile, a strike 120.",
+    "Actions sit on the bar at the bottom; pick one, then pick a target.",
+    "Crates and barrels can be opened by standing next to them.",
+    "Red tiles marked with arrows lead to the next location.",
+    "Gold buys weapons, armour, skills and spells at the Market.",
+    "Save & exit writes your hero; Start game picks up where you left off.",
+]
+
+
+@handler(7)
+@handler(27)
+@handler(28)
+def help_pages(req):
+    """Opcodes 27 (Help), 7 and 28 (the icon overviews it links to). All three
+    are a list from tag 20 under the tag 21 title; the client adds its own
+    navigation rows."""
+    page = req.int_(1)
+    if req.opcode == 27:
+        return build_response(status=1, chunks=[chunk_str(21, "Help")] +
+                              [chunk_str(20, t) for t in HELP_TOPICS])
+    icons = ["Sword - melee attack", "Bow - missile attack",
+             "Shield - block, halves the next hit", "Flame - offensive spell",
+             "Heart - healing spell", "Boot - move", "Hand - use or open",
+             "Skull - the creature is dead"]
+    if page == 6659:
+        icons = ["Green arrow - an exit to another location",
+                 "Chest - a container you can open",
+                 "Star - a quest entity", "Coin - gold on the ground"]
+    return build_response(status=1, chunks=[
+        chunk_str(21, "Icon overview")] +
+        [chunk_str(20, i) for i in icons])
+
 
 
 def default(req):
