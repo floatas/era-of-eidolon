@@ -99,7 +99,7 @@ def render(w, loc, annotate=True, bg=(10, 10, 16, 255)):
     if annotate:
         d = ImageDraw.Draw(img)
         for x, y in order:
-            if mp.is_exit(x, y):
+            if mp.is_override(x, y):
                 sx, sy = screen(x, y)
                 d.ellipse((sx + 8, sy + 2, sx + 24, sy + 14),
                           outline=(80, 255, 80, 255), width=2)

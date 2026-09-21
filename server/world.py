@@ -124,9 +124,14 @@ class TileMap:
 
     CRATE, BARREL = 10, 11
 
-    def is_exit(self, x, y):
-        """High nibble 1 flips the walkability test — in practice these are the
-        'red tiles marked with green arrows' that move you between locations."""
+    def is_override(self, x, y):
+        """High nibble 1 flips the walkability test for this tile.
+
+        Not a doorway, which is what this used to be called. It is how the
+        artist opens ground that the walk mask closes and closes ground it
+        opens — the Harbour's nine are its piers, laid over water. The
+        doorways are a GROUND tile: see World.marker.
+        """
         return (self.tile(x, y) & 240) == 16
 
 
@@ -176,6 +181,7 @@ class World:
         self.game = game
         self.res = res or Resources(jar_path(game))
         self.maps = {}
+        self._marker = None
         self._names = {}
         self.locations = sorted(
             int(n[1:], 16) for n in self.res.files
@@ -273,13 +279,49 @@ class World:
 
     # -- geography ----------------------------------------------------------
 
+    @property
+    def marker(self):
+        """The ground index of the doorway tile — the red one with the green
+        arrows the help text describes.
+
+        It is a painted GROUND tile, not a flag in the high nibble, and its
+        index differs per chapter: 12 in Shirad's Forge, 14 in Sterling Lake.
+        Rather than hardcode that, find it in the type 4 sheet by its own
+        colours. Nothing else in either palette is 70% red and a quarter
+        green; the two chapters score identically because it is the same
+        piece of art filed at a different index.
+        """
+        if self._marker is None:
+            import io
+            from PIL import Image
+            ids = [int(n[1:] or "0", 16) for n in self.res.files
+                   if re.fullmatch(r"4[0-9a-f]*", n)]
+            best = (0, 1)
+            if ids:
+                sheet = Image.open(io.BytesIO(self.res.get(4, ids[0])))
+                sheet = sheet.convert("RGBA")
+                for i in range(sheet.height // 15):
+                    strip = sheet.crop((0, i * 15, 32, (i + 1) * 15))
+                    red = green = n = 0
+                    for r, g, b, a in list(strip.getdata()):
+                        if a < 128:
+                            continue
+                        n += 1
+                        red += r > 150 and g < 90 and b < 90
+                        green += g > 150 and r < 120 and b < 120
+                    if n and (red / n) * (green / n) > best[0]:
+                        best = ((red / n) * (green / n), i + 1)
+            self._marker = best[1]
+        return self._marker
+
     def exit_tiles(self, location):
-        """The 'red tiles marked with green arrows'. Adjacent ones are one
-        doorway, so collapse them into clusters."""
+        """Every doorway the artist painted in a location. Adjacent ones are
+        one doorway, so collapse them into clusters."""
         mp = self.map(location)
         if not mp:
             return []
-        raw = [(x, y) for y in range(mp.h) for x in range(mp.w) if mp.is_exit(x, y)]
+        raw = [(x, y) for y in range(mp.h) for x in range(mp.w)
+               if (mp.tile(x, y) & 15) == self.marker]
         clusters = []
         for x, y in raw:
             for c in clusters:
@@ -375,7 +417,7 @@ class World:
         best = None
         for y in range(mp.h):
             for x in range(mp.w):
-                if not mp.walkable(x, y) or mp.is_exit(x, y):
+                if not mp.walkable(x, y) or (mp.tile(x, y) & 15) == self.marker:
                     continue
                 near = min((max(abs(x - ax), abs(y - ay))
                             for ax, ay in avoid), default=99)
@@ -401,12 +443,9 @@ class World:
         """A walkable tile to stand on: just outside a doorway's trigger box if
         there is one, else near the middle.
 
-        "Just outside" is the whole point. An exit tile itself is not walkable
-        — d.b() inverts the walk test for high nibble 1, so a doorway laid on
-        ordinary ground reads as blocked — which is why the trigger box has to
-        cover the tiles AROUND the doorway rather than the doorway. Arrive
-        inside that box and the exit fires again the instant the map loads,
-        and the two locations bounce the player back and forth forever.
+        Standing next to it rather than on it is the whole point: arrive on a
+        doorway and it fires again the instant the map loads, and the two
+        locations bounce the player back and forth forever.
         """
         mp = self.map(location)
         if not mp:
@@ -414,7 +453,7 @@ class World:
         exits = list(self.doorway_tiles(location))
 
         def clear(x, y):
-            if not mp.walkable(x, y) or mp.is_exit(x, y):
+            if not mp.walkable(x, y) or (mp.tile(x, y) & 15) == self.marker:
                 return False
             return all(max(abs(x - ex), abs(y - ey)) > EXIT_RADIUS
                        for ex, ey in exits)
@@ -507,7 +546,7 @@ class World:
                 x, y = ax + rng.randint(-5, 5), ay + rng.randint(-5, 5)
                 if (x, y) == (ax, ay) or self.mob_at(x, y, loc):
                     continue
-                if mp.walkable(x, y) and not mp.is_exit(x, y):
+                if mp.walkable(x, y) and (mp.tile(x, y) & 15) != self.marker:
                     m = Mob(self.next_node, loc, x, y, creature,
                             hp=6 + 2 * placed + 2 * self.locations.index(loc))
                     m.anim = self.anim(creature, "idle")
@@ -942,10 +981,12 @@ def entity(state, location, kind, tail=b"", box=None, trigger=0,
     return r
 
 
-# How far the trigger box reaches around a doorway tile. It must be at least
-# 1: the doorway tile itself cannot be stood on (see spawn_point), so a box
-# covering only the tile can never fire.
-EXIT_RADIUS = 1
+# How far the trigger box reaches around a doorway tile. Zero: a doorway is
+# ordinary walkable ground with a red tile painted on it, so the box is the
+# tile, and you step on it to use it. (This was 1 while doorways were being
+# looked for in the high nibble, which finds the walk-mask overrides instead —
+# piers and the like — and those really cannot be stood on.)
+EXIT_RADIUS = 0
 
 
 def exit_entity(state, location, x, y, dest, dx, dy, radius=EXIT_RADIUS,
