@@ -213,6 +213,27 @@ class World:
             self.maps[loc] = TileMap(blob) if blob else None
         return self.maps[loc]
 
+    # Objectives read as imperatives — the verb is what separates them from
+    # the quest ITEM names and descriptions sharing the same table.
+    QUEST_VERBS = ("seek", "find", "rescue", "restore", "defeat", "clear",
+                   "return", "slay", "get", "save", "help", "bring", "kill",
+                   "destroy", "deliver", "escort", "recover")
+
+    def quests(self):
+        """The chapter's quest objectives, in key order.
+
+        These ship in the jar, in the global text table (type 10 id 0). What
+        did NOT ship is which entity hands out which one, or whether it counts
+        as a main quest — that lived in the type 1 rows the server sent, so
+        the log is assembled here rather than recovered.
+        """
+        out = []
+        for key, txt in sorted(self.res.strings(10, 0).items()):
+            first = txt.split()[0].lower().strip(".,!") if txt.split() else ""
+            if len(txt) < 60 and first in self.QUEST_VERBS:
+                out.append((key, txt))
+        return out
+
     def text(self, location=None):
         return self.res.strings(3, self.location if location is None else location)
 
@@ -668,16 +689,26 @@ class World:
         mode = os.environ.get("EOE_TEST_EXIT", "")
         pad = 3 if mode else EXIT_RADIUS
         local = mode == "2"
+        # The quest log is built client-side out of these rows (d.h()), so an
+        # objective only exists as far as the game is concerned if some entity
+        # carries its text key. Hand them out one per location, in key order,
+        # so the log fills as the player travels.
+        quests = self.quests()
+        quest_for = {loc: quests[i][0] for i, loc in
+                     enumerate(self.locations[:len(quests)])}
+
         rows, state = [], 1
         for loc in self.locations:
-            for (x, y), dest in self.EXITS.get(loc, []):
+            for n, ((x, y), dest) in enumerate(self.EXITS.get(loc, [])):
                 dx, dy = self.arrival(dest)
                 if local:
                     mp = self.map(loc)
                     dest = loc
                     dx, dy = (mp.w // 2, mp.h // 2) if mp else (dx, dy)
                 rows.append(exit_entity(state, loc, x, y, dest, dx, dy,
-                                        radius=pad))
+                                        radius=pad,
+                                        quest=quest_for.get(loc)
+                                        if n == 0 else None))
                 state += 1
         # Interactables, built from the location's own action labels. The
         # crates and NPCs are drawn into the tilemap, so their real positions
@@ -799,13 +830,20 @@ def _block(ids=()):
 
 
 def entity(state, location, kind, tail=b"", box=None, trigger=0,
-           prereq=(), arms=(), completes=(), disables=()):
+           prereq=(), arms=(), completes=(), disables=(), quest=None,
+           quest_kind=1):
     r = bytearray(14)
     r[0] = state
     r[1] = location
     if box:
         r[2], r[3], r[4], r[5] = box
     r[6] = trigger
+    if quest:
+        # d.h() builds the quest log from these three bytes: [9][10] is the
+        # u16 text key of the objective and [11] says which list it goes in,
+        # 1 for main and 2 for optional. It only reads rows whose state is 2.
+        r[9], r[10] = (quest >> 8) & 0xFF, quest & 0xFF
+        r[11] = quest_kind
     r[12] = kind
     r[13] = len(tail)
     r += bytes(tail)
@@ -821,7 +859,8 @@ def entity(state, location, kind, tail=b"", box=None, trigger=0,
 EXIT_RADIUS = 1
 
 
-def exit_entity(state, location, x, y, dest, dx, dy, radius=EXIT_RADIUS):
+def exit_entity(state, location, x, y, dest, dx, dy, radius=EXIT_RADIUS,
+                quest=None):
     """A red exit tile.
 
     The trigger is this bounding box, NOT the tile's appearance — d.b() checks
@@ -833,7 +872,8 @@ def exit_entity(state, location, x, y, dest, dx, dy, radius=EXIT_RADIUS):
     """
     return entity(state, location, kind=4, tail=bytes([dest, dx, dy]),
                   box=(max(0, x - radius), max(0, y - radius),
-                       x + 1 + radius, y + 1 + radius))
+                       x + 1 + radius, y + 1 + radius),
+                  quest=quest)
 
 
 def interact_entity(state, location, x, y, label_key, w=2, h=2):
