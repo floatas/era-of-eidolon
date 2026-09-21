@@ -245,7 +245,12 @@ class World:
     # the quest ITEM names and descriptions sharing the same table.
     QUEST_VERBS = ("seek", "find", "rescue", "restore", "defeat", "clear",
                    "return", "slay", "get", "save", "help", "bring", "kill",
-                   "destroy", "deliver", "escort", "recover")
+                   "destroy", "deliver", "escort", "recover",
+                   # Mistral Grove needed these, which is a good argument for
+                   # checking a new chapter against the list rather than
+                   # assuming the list is finished
+                   "cut", "release", "open", "close", "break", "steal",
+                   "collect", "reach", "enter", "light", "free", "talk")
 
     def quests(self):
         """The chapter's quest objectives, in key order.

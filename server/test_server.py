@@ -209,6 +209,12 @@ def main():
         check(f"{game}: the route from the dialogue is wired both ways",
               not missing, str(missing))
 
+        # all three chapters ship exactly eleven, which is a useful canary:
+        # Mistral Grove came in at nine until "Cut through hedge" and
+        # "Release boy" showed the verb list was short
+        check(f"{game}: eleven quest objectives", len(w.quests()) == 11,
+              f"found {len(w.quests())}")
+
         # monsters must not borrow the townsfolk sheet
         check(f"{game}: monsters are not NPCs",
               all(m.creature != w.npc_creature for m in w.living()))
