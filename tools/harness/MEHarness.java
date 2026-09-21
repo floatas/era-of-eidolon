@@ -420,16 +420,22 @@ public class MEHarness {
                 return;
             }
             stalled = (x == was[0] && y == was[1]) ? stalled + 1 : 0;
-            if (stalled > 6) {
+            if (stalled > 12) {
                 out.println("MEH stuck at " + x + "," + y
                     + " heading for " + tx + "," + ty);
                 return;
             }
             was[0] = x;
             was[1] = y;
-            // one axis at a time; the isometric keys move a single tile step
-            int code = x != tx ? (x < tx ? -4 : -3) : (y < ty ? -2 : -1);
-            key(code, 400);
+            // One axis at a time. When that axis is blocked — a rock, the
+            // water's edge — try the other for a while rather than pressing
+            // into the obstacle forever.
+            boolean useX = (x != tx) != (stalled >= 3 && y != ty);
+            int code = useX ? (x < tx ? -4 : -3) : (y < ty ? -2 : -1);
+            // ease off on the last tile, or a long hold overshoots and the
+            // walk spends the rest of its time oscillating
+            int left = Math.abs(useX ? tx - x : ty - y);
+            key(code, left <= 1 ? 140 : 400);
         }
     }
 

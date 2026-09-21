@@ -162,6 +162,30 @@ def main():
               all(w.EXITS.get(l) for l in w.locations),
               f"dead ends at {[l for l in w.locations if not w.EXITS.get(l)][:5]}")
 
+        # Opening a crate has to remove it from the tilemap, or it sits there
+        # to be opened again for ever. Each one is paired with a kind 6 patch
+        # that clears its obstacle nibble, and the crate's completes block
+        # names both the patch and itself.
+        # Only crates that got an interact entity are in scope: a location
+        # whose text has no "crate" or "barrel" label gives the player nothing
+        # to choose, so there is nothing to open and nothing to remove.
+        ents = w.entity_table()
+        patches = {(r[14], r[15], r[16]): r for r in ents if r[12] == 6}
+        openable = {(loc, x, y) for loc, _, _ in w.interactables.values()
+                    for x, y, _ in w.containers(loc)} & set(patches)
+        missing, wrong = [], []
+        for loc, x, y in sorted(openable):
+            row = patches.get((loc, x, y))
+            if row is None:
+                missing.append((loc, x, y))
+            elif row[19] != (w.map(loc).tile(x, y) & 15):
+                wrong.append((loc, x, y))
+        check(f"{game}: every openable crate is paired with a tilemap patch",
+              not missing and bool(openable),
+              f"{len(missing)} unpaired of {len(openable)}")
+        check(f"{game}: the patch leaves the ground and drops the obstacle",
+              not wrong, str(wrong[:2]))
+
         # monsters must not borrow the townsfolk sheet
         check(f"{game}: monsters are not NPCs",
               all(m.creature != w.npc_creature for m in w.living()))

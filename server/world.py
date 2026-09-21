@@ -186,7 +186,11 @@ class World:
             and int(n[1:], 16) != 0)          # 0 is the hero's own sprite
         self.exits = self._build_exits()
 
-        self.location = self.locations[0] if self.locations else 1
+        # EOE_START_LOC drops a new hero straight into a location, which is
+        # how a scripted test reaches something twenty tiles of maze away.
+        start = os.environ.get("EOE_START_LOC")
+        self.location = (int(start) if start and int(start) in self.locations
+                         else (self.locations[0] if self.locations else 1))
         self.hero_x, self.hero_y = self.spawn_point(self.location)
         self.hero_hp = self.hero_max = 40
 
@@ -744,7 +748,17 @@ class World:
                 key = next((k for t, k in by_text.items() if what in t), None)
                 if key is None:
                     continue
-                rows.append(interact_entity(state, loc, x, y, key))
+                # A crate is part of the tilemap, so the only way to make one
+                # go away is to patch the map. Completing a kind 6 entity
+                # applies its patch (d.java:976-988), so the crate is paired
+                # with a patch that clears its obstacle nibble, and opening it
+                # completes both: the crate vanishes and cannot be used twice.
+                patch = state
+                rows.append(patch_entity(patch, loc, x, y,
+                                         bytes([self.map(loc).tile(x, y) & 15])))
+                state += 1
+                rows.append(interact_entity(state, loc, x, y, key,
+                                            completes=(patch, state)))
                 self.interactables[state] = (loc, labels[key], key)
                 state += 1
 
@@ -892,7 +906,24 @@ def exit_entity(state, location, x, y, dest, dx, dy, radius=EXIT_RADIUS,
                   quest=quest)
 
 
-def interact_entity(state, location, x, y, label_key, w=2, h=2):
+def patch_entity(state, location, x, y, tiles, w=1, h=1):
+    """A kind 6 entity: a rectangle of the tilemap, replaced.
+
+    d.java b(byte[]) copies `[18]` rows of `[17]` bytes from offset 19 into
+    the live map at `[15],[16]`, so the payload is loc, x, y, w, h and then
+    the tiles themselves.
+
+    Its box is the patched tile. That is deliberate: a crate's tile is an
+    obstacle, so nobody can stand on it, so the entity never fires by entry
+    and only ever runs when something completes it.
+    """
+    return entity(state, location, kind=6,
+                  tail=bytes([location, x, y, w, h]) + bytes(tiles),
+                  box=(x, y, x + 1, y + 1))
+
+
+def interact_entity(state, location, x, y, label_key, w=2, h=2,
+                    completes=()):
     """Something you can walk up to and use — a crate, an NPC.
 
     trigger 1 puts it in d.S instead of firing on entry, and pressing the
@@ -904,7 +935,8 @@ def interact_entity(state, location, x, y, label_key, w=2, h=2):
     server gets to decide what was inside.
     """
     r = entity(state, location, kind=3, tail=b"",
-               box=(max(0, x - 1), max(0, y - 1), x + w, y + h), trigger=1)
+               box=(max(0, x - 1), max(0, y - 1), x + w, y + h), trigger=1,
+               completes=completes)
     r[7] = (label_key >> 8) & 0xFF
     r[8] = label_key & 0xFF
     return r
