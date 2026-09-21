@@ -250,27 +250,91 @@ class World:
         return [c[0] for c in clusters]
 
     def _build_exits(self):
-        """Wire the locations together. The real game's layout is in the lost
-        type 1 tables, so this links each doorway to the next location in id
-        order and always keeps a way back to the first."""
-        out = {}
-        for i, loc in enumerate(self.locations):
-            tiles = self.exit_tiles(loc)
-            if not tiles:
-                continue
-            links = []
-            for n, tile in enumerate(tiles):
-                if loc == self.locations[0]:
-                    dest = self.locations[(n + 1) % len(self.locations)]
-                else:
-                    dest = self.locations[0] if n == 0 else \
-                        self.locations[(i + n) % len(self.locations)]
-                if dest != loc:
-                    links.append((tile, dest))
-            out[loc] = links
+        """Wire the locations together.
+
+        Which doorway led where lived in the lost type 1 tables, so this is a
+        reconstruction. The rule it replaces linked each doorway to "the next
+        location in id order", which chose destinations purely as a function
+        of the source: Sterling Lake's Harbour ended up with twelve ways in
+        and Gold Island with none, and seven locations could be left but never
+        entered.
+
+        This builds a hub and spokes instead, and guarantees two things that
+        the old rule did not: every location can be reached, and every
+        location can be left.
+
+        A doorway does not actually need a red exit tile. The trigger is a
+        type 1 bounding box (see exit_entity), and the tiles are only the
+        artist showing you where the boxes were. So a location the artist
+        never marked still gets one, invented on walkable ground.
+        """
+        locs = list(self.locations)
+        if len(locs) < 2:
+            return {loc: [] for loc in locs}
+
+        marked = {loc: list(self.exit_tiles(loc)) for loc in locs}
+        hub = max(locs, key=lambda l: (len(marked[l]), -l))
+        spokes = [l for l in locs if l != hub]
+
+        out = {loc: [] for loc in locs}
+        spent = {loc: 0 for loc in locs}
+
+        def doorway(loc):
+            """The next unused doorway in this location."""
+            n = spent[loc]
+            spent[loc] += 1
+            if n < len(marked[loc]):
+                return marked[loc][n]
+            return self._invent_doorway(loc, [t for t, _ in out[loc]]
+                                        + marked[loc])
+
+        # the hub reaches as far as its own doorways allow, and each of those
+        # keeps one doorway for the way back
+        reach = max(1, len(marked[hub]))
+        attached = []
+        for dest in spokes[:reach]:
+            out[hub].append((doorway(hub), dest))
+            out[dest].append((doorway(dest), hub))
+            attached.append(dest)
+
+        # whatever is left hangs off the chain, so nothing is stranded
+        prev = attached[-1] if attached else hub
+        for dest in spokes[reach:]:
+            out[prev].append((doorway(prev), dest))
+            out[dest].append((doorway(dest), prev))
+            prev = dest
+
         return out
 
+    def _invent_doorway(self, location, avoid):
+        """A walkable tile to put a doorway on, well clear of the others."""
+        mp = self.map(location)
+        if not mp:
+            return (1, 1)
+        best = None
+        for y in range(mp.h):
+            for x in range(mp.w):
+                if not mp.walkable(x, y) or mp.is_exit(x, y):
+                    continue
+                near = min((max(abs(x - ax), abs(y - ay))
+                            for ax, ay in avoid), default=99)
+                if near <= EXIT_RADIUS + 2:
+                    continue
+                # hug the edge: doorways belong at the rim of a map, not in
+                # the middle of it
+                rim = min(x, y, mp.w - 1 - x, mp.h - 1 - y)
+                score = (rim, -near)
+                if best is None or score < best[0]:
+                    best = (score, (x, y))
+        return best[1] if best else (1, 1)
+
     EXITS = property(lambda self: self.exits)
+
+    def doorway_tiles(self, location):
+        """Every doorway in a location: the ones the artist marked, plus any
+        this server had to invent to keep the chapter connected."""
+        wired = [t for t, _ in getattr(self, "exits", {}).get(location, [])]
+        return wired or list(self.exit_tiles(location))
 
     def spawn_point(self, location):
         """A walkable tile to stand on: just outside a doorway's trigger box if
@@ -286,7 +350,7 @@ class World:
         mp = self.map(location)
         if not mp:
             return 1, 1
-        exits = list(self.exit_tiles(location))
+        exits = list(self.doorway_tiles(location))
 
         def clear(x, y):
             if not mp.walkable(x, y) or mp.is_exit(x, y):

@@ -149,6 +149,19 @@ def main():
         check(f"{game}: every doorway can be walked into", not unreachable,
               str(unreachable[:3]))
 
+        # the old rule chose destinations from the source alone, so seven of
+        # Sterling Lake's locations could be left but never entered
+        inbound = {l: 0 for l in w.locations}
+        for links in w.EXITS.values():
+            for _, dest in links:
+                inbound[dest] += 1
+        check(f"{game}: every location can be reached",
+              all(inbound[l] for l in w.locations),
+              f"no way into {[l for l in w.locations if not inbound[l]][:5]}")
+        check(f"{game}: every location can be left",
+              all(w.EXITS.get(l) for l in w.locations),
+              f"dead ends at {[l for l in w.locations if not w.EXITS.get(l)][:5]}")
+
         # monsters must not borrow the townsfolk sheet
         check(f"{game}: monsters are not NPCs",
               all(m.creature != w.npc_creature for m in w.living()))
