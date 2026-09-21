@@ -334,6 +334,33 @@ class World:
                 clusters.append([(x, y)])
         return [c[0] for c in clusters]
 
+    # The route as watAgame wrote it, recovered from the chapters' own
+    # dialogue rather than from the lost tables. Every one of these is a
+    # location naming another location out loud; the quotes and their text
+    # keys are in notes/FLOW.md. Sterling Lake's hints name a direction but
+    # not a place, so it gets none.
+    STORY_ROUTE = {
+        "ShiradsForge": [
+            ("Village", "Lava Island"),        # "the 1st one on a small island"
+            ("Lava Island", "Dwarven Hall"),   # "Dwarven Hall North of here"
+            ("Dwarven Hall", "Mira's Hideout"),  # "the cave North of here"
+            ("Mira's Hideout", "The Lair"),    # "the Lair East of here"
+            ("The Lair", "The Core"),          # "when you go through the Core"
+            ("The Core", "The Forge"),         # "the Forge somewhere to the North"
+        ],
+    }
+
+    def story_links(self):
+        """The recovered route, as location ids."""
+        by_name = {}
+        for loc in self.locations:
+            by_name.setdefault(self.name(loc), loc)
+        out = []
+        for a, b in self.STORY_ROUTE.get(self.game, ()):
+            if a in by_name and b in by_name:
+                out.append((by_name[a], by_name[b]))
+        return out
+
     def _build_exits(self):
         """Wire the locations together.
 
@@ -363,6 +390,7 @@ class World:
 
         out = {loc: [] for loc in locs}
         spent = {loc: 0 for loc in locs}
+        wired = set()
 
         def doorway(loc):
             """The next unused doorway in this location."""
@@ -373,9 +401,20 @@ class World:
             return self._invent_doorway(loc, [t for t, _ in out[loc]]
                                         + marked[loc])
 
+        # The route the dialogue gives us goes in first and is never
+        # overridden: these are the only links in the project that are
+        # watAgame's rather than ours.
+        for a, b in self.story_links():
+            if a in out and b in out:
+                out[a].append((doorway(a), b))
+                out[b].append((doorway(b), a))
+                wired.add(a)
+                wired.add(b)
+
         # the hub reaches as far as its own doorways allow, and each of those
         # keeps one doorway for the way back
         reach = max(1, len(marked[hub]))
+        spokes = [l for l in spokes if l not in wired] or spokes
         attached = []
         for dest in spokes[:reach]:
             out[hub].append((doorway(hub), dest))

@@ -201,6 +201,14 @@ def main():
         check(f"{game}: every doorway lands you beside the way back",
               not stranded, f"{len(stranded)} do not, e.g. {stranded[:2]}")
 
+        # the route recovered from the dialogue is the only part of the graph
+        # that is watAgame's, so it must survive whatever else gets wired
+        missing = [(w.name(a), w.name(b)) for a, b in w.story_links()
+                   if not (any(d == b for _, d in w.EXITS.get(a, []))
+                           and any(d == a for _, d in w.EXITS.get(b, [])))]
+        check(f"{game}: the route from the dialogue is wired both ways",
+              not missing, str(missing))
+
         # monsters must not borrow the townsfolk sheet
         check(f"{game}: monsters are not NPCs",
               all(m.creature != w.npc_creature for m in w.living()))
