@@ -50,9 +50,24 @@ def edge(mp, x, y, slack=2):
     return sides
 
 
+ARCH = 2          # the obstacle the artist draws where a doorway teleports
+
+
+def is_arch(w, loc, x, y):
+    return ((w.map(loc).tile(x, y) & 240) >> 4) == ARCH
+
+
 def seams(w):
-    """Links whose two doorways are on opposite edges, and so are a shared
-    border rather than a portal. Returns (a, tile_a, b, tile_b, side)."""
+    """Links that are a shared border rather than a portal.
+
+    watAgame marked the two cases differently, and the art says which is
+    which. A border carries the red marker tile on at least one side. A
+    portal carries obstacle 2 — the stone arch — on BOTH sides: all five of
+    Shirad's Forge's portals do, and not one of its fifteen borders does.
+
+    Edge geometry agrees with that and is used as the second test, since a
+    border has to be a shared edge to be laid out flat at all.
+    """
     out = []
     for a, links in w.EXITS.items():
         for ta, b in links:
@@ -60,6 +75,8 @@ def seams(w):
             if not back:
                 continue
             tb = back[0]
+            if is_arch(w, a, *ta) or is_arch(w, b, *tb):
+                continue                        # an arch is a teleport
             for sa in edge(w.map(a), *ta):
                 if OPPOSITE[sa] in edge(w.map(b), *tb):
                     out.append((a, ta, b, tb, sa))
@@ -73,31 +90,56 @@ def lay_out(w):
     for a, ta, b, tb, side in seams(w):
         joins.setdefault(a, []).append((ta, b, tb, side))
 
+    def spread(at, queue):
+        """Tile outwards from everything in the queue, following borders."""
+        while queue:
+            a = queue.pop(0)
+            ax0, ay0 = at[a]
+            for (ax, ay), b, (bx, by), side in joins.get(a, []):
+                if b in at:
+                    continue
+                # the two doorways are the same border seen from either side,
+                # so B's sits exactly one step beyond A's:
+                #     at[B] + (bx,by) == at[A] + (ax,ay) + step
+                dx, dy = STEP[side]
+                at[b] = (ax0 + ax - bx + dx, ay0 + ay - by + dy)
+                queue.append(b)
+
     start = w.locations[0]
     at = {start: (0, 0)}
-    queue, portals = [start], []
-    while queue:
-        a = queue.pop(0)
-        ax0, ay0 = at[a]
-        for (ax, ay), b, (bx, by), side in joins.get(a, []):
-            if b in at:
-                continue
-            # the two doorways are the same border seen from either side, so
-            # put B's exactly one step beyond A's:
-            #     at[B] + (bx,by) == at[A] + (ax,ay) + step
-            dx, dy = STEP[side]
-            at[b] = (ax0 + ax - bx + dx, ay0 + ay - by + dy)
-            queue.append(b)
+    spread(at, [start])
 
-    # anything the seams never reach is behind a portal
-    far = max((x + w.map(l).w for l, (x, _) in at.items()), default=0) + 6
-    row = 0
-    for loc in w.locations:
-        if loc not in at:
-            at[loc] = (far, row)
-            row += w.map(loc).h + 4
-            portals.append(loc)
+    # Whatever the borders never reach lies through an arch. Give it its own
+    # patch of ground and then keep tiling from there — Golem Secret shares a
+    # real border with The Forge, and only looked stranded because The Forge
+    # itself is behind a portal.
+    portals = []
+    while True:
+        left = [l for l in w.locations if l not in at]
+        if not left:
+            break
+        far = max((x + w.map(l).w + 8 for l, (x, _) in at.items()), default=0)
+        low = min((y for _, (_, y) in at.items()), default=0)
+        seed = left[0]
+        at[seed] = (far, low)
+        portals.append(seed)
+        spread(at, [seed])
     return at, portals
+
+
+def marker_strip(w, fade=0.6):
+    """The chapter's red doorway tile, faded, for annotating the doorways
+    watAgame left bare."""
+    import io
+    import re
+    ids = [int(n[1:] or "0", 16) for n in w.res.files
+           if re.fullmatch(r"4[0-9a-f]*", n)]
+    if not ids:
+        return None
+    sheet = Image.open(io.BytesIO(w.res.get(4, ids[0]))).convert("RGBA")
+    strip = sheet.crop((0, (w.marker - 1) * 15, 32, w.marker * 15)).copy()
+    strip.putalpha(strip.getchannel("A").point(lambda a: int(a * fade)))
+    return strip
 
 
 def font(size):
@@ -157,6 +199,19 @@ def main():
         return ((gx + tx - gy - ty) * STEP_X + shift[0],
                 (gx + tx + gy + ty) * STEP_Y + shift[1])
 
+    # Every doorway, marked. Half of watAgame's carry the red tile and half
+    # are bare ground you would only find by walking into it, so the bare
+    # ones are annotated here — on the map, not in the game.
+    tile = marker_strip(w)
+    for loc in imgs:
+        for (tx, ty), _dest in w.EXITS.get(loc, []):
+            cx, cy = px(loc, tx, ty)
+            if is_arch(w, loc, tx, ty):
+                draw.ellipse([cx - 12, cy - 8, cx + 12, cy + 8],
+                             outline=(205, 155, 255, 255), width=3)
+            elif (w.map(loc).tile(tx, ty) & 15) != w.marker and tile:
+                sheet.alpha_composite(tile, (int(cx) - 16, int(cy) - 7))
+
     joined = {(min(a, b), max(a, b)) for a, _, b, _, _ in seams(w)}
     for a, links in w.EXITS.items():
         for ta, b in links:
@@ -184,8 +239,10 @@ def main():
     head = f"{game} - one continuous world"
     draw.text((margin + 2, 22), head, font=title, fill=(0, 0, 0, 255))
     draw.text((margin, 20), head, font=title, fill=(245, 245, 250, 255))
-    sub = (f"{len(seams(w))//2} shared borders laid out flat; "
-           f"purple lines are portals, which have no border to share")
+    sub = (f"{len(seams(w))//2} shared borders laid out flat. A purple ring "
+           f"is a stone arch, which teleports; its partner is on the other "
+           f"end of the purple line. Faded red tiles are doorways watAgame "
+           f"left unmarked.")
     draw.text((margin, 78), sub, font=label, fill=(160, 160, 180, 255))
     draw.text((margin, 112),
               "doorways and placement are watAgame's" if real
