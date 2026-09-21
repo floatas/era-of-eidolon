@@ -20,11 +20,33 @@ quests against a binary TLV protocol.
 ## Its protocol is named, not binary
 
 Where the chapters speak the `0xBABE` tag/type/length protocol in
-`protocol/PROTOCOL.md`, the town client calls CGI scripts by name against
+`protocol/PROTOCOL.md`, the town client calls CGI scripts by name.
 
-    http://81.7.141.67/1/
+**The address.** Three of the four Arena builds point at a bare IP; only the
+last one uses a hostname:
 
-Sixty-four of them, recovered from the constant pool:
+    EoE-Dagonar-v5.3.3        http://81.7.141.67/1/
+    EoE-Orumant-v5.2.10       http://81.7.141.67/1/
+    EoE-Orumant-no30-trial    http://81.7.141.67/1/
+    EoE-Dagonar-v5.4.3        http://prod1.eraofeidolon.com/1/
+
+Which fills in the numbering. The chapters each shipped pointing at their own
+production host under `/2/`:
+
+    prod1  the Arena (Dagonar, Orumant)   /1/
+    prod4  Shirad's Forge                 /2/
+    prod5  Sterling Lake                  /2/
+    prod6  Mistral Grove                  /2/
+
+So the path is the protocol generation: `/1/` is the named-CGI Arena, `/2/`
+the binary one. 81.7.141.67 is what the Arena talked to before watAgame put
+names in front of the machines; it belonged to a Danish host and answers
+nothing now.
+
+Sixty-four of them, recovered from the constant pool — and identical in all
+four builds, trial and full, 2005 and 2006, Dagonar and Orumant. One server
+served both towns, and its API did not change in the year between the two
+Dagonar releases:
 
     login register betaentry version ping submit pay errorreport
     charselectcreate charselectchoose charselectdelete
