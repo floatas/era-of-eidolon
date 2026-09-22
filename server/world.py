@@ -148,6 +148,8 @@ class Mob:
         self.hp = self.max_hp = hp
         self.anim = anim
         self.alive = True
+        self.home = (x, y)
+        self.fight_hp = hp
 
     # d.java:226 reads byte 15 and, when it is set, starts the WALK animation
     # on the creature: `this.n[id].a(14, true)`. Only creatures that move have
@@ -166,6 +168,25 @@ class Mob:
         r[13] = self.anim
         r[15] = 1 if animated else 0
         return r
+
+    def offence(self):
+        """Attack, avoidance and will are not in the jar. Scale them from
+        the hit points this creature is fought at: a 10-point fighter
+        should not cut a new hero down, and a 50-point one should."""
+        hp = self.max_hp or 10
+        return {
+            "effect": max(4, hp // 4),
+            "precision": 70,
+            "avoid": 10 + hp // 8,
+            "will": max(5, hp // 2),
+            "armour": 0,
+        }
+
+    def spoil(self):
+        """Gold and experience for winning against this creature. The rules
+        pay more for a harder fight; hit points are the only scale we have."""
+        hp = self.max_hp or 10
+        return max(1, hp // 5), max(2, hp // 2)
 
 
 class World:
@@ -202,6 +223,9 @@ class World:
                          else (self.locations[0] if self.locations else 1))
         self.hero_x, self.hero_y = self.spawn_point(self.location)
         self.hero_hp = self.hero_max = 40
+        # Where "Try to flee" puts the hero back: the square the location was
+        # entered on. The client keeps the same thing in d.W, d.X.
+        self.recall = (self.hero_x, self.hero_y)
 
         # The character system is NOT lost — it is in the client, d.java:27-37:
         #   y[] the six action-bar categories
@@ -225,6 +249,12 @@ class World:
             "weapon": kit.get("sword").name if kit.get("sword") else None,
             "armour": kit.get("armour").name if kit.get("armour") else None,
         }
+        # One fight at a time. None means no fight is open; a list of node
+        # ids is who opcode 12 was asked to engage (d.java a(byte[], boolean)).
+        self.engaged = None
+        self.guard = 0            # avoidance added by a defence skill this turn
+        self.pending_gold = 0
+        self.pending_xp = 0
         self.mobs = {}
         self.next_node = 1
         # Node ids index into the tag-21 and tag-25 state arrays and into
@@ -415,6 +445,15 @@ class World:
                     hp=r[11] or 10, anim=r[13],
                     npc=r[12] == self.npc_creature)
             m.text_key = int.from_bytes(r[7:9], "big") or None
+            # Five of Shirad's Forge's 111 creatures stand on void tiles,
+            # all of them in the Crypt and all with the highest node ids in
+            # the table: four fire devils in a 2x2 and a ghost, parked off
+            # the drawn map. Nothing can be standing there when you arrive,
+            # so they start gone, as the server would have sent them until
+            # whatever raises them fires.
+            mp = self.map(loc)
+            if mp and not (mp.tile(r[3], r[4]) & 15):
+                m.alive = False
             self.mobs[node] = m
         self.next_node = max(self.mobs, default=0) + 1
         self.node_count = max(getattr(self, "node_count", 0),
@@ -795,7 +834,7 @@ class World:
         while self.xp >= self.xp_for_next():
             self.xp -= self.xp_for_next()
             self.level += 1
-            self.raises += 3
+            self.raises += 2          # rules 1.5: 2 ability points a level
             self.hero_max += 6
             self.hero_hp = self.hero_max
             gained += 1
@@ -812,19 +851,79 @@ class World:
     def armour(self):
         return self.item(self.equipped.get("armour"))
 
-    def attack_damage(self):
-        """Rules: base = skill effect + weapon + Strength; a low roll (a
-        precise hit) multiplies it. Dexterity governs the critical chance."""
-        w = self.weapon()
-        base = (w.effect if w else 2) + self.stats["Strength"] // 6
-        crit = random.random() < min(0.35, self.stats["Dexterity"] / 200)
-        dmg = base + random.randint(0, max(1, base // 3))
-        return (int(dmg * 1.8), True) if crit else (dmg, False)
+    def avoidance(self):
+        """Dexterity avoids weapon hits. A defence skill queued earlier this
+        turn still counts (rules 1.5); its precision sits in `guard`."""
+        return self.stats["Dexterity"] // 2 + self.guard
 
-    def damage_taken(self, raw):
-        """Armour reduces melee and missile damage. It never touches spells."""
-        a = self.armour()
-        return max(1, raw - (a.effect if a else 0))
+    def contact(self, x, y, ox, oy):
+        """Base contact: the eight squares around a tile. Range of a melee
+        weapon is 1, and a diagonal neighbour is one square away even though
+        movement itself may not take that diagonal."""
+        return max(abs(x - ox), abs(y - oy)) == 1
+
+    def line_of_sight(self, x0, y0, x1, y1):
+        """d.java a(j, j). Step the longer remaining axis, and Y when the
+        two are equal. Any tile that cannot be walked blocks the line,
+        including the square the line lands on."""
+        mp = self.map()
+        if not mp:
+            return False
+        x, y = x0, y0
+        while (x, y) != (x1, y1):
+            if abs(x - x1) > abs(y - y1):
+                x += -1 if x > x1 else 1
+            elif y > y1:
+                y -= 1
+            else:
+                y += 1
+            if not mp.walkable(x, y):
+                return False
+        return True
+
+    def strike(self, effect, precision, potency, avoid, dex=0, armour=0,
+               weapon_mod=0, rng=None, spell=False, resist=0):
+        """One attack, rules 1.5.
+
+        Weapons: base = skill effect + weapon + potency//10, where potency
+        is Strength. The hit chance is the skill's precision plus half of
+        Dexterity, minus the target's avoidance, clamped to 5..98. A roll
+        of 1..100 above that misses. A roll in the bottom half of the
+        chance is precise (x3/2); one in the bottom fifteenth is a critical
+        (x2). Armour then subtracts, and never raises the result.
+
+        Spells skip that to-hit. They fizzle when the roll exceeds the
+        spell's precision, and they are resisted unless the caster's
+        ability is strictly higher than the target's resistance. Armour
+        does not apply. Damage is effect + potency//10 (Intelligence for
+        Bane, Willpower for Spirit).
+
+        The rules name every term and none of the coefficients. Half a
+        point of the ability per point on the 1..100 roll is the reading
+        that lets the published skill numbers reach the creatures we have.
+        """
+        rng = rng or random
+        roll = rng.randint(1, 100)
+        if spell:
+            if roll > max(1, precision):
+                return "fizzle", 0
+            if potency <= resist:
+                return "resist", 0
+            return "hit", max(0, effect + potency // 10)
+        chance = precision + dex // 2 - avoid
+        chance = 5 if chance < 5 else (98 if chance > 98 else chance)
+        if roll > chance:
+            return "miss", 0
+        base = effect + weapon_mod + potency // 10
+        if base < 0:
+            base = 0
+        if roll <= chance // 15:
+            dealt, kind = base * 2, "crit"
+        elif roll <= chance // 2:
+            dealt, kind = base * 3 // 2, "precise"
+        else:
+            dealt, kind = base, "hit"
+        return kind, max(0, dealt - armour)
 
     def equip(self, name):
         it = self.item(name)
@@ -903,6 +1002,8 @@ class World:
         "idle":   (1, 15, 14),
         "walk":   (14, 1, 15),
         "attack": (4, 9, 12, 8, 10, 1),
+        "bow":    (12, 10, 4, 1),
+        "cast":   (8, 4, 1),
         "hurt":   (5, 6, 1),
         "die":    (6, 7, 5),
     }
@@ -961,6 +1062,68 @@ class World:
         so they stay out of the combat list and out of tag 22."""
         return [m for m in self.mobs.values()
                 if m.alive and m.location == self.location and not m.npc]
+
+    def fighters(self):
+        """Who this fight is against. Opcode 12 names them; until then every
+        living fighter in the location is, which is what a chapter with one
+        creature on screen already was."""
+        if self.engaged is None:
+            return self.living()
+        have = {m.node: m for m in self.living()}
+        return [have[n] for n in self.engaged if n in have]
+
+    def begin_fight(self, nodes, seen=b""):
+        """Open a fight against the nodes the client named.
+
+        `seen` is opcode 12 tag 2: the client's own (node, x, y) triples.
+        Creatures wander on the handset, so the square we stored at load
+        is not always the square the player is looking at."""
+        if seen:
+            for i in range(0, len(seen) - 2, 3):
+                node, x, y = seen[i], seen[i + 1], seen[i + 2]
+                if node == 0:
+                    self.hero_x, self.hero_y = x, y
+                    continue
+                m = self.mobs.get(node)
+                if m and m.alive and not m.npc:
+                    m.x, m.y = x, y
+        alive = {m.node: m for m in self.living()}
+        picked = [n for n in nodes if n in alive]
+        self.engaged = picked or list(alive)
+        self.fight_at = (self.hero_x, self.hero_y)
+        self.guard = 0
+        self.pending_gold = 0
+        self.pending_xp = 0
+        for n in self.engaged:
+            m = alive.get(n)
+            if m:
+                m.home = (m.x, m.y)
+                m.fight_hp = m.hp
+
+    def revert_fight(self):
+        """The fight did not count: flee, or the hero went down. Creatures
+        go back to the squares and life they had when it started."""
+        for n in list(self.engaged or []):
+            m = self.mobs.get(n)
+            if not m:
+                continue
+            m.alive = True
+            m.hp = getattr(m, "fight_hp", m.max_hp)
+            home = getattr(m, "home", None)
+            if home:
+                m.x, m.y = home
+        self.engaged = None
+        self.guard = 0
+        self.pending_gold = 0
+        self.pending_xp = 0
+
+    def battle_report(self):
+        lines = []
+        if self.pending_gold or self.pending_xp:
+            lines.append(f"Gold +{self.pending_gold}")
+            lines.append(f"Experience +{self.pending_xp}")
+        lines.append(self.victory_text())
+        return "\n".join(lines)
 
     def npcs(self):
         return [m for m in self.mobs.values()
@@ -1346,6 +1509,7 @@ def _travel(self, location):
     everywhere, so this only moves our idea of where the hero is."""
     self.location = location
     self.hero_x, self.hero_y = self.arrival(location)
+    self.recall = (self.hero_x, self.hero_y)
 
 
 def _refresh_npcs(self):
@@ -1389,16 +1553,21 @@ def _world_to_dict(self):
         "game": self.game,
         "location": self.location,
         "hero_x": self.hero_x, "hero_y": self.hero_y,
+        "recall": list(getattr(self, "recall", (self.hero_x, self.hero_y))),
         "hero_hp": self.hero_hp, "hero_max": self.hero_max,
         "next_node": self.next_node,
         "stats": self.stats, "level": self.level, "xp": self.xp,
         "gold": self.gold, "raises": self.raises,
         "inventory": self.inventory, "equipped": self.equipped,
+        "engaged": self.engaged,
+        "pending_gold": self.pending_gold, "pending_xp": self.pending_xp,
         "mobs": [{"node": m.node, "location": m.location, "x": m.x, "y": m.y,
                   "creature": m.creature, "hp": m.hp, "max_hp": m.max_hp,
                   "alive": m.alive, "npc": m.npc,
                   "label": getattr(m, "label", None),
-                  "text_key": getattr(m, "text_key", None)}
+                  "text_key": getattr(m, "text_key", None),
+                  "home": list(getattr(m, "home", (m.x, m.y))),
+                  "fight_hp": getattr(m, "fight_hp", m.hp)}
                  for m in self.mobs.values()],
     }
 
@@ -1407,6 +1576,8 @@ def _world_from_dict(self, d):
     self.location = d.get("location", self.location)
     self.hero_x = d.get("hero_x", self.hero_x)
     self.hero_y = d.get("hero_y", self.hero_y)
+    rec = d.get("recall")
+    self.recall = tuple(rec) if rec else (self.hero_x, self.hero_y)
     self.hero_hp = d.get("hero_hp", self.hero_max)
     self.hero_max = d.get("hero_max", self.hero_max)
     self.next_node = d.get("next_node", 1)
@@ -1417,6 +1588,9 @@ def _world_from_dict(self, d):
     self.raises = d.get("raises", 0)
     self.inventory = d.get("inventory") or self.inventory
     self.equipped = d.get("equipped") or self.equipped
+    self.engaged = d.get("engaged")
+    self.pending_gold = d.get("pending_gold", 0)
+    self.pending_xp = d.get("pending_xp", 0)
     self.refresh_npcs()
     self.mobs = {}
     for md in d.get("mobs", []):
@@ -1428,6 +1602,9 @@ def _world_from_dict(self, d):
             m.label = md["label"]
         if md.get("text_key"):
             m.text_key = md["text_key"]
+        if md.get("home"):
+            m.home = tuple(md["home"])
+        m.fight_hp = md.get("fight_hp", m.hp)
         self.mobs[m.node] = m
     return self
 

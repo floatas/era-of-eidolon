@@ -175,7 +175,7 @@ def markers(w, loc):
     if not any(m.location == loc for m in w.mobs.values()):
         w.populate_location(loc)
     for m in w.mobs.values():
-        if m.location == loc:
+        if m.location == loc and m.alive:
             kind = "npc" if getattr(m, "label", None) else "foe"
             out.append(((m.x, m.y), kind, m.creature))
     return out

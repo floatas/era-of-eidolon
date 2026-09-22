@@ -15,6 +15,7 @@ source line noted, so a failure says which client expectation was broken.
 
 import collections
 import os
+import random
 import struct
 import sys
 
@@ -337,6 +338,158 @@ def main():
     check("weapons loaded", len(c.get("weapon")) > 50)
     check("armour loaded", len(c.get("armour")) > 10)
     check("starting kit resolves", len(c.starting_kit()) >= 2)
+
+    print("\ncombat")
+    # Rules 1.5, exercised against Shirad's Forge as it actually stands:
+    # the hero begins on (7, 0) and the one fighter in that place, node 7,
+    # stands on (9, 2). Nothing here may depend on the roll coming up the
+    # same way twice unless the Random is handed in.
+
+    def said(script, text):
+        return any(text.encode() in rec for rec in script)
+
+    w = World("ShiradsForge")
+    x, y = w.hero_x, w.hero_y
+    script = handlers.resolve(
+        w, [("Move", 40, 1, [(x + 1, y + 1)])], rng=random.Random(1))
+    check("a diagonal step is a Failed Move and the hero stays",
+          (w.hero_x, w.hero_y) == (x, y) and said(script, "Failed Move"))
+
+    w = World("ShiradsForge")
+    step = next((p for p in ((w.hero_x, w.hero_y + 1), (w.hero_x + 1, w.hero_y),
+                             (w.hero_x - 1, w.hero_y), (w.hero_x, w.hero_y - 1))
+                 if w.can_stand(*p) and not w.mob_at(*p)), None)
+    check("the start has an open orthogonal step", step is not None, str(step))
+    if step:
+        script = handlers.resolve(w, [("Move", 40, 1, [step])],
+                                  rng=random.Random(1))
+        check("an open orthogonal step is taken",
+              (w.hero_x, w.hero_y) == step,
+              f"ended {(w.hero_x, w.hero_y)}")
+
+    w = World("ShiradsForge")
+    mob = w.living()[0]
+    far = max(abs(mob.x - w.hero_x), abs(mob.y - w.hero_y)) > 1
+    before = mob.hp
+    script = handlers.resolve(w, [("Hit", 60, 2, [(mob.x, mob.y)])],
+                              rng=random.Random(1))
+    check("melee out of contact does not hit, and does not pick someone else",
+          far and mob.hp == before and said(script, "Too far away"))
+
+    w = World("ShiradsForge")
+    mob = w.living()[0]
+    w.hero_x, w.hero_y = mob.x - 1, mob.y
+    beside = w.can_stand(w.hero_x, w.hero_y) and w.contact(
+        w.hero_x, w.hero_y, mob.x, mob.y)
+    check("the hero can stand beside the starter", beside,
+          f"hero {(w.hero_x, w.hero_y)} mob {(mob.x, mob.y)}")
+    if beside:
+        w.begin_fight([mob.node])
+        w.hero_hp = 15
+        mob.hp = 1
+        script = handlers.resolve(
+            w, [("Hit", 60, 2, [(mob.x, mob.y)])], rng=random.Random(1))
+        if mob.alive:
+            mob.alive = False
+            mob.hp = 0
+            w.pending_gold, w.pending_xp = mob.spoil()
+        status, extra = handlers.finish(w, script)
+        check("winning a fight refills life and pays for it",
+              status == 2 and w.hero_hp == w.hero_max and w.gold > 50
+              and not mob.alive,
+              f"status {status} hp {w.hero_hp} gold {w.gold}")
+        check("the win carries node states and the battle report",
+              len(extra) >= 4)
+
+    w = World("ShiradsForge")
+    bow = catalogue().starting_kit()["bow"]
+    mob = w.living()[0]
+    w.hero_x, w.hero_y = mob.x - 1, mob.y
+    w.equipped["weapon"] = bow.name
+    w.begin_fight([mob.node])
+    script = handlers.resolve(w, [("Shoot", 60, 2, [(mob.x, mob.y)])],
+                              rng=random.Random(1))
+    check("a bow cannot be used in contact", said(script, "Too close"))
+
+    w = World("ShiradsForge")
+    mob = w.living()[0]
+    script = handlers.resolve(w, [("Shoot", 60, 2, [(mob.x, mob.y)])],
+                              rng=random.Random(1))
+    check("Shoot without a bow says so", said(script, "Need a bow"))
+
+    w = World("ShiradsForge")
+    kind, dmg = w.strike(9, 100, 20, 0, spell=True, resist=0, armour=100,
+                         rng=random.Random(1))
+    check("a spell ignores armour", kind == "hit" and dmg == 11, f"{kind} {dmg}")
+    kind, dmg = w.strike(9, 100, 5, 0, spell=True, resist=5, rng=random.Random(1))
+    check("a spell is resisted unless the caster's ability is higher",
+          kind == "resist" and dmg == 0, f"{kind} {dmg}")
+
+    bare = w.strike(10, 100, 30, 0, dex=25, armour=0, weapon_mod=-5,
+                    rng=random.Random(4))
+    worn = w.strike(10, 100, 30, 0, dex=25, armour=3, weapon_mod=-5,
+                    rng=random.Random(4))
+    check("the same weapon roll with armour deals three less",
+          bare[0] == worn[0] and worn[1] == max(0, bare[1] - 3),
+          f"{bare} vs {worn}")
+
+    w = World("ShiradsForge")
+    base = w.avoidance()
+    handlers.resolve(w, [("Dodge", 20, 0, [(0, None)])], rng=random.Random(1))
+    check("Dodge raises avoidance by the skill's precision for the rest of the turn",
+          w.guard == 10 and w.avoidance() == base + 10,
+          f"guard {w.guard} avoid {w.avoidance()} was {base}")
+
+    w = World("ShiradsForge")
+    spawn = (w.hero_x, w.hero_y)
+    mob = w.living()[0]
+    w.begin_fight([mob.node])
+    mob.hp = 1
+    w.hero_hp = 0
+    status, _ = handlers.finish(w, [])
+    check("losing puts the hero back at the start, alive",
+          status == 3 and (w.hero_x, w.hero_y) == spawn
+          and w.hero_hp == w.hero_max and spawn != (12, 17),
+          f"at {(w.hero_x, w.hero_y)} hp {w.hero_hp}")
+    check("losing does not clear the creature",
+          mob.alive and mob.hp == mob.max_hp, f"hp {mob.hp} alive {mob.alive}")
+
+    w = World("ShiradsForge")
+    mob = w.living()[0]
+    w.begin_fight([mob.node])
+    w.hero_hp = 12
+    w.hero_x += 2
+    mob.hp = 4
+    home = mob.home
+    mob.x += 1
+    status = handlers._flee(w, [])
+    check("fleeing refills life and puts both sides back",
+          status == 4 and w.hero_hp == w.hero_max
+          and (w.hero_x, w.hero_y) == w.recall
+          and mob.alive and mob.hp == mob.max_hp and (mob.x, mob.y) == home,
+          f"hero {(w.hero_x, w.hero_y)} mob {(mob.x, mob.y)} hp {mob.hp}")
+
+    w = World("ShiradsForge")
+    mob = w.living()[0]
+    w.begin_fight([mob.node])
+    resp = handlers.auto_response(w, rng=random.Random(1))
+    check("auto fight beats the starter and refills life",
+          resp[2] == 2 and w.hero_hp == w.hero_max and not mob.alive,
+          f"status {resp[2]} hp {w.hero_hp} mob {mob.hp} alive {mob.alive}")
+
+    # every script built above still has to satisfy d.java:1077
+    w = World("ShiradsForge")
+    mob = w.living()[0]
+    w.begin_fight([mob.node])
+    script = handlers.resolve(
+        w, [("Move", 80, 1, [(w.hero_x + 1, w.hero_y + 1), (w.hero_x, w.hero_y + 1)]),
+            ("Hit", 140, 2, [(mob.x, mob.y)]),
+            ("Dodge", 20, 0, [(0, None)]),
+            ("Minor Cure", 60, 0, [(0, None)])],
+        rng=random.Random(2))
+    short = [r.hex() for r in script if len(r) - (5 + r[4]) < 2]
+    check("rules results still carry >= 2 payload bytes", not short,
+          f"{len(short)} too short")
 
     print()
     if FAILED:

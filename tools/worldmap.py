@@ -260,7 +260,17 @@ def main():
     label, title = font(26), font(46)
     for loc in imgs:
         mp = w.map(loc)
-        c = px(loc, mp.w // 2, mp.h // 2)
+        # the middle of the GROUND, not of the rectangle: the Crypt fills
+        # only the left third of its 20x10 map, so its geometric centre is
+        # out in the void
+        drawn_tiles = [(x, y) for y in range(mp.h) for x in range(mp.w)
+                       if mp.tile(x, y) & 15]
+        if drawn_tiles:
+            mx = sum(t[0] for t in drawn_tiles) // len(drawn_tiles)
+            my = sum(t[1] for t in drawn_tiles) // len(drawn_tiles)
+        else:
+            mx, my = mp.w // 2, mp.h // 2
+        c = px(loc, mx, my)
         text = f"{loc}  {w.name(loc)}"
         tx = c[0] - draw.textlength(text, font=label) / 2
         draw.text((tx + 2, c[1] + 2), text, font=label, fill=(0, 0, 0, 255))

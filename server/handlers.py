@@ -353,6 +353,9 @@ def enter_world(req):
         chunk_int(22, w.location),
         chunk_int(23, w.hero_x),
         chunk_int(24, w.hero_y),
+        # d.java stores these as W,X: the square "Try to flee" returns to.
+        chunk_int(26, w.hero_x),
+        chunk_int(27, w.hero_y),
     ])
 
 
@@ -393,7 +396,7 @@ def entity_rows(w):
                       dmg >> 8, dmg & 0xFF, anim])
 
     rows = [row(0, w.hero_x, w.hero_y, w.hero_hp, w.hero_max, w.anim(0))]
-    for m in w.living():
+    for m in w.fighters():
         rows.append(row(m.node, m.x, m.y, m.hp, m.max_hp, w.anim(m.creature)))
     if len(rows) == 1:                     # never leave aF with a lone hero
         rows.append(row(0, w.hero_x, w.hero_y, w.hero_hp, w.hero_max))
@@ -410,8 +413,17 @@ def turn(req):
                        origin and nothing is reachable
         tag 22      -> repeated, one byte[8] per entity
     """
-    w, _, _ = session_world(req)
+    w, _, hero = session_world(req)
     sync(req, w)
+    # Tag 1 is the node ids the player engaged (one byte each). Tag 3 = 1
+    # is "Auto fight": i.java then delivers THIS response to d.b, the result
+    # handler, so it must be a finished fight and never status 1.
+    w.begin_fight(list(req.get(1)), req.get(2))
+    if req.int_(3) == 1:
+        resp = auto_response(w, rng=random)
+        if hero:
+            saves().save(hero, w.game)
+        return resp
     chunks = [chunk_int(20, w.hero_x), chunk_int(21, w.hero_y)]
     chunks += [chunk_raw(22, 0, r) for r in entity_rows(w)]
     # Every one of slots 0..5 must hold at least one `f`. While a slot is open
@@ -437,13 +449,56 @@ def turn(req):
 # whatever the creatures do. The server's job is to merge both into one ordered
 # script, which is why the client bothers to send the timestamps at all.
 
-MOB_BUDGET = 360      # creatures get half a turn's worth of time
-MOB_MOVE = 60
-MOB_ATTACK = 180
+# d.java af, the queue entry "Try to flee" writes instead of an action.
+FLEE = bytes((1, 102, 0, 0))
+MELEE_CLS = ("sword", "axe", "hammer")
+
+
+def _note(script, text, red=True, anim=None, node=0):
+    payload = [0, 0] if anim is None else [1, node, anim]
+    script.append(result(0, payload, msg=text, red=red))
+
+
+def _step_toward(w, x, y, tx, ty, blocked):
+    """One orthogonal step that gets closer. Diagonals are illegal, and a
+    blocked axis tries the other before the creature gives up."""
+    dx, dy = tx - x, ty - y
+    cands = []
+    if dx and abs(dx) >= abs(dy):
+        cands.append((x + (1 if dx > 0 else -1), y))
+    if dy:
+        cands.append((x, y + (1 if dy > 0 else -1)))
+    if dx and abs(dx) < abs(dy):
+        cands.append((x + (1 if dx > 0 else -1), y))
+    seen = []
+    for nx, ny in cands:
+        if (nx, ny) in seen:
+            continue
+        seen.append((nx, ny))
+        if (nx, ny) in blocked or not w.can_stand(nx, ny):
+            continue
+        return nx, ny
+    return None
+
+
+def _step_away(w, x, y, tx, ty, blocked):
+    opts = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+    opts.sort(key=lambda p: -(abs(p[0] - tx) + abs(p[1] - ty)))
+    for nx, ny in opts:
+        if (nx, ny) in blocked or not w.can_stand(nx, ny):
+            continue
+        return nx, ny
+    return None
+
+
+def _blocked(w):
+    tiles = {(m.x, m.y) for m in w.fighters()}
+    tiles |= {(m.x, m.y) for m in w.npcs()}
+    return tiles
 
 
 def hero_timeline(w, actions):
-    """(time, fn) events for everything the player queued, in clock order."""
+    """(time, event) for everything the player queued, in clock order."""
     events = []
     for name, ts, mode, pts in sorted(actions, key=lambda a: a[1]):
         if mode == 1:
@@ -454,157 +509,414 @@ def hero_timeline(w, actions):
                 events.append((ts - (len(pts) - 1 - i) * step,
                                ("move", x, y)))
         elif mode == 2 and pts:
-            events.append((ts, ("attack", pts[0][0], pts[0][1])))
+            events.append((ts, ("attack", name, pts[0][0], pts[0][1])))
         elif mode == 0:
             events.append((ts, ("self", name)))
     return events
 
 
 def mob_timeline(w):
-    """Creatures spend their own budget closing the distance and swinging."""
+    """Both sides share the 720 budget. Creatures close, then swing, and
+    they choose blind against where the hero is standing now."""
     events = []
-    for m in w.living():
+    reserved = {(w.hero_x, w.hero_y)} | _blocked(w)
+    for m in w.fighters():
         t, x, y = 0, m.x, m.y
-        while t < MOB_BUDGET:
-            dx, dy = w.hero_x - x, w.hero_y - y
-            if max(abs(dx), abs(dy)) <= 1:
-                t += MOB_ATTACK
-                if t > MOB_BUDGET:
+        reserved.discard((x, y))
+        while True:
+            if w.contact(x, y, w.hero_x, w.hero_y):
+                if t + ATTACK_COST > TURN_BUDGET:
                     break
+                t += ATTACK_COST
                 events.append((t, ("mob_attack", m.node)))
             else:
-                t += MOB_MOVE
-                if t > MOB_BUDGET:
+                nxt = _step_toward(w, x, y, w.hero_x, w.hero_y, reserved)
+                if nxt is None or t + MOVE_COST > TURN_BUDGET:
                     break
-                nx = x + (1 if dx > 0 else -1 if dx < 0 else 0)
-                ny = y + (1 if dy > 0 else -1 if dy < 0 else 0)
-                events.append((t, ("mob_move", m.node, nx, ny)))
-                x, y = nx, ny
+                t += MOVE_COST
+                events.append((t, ("mob_move", m.node, nxt[0], nxt[1])))
+                x, y = nxt
+                reserved.add((x, y))
+        reserved.add((x, y))
     return events
 
 
-def resolve(w, actions):
-    """Merge both timelines and play them out in order."""
+def hero_plan(w):
+    """What Auto fight queues for the hero: close and Hit with a melee
+    weapon, or keep a bow out of contact and Shoot. One turn of it."""
+    mobs = w.fighters()
+    if not mobs:
+        return []
+    target = min(mobs, key=lambda m: (abs(m.x - w.hero_x) + abs(m.y - w.hero_y),
+                                       m.node))
+    bow = w.weapon() is not None and w.weapon().cls == "bow"
+    blocked = _blocked(w)
+    x, y = w.hero_x, w.hero_y
+    t = 0
+    actions, steps = [], []
+
+    def flush(upto):
+        if steps:
+            actions.append(("Move", upto, 1, list(steps)))
+            steps.clear()
+
+    while t < TURN_BUDGET:
+        touching = w.contact(x, y, target.x, target.y)
+        if bow and touching:
+            nxt = _step_away(w, x, y, target.x, target.y, blocked)
+            if nxt is None or t + MOVE_COST > TURN_BUDGET:
+                break
+            t += MOVE_COST
+            x, y = nxt
+            steps.append((x, y))
+            continue
+        if bow and w.line_of_sight(x, y, target.x, target.y):
+            if t + ATTACK_COST > TURN_BUDGET:
+                break
+            t += ATTACK_COST
+            flush(t - ATTACK_COST)
+            actions.append(("Shoot", t, 2, [(target.x, target.y)]))
+            continue
+        if not bow and touching:
+            if t + ATTACK_COST > TURN_BUDGET:
+                break
+            t += ATTACK_COST
+            flush(t - ATTACK_COST)
+            actions.append(("Hit", t, 2, [(target.x, target.y)]))
+            continue
+        nxt = _step_toward(w, x, y, target.x, target.y, blocked)
+        if nxt is None or t + MOVE_COST > TURN_BUDGET:
+            break
+        t += MOVE_COST
+        x, y = nxt
+        steps.append((x, y))
+    flush(t)
+    return actions
+
+
+def _corpse_at(w, tx, ty):
+    return any(m.location == w.location and (m.x, m.y) == (tx, ty) and not m.alive
+               for m in w.mobs.values())
+
+
+def _kill(w, target, script):
+    target.alive = False
+    target.hp = 0
+    gold, xp = target.spoil()
+    w.pending_gold += gold
+    w.pending_xp += xp
+    script.append(result(0, [1, target.node, w.anim(target.creature, "die")], dur=12))
+    script.append(res_remove([target.node]))
+
+
+def _land_on_mob(w, attacker, target, outcome, dmg, anim, script):
+    words = {"miss": "Miss", "fizzle": "Fizzle", "resist": "Resisted"}
+    if outcome in words:
+        _note(script, words[outcome], anim=anim, node=attacker)
+        return
+    if dmg <= 0:
+        _note(script, "Blocked", anim=anim, node=attacker)
+        return
+    target.hp -= dmg
+    label = {"crit": "CRIT", "precise": "Precise"}.get(outcome, "")
+    msg = f"{label} -{dmg}".strip()
+    script.append(res_attack(attacker, [(target.node, dmg)], anim=anim, msg=msg))
+    if target.hp <= 0:
+        _kill(w, target, script)
+
+
+def _aimed(w, tx, ty):
+    """The fighter still standing on the square the action was aimed at.
+    A corpse means the blow already landed earlier in this turn."""
+    target = w.mob_at(tx, ty, include_npcs=False)
+    if target is not None and (w.engaged is None or target.node in w.engaged):
+        return target
+    return None
+
+
+def _hero_attack(w, name, tx, ty, script, rng):
+    it = catalogue().find(name) if name else None
+    cls = it.cls if it else ""
+    kind = it.kind if it else "skill"
+    # The weapon is required whether or not the target is still there.
+    # What the square holds is checked after that, at the moment the
+    # action comes up on the timeline.
+    if kind == "spell" or cls in ("bane", "spectral"):
+        target = _aimed(w, tx, ty)
+        if target is None:
+            if not _corpse_at(w, tx, ty):
+                _note(script, "Too far away")
+            return
+        if not w.line_of_sight(w.hero_x, w.hero_y, target.x, target.y):
+            _note(script, "No line of sight")
+            return
+        off = target.offence()
+        outcome, dmg = w.strike(
+            it.effect if it else 9, it.precision if it else 100,
+            w.stats["Intelligence"], 0, spell=True, resist=off["will"], rng=rng)
+        _land_on_mob(w, 0, target, outcome, dmg, w.anim(0, "cast"), script)
+        return
+    if cls == "long range":
+        weapon = w.weapon()
+        if weapon is None or weapon.cls != "bow":
+            _note(script, "Need a bow")
+            return
+        target = _aimed(w, tx, ty)
+        if target is None:
+            if not _corpse_at(w, tx, ty):
+                _note(script, "Too far away")
+            return
+        if w.contact(w.hero_x, w.hero_y, target.x, target.y):
+            _note(script, "Too close")
+            return
+        if not w.line_of_sight(w.hero_x, w.hero_y, target.x, target.y):
+            _note(script, "No line of sight")
+            return
+        off = target.offence()
+        outcome, dmg = w.strike(
+            it.effect if it else 9, it.precision if it else 100,
+            w.stats["Strength"], off["avoid"], dex=w.stats["Dexterity"],
+            armour=off["armour"], weapon_mod=weapon.effect, rng=rng)
+        _land_on_mob(w, 0, target, outcome, dmg, w.anim(0, "bow"), script)
+        return
+    weapon = w.weapon()
+    if weapon is None or weapon.cls not in MELEE_CLS:
+        _note(script, "Need a melee weapon")
+        return
+    target = _aimed(w, tx, ty)
+    if target is None or not w.contact(w.hero_x, w.hero_y, target.x, target.y):
+        if target is not None or not _corpse_at(w, tx, ty):
+            _note(script, "Too far away")
+        return
+    off = target.offence()
+    outcome, dmg = w.strike(
+        it.effect if it else 10, it.precision if it else 100,
+        w.stats["Strength"], off["avoid"], dex=w.stats["Dexterity"],
+        armour=off["armour"], weapon_mod=weapon.effect, rng=rng)
+    _land_on_mob(w, 0, target, outcome, dmg, w.anim(0, "attack"), script)
+
+
+def _heal(w, it, script, rng):
+    roll = rng.randint(1, 100)
+    if roll > (it.precision if it else 100):
+        _note(script, "Fizzle")
+        return
+    amount = max(0, (it.effect if it else 8) + w.stats["Willpower"] // 10)
+    amount = min(amount, w.hero_max - w.hero_hp)
+    w.hero_hp += amount
+    script.append(res_attack(0, [(0, -amount)], anim=w.anim(0, "cast"),
+                             msg=f"+{amount}", red=False))
+
+
+def _self_act(w, name, script, rng):
+    it = catalogue().find(name) if name else None
+    if it and it.cls == "spirit":
+        _heal(w, it, script, rng)
+        return
+    # Defence chosen early still applies to blows later on this timeline.
+    w.guard += it.precision if it else 10
+    _note(script, name or "Dodge", red=False)
+
+
+def _hero_move(w, x, y, script):
+    orthogonal = abs(x - w.hero_x) + abs(y - w.hero_y) == 1
+    if not orthogonal or not w.can_stand(x, y) or w.occupied(x, y):
+        _note(script, "Failed Move")
+        return
+    w.hero_x, w.hero_y = x, y
+    script.append(res_walk(0, x, y, w.anim(0, "walk")))
+
+
+def _mob_attack(w, m, script, rng):
+    if not m.alive or not w.contact(m.x, m.y, w.hero_x, w.hero_y):
+        return
+    off = m.offence()
+    armour = w.armour().effect if w.armour() else 0
+    outcome, dmg = w.strike(
+        off["effect"], off["precision"], 0, w.avoidance(),
+        armour=armour, rng=rng)
+    anim = w.anim(m.creature, "attack")
+    if outcome == "miss" or dmg <= 0:
+        # A creature missing is good news, so the line is green.
+        _note(script, "Miss" if outcome == "miss" else "Blocked",
+              red=False, anim=anim, node=m.node)
+        return
+    w.hero_hp = max(0, w.hero_hp - dmg)
+    label = {"crit": "CRIT", "precise": "Precise"}.get(outcome, "")
+    script.append(res_attack(m.node, [(0, dmg)], anim=anim,
+                             msg=f"{label} -{dmg}".strip()))
+
+
+def resolve(w, actions, rng=None):
+    """Merge both timelines and play them in time order.
+
+    Equal timestamps keep the hero's event first: the list is built that
+    way and the sort is stable. A dead hero takes no further actions.
+    """
+    rng = rng or random
+    w.guard = 0
     script = []
-    for _, ev in sorted(hero_timeline(w, actions) + mob_timeline(w),
-                        key=lambda e: e[0]):
+    events = hero_timeline(w, actions) + mob_timeline(w)
+    events.sort(key=lambda e: e[0])
+    for _, ev in events:
+        if w.hero_hp <= 0:
+            break
         kind = ev[0]
-
         if kind == "move":
-            _, x, y = ev
-            if not w.can_stand(x, y) or w.mob_at(x, y):   # NPCs block too
-                continue          # blocked: skip this step, keep the rest
-            w.hero_x, w.hero_y = x, y
-            script.append(res_walk(0, x, y, w.anim(0, "walk")))
-
+            _hero_move(w, ev[1], ev[2], script)
         elif kind == "attack":
-            _, tx, ty = ev
-            target = w.mob_at(tx, ty, include_npcs=False)
-            if target is None:
-                near = [m for m in w.living()
-                        if max(abs(m.x - w.hero_x), abs(m.y - w.hero_y)) <= 1]
-                target = near[0] if near else None
-            if target is None:
-                script.append(result(0, [0], msg="Out of reach"))
-                continue
-            dmg, crit = w.attack_damage()
-            target.hp -= dmg
-            script.append(res_attack(0, [(target.node, dmg)],
-                                     anim=w.anim(0, "attack"),
-                                     msg=("CRIT -%d" % dmg) if crit else f"-{dmg}"))
-            if target.hp <= 0:
-                target.alive = False
-                script.append(res_remove([target.node]))
-                w.gold += 5
-                if w.grant_xp(40):
-                    script.append(result(0, [0], msg=f"Level {w.level}!"))
-
+            _hero_attack(w, ev[1], ev[2], ev[3], script, rng)
         elif kind == "self":
-            if ev[1] == "Mend":
-                heal = min(6, w.hero_max - w.hero_hp)
-                w.hero_hp += heal
-                script.append(res_attack(0, [(0, -heal)],
-                                         anim=w.anim(0, "idle"),
-                                         msg=f"+{heal}", red=False))
-            else:
-                script.append(result(0, [0], msg="Braced"))
-
+            _self_act(w, ev[1], script, rng)
         elif kind == "mob_move":
             _, node, x, y = ev
             m = w.mobs.get(node)
             if not m or not m.alive or w.occupied(x, y) or not w.can_stand(x, y):
                 continue
+            if abs(x - m.x) + abs(y - m.y) != 1:
+                continue
             m.x, m.y = x, y
             script.append(res_walk(node, x, y, w.anim(m.creature, "walk")))
-
         elif kind == "mob_attack":
             m = w.mobs.get(ev[1])
-            if not m or not m.alive:
-                continue
-            if max(abs(m.x - w.hero_x), abs(m.y - w.hero_y)) > 1:
-                continue          # the hero moved away first
-            # Armour reduces melee and missile damage, never spells.
-            dmg = w.damage_taken(random.randint(3, 8))
-            w.hero_hp = max(0, w.hero_hp - dmg)
-            script.append(res_attack(m.node, [(0, dmg)],
-                                     anim=w.anim(m.creature, "attack"),
-                                     msg=f"-{dmg}"))
-
+            if m:
+                _mob_attack(w, m, script, rng)
     return script
+
+
+def _regen(w, script):
+    """Life points come back in full once the fight is over."""
+    healed = w.hero_max - max(0, w.hero_hp)
+    if healed > 0 and w.hero_hp > 0:
+        script.append(res_attack(0, [(0, -healed)], anim=w.anim(0),
+                                 msg=f"+{healed}", red=False))
+    w.hero_hp = w.hero_max
+
+
+def finish(w, script):
+    """Status and the extra tags d.b(b) requires once a fight is over.
+
+    2 won, 3 lost, 1 still going. Rewards are paid only for a win; a loss
+    or a flee puts the creatures back where the fight found them.
+    """
+    if w.hero_hp <= 0:
+        w.revert_fight()
+        w.hero_hp = w.hero_max
+        start = w.locations[0] if w.locations else w.location
+        w.location = start
+        w.hero_x, w.hero_y = w.spawn_point(start)
+        w.recall = (w.hero_x, w.hero_y)
+        return 3, [chunk_int(25, w.location),
+                   chunk_int(26, w.hero_x), chunk_int(27, w.hero_y)]
+    if w.engaged is not None and not w.fighters():
+        _regen(w, script)
+        report = w.battle_report()
+        leveled = w.grant_xp(w.pending_xp)
+        w.gold += w.pending_gold
+        w.pending_gold = 0
+        w.pending_xp = 0
+        if leveled:
+            report += f"\nLevel {w.level}!"
+            _note(script, f"Level {w.level}!", red=False)
+        dead = bytes(n for n in (w.engaged or [])
+                     if n in w.mobs and not w.mobs[n].alive)
+        w.engaged = None
+        # tag 23 replaces d.l and must be a byte[]. tag 28 is who died.
+        return 2, [chunk_int(21, 0),
+                   chunk_raw(23, 0, w.node_states()),
+                   chunk_str(24, report),
+                   chunk_raw(28, 0, dead)]
+    return 1, []
+
+
+def _log_world(w, status):
+    where = w.LOCATION_NAMES.get(w.location, w.location)
+    mobs = "  ".join(f"mob{m.node}({m.x},{m.y}) hp {m.hp}" for m in w.living())
+    print(f"    \033[35mworld: {where} hero({w.hero_x},{w.hero_y}) "
+          f"hp {w.hero_hp}/{w.hero_max}  {mobs}  -> status {status}\033[0m")
+
+
+def _flee(w, script):
+    healed = w.hero_max - w.hero_hp
+    w.revert_fight()
+    w.hero_x, w.hero_y = w.recall
+    if healed > 0:
+        # Show the recovery before the client's own "You flee" dialog.
+        w.hero_hp = w.hero_max - healed
+        _regen(w, script)
+    else:
+        w.hero_hp = w.hero_max
+    return 4
+
+
+def auto_response(w, rng=None, req=None):
+    """Auto fight never enters the combat UI. i.java case 12 sees the
+    request's i flag still set and hands this reply to d.b, which only
+    knows how to finish a fight — status 1 would build a turn on menus
+    that were never filled in."""
+    rng = rng or random
+    script = []
+    idle = 0
+    for _ in range(40):
+        if w.hero_hp <= 0 or not w.fighters():
+            break
+        before = (w.hero_hp, w.hero_x, w.hero_y,
+                  tuple((m.node, m.hp, m.x, m.y) for m in w.fighters()))
+        script.extend(resolve(w, hero_plan(w), rng))
+        after = (w.hero_hp, w.hero_x, w.hero_y,
+                 tuple((m.node, m.hp, m.x, m.y) for m in w.fighters()))
+        idle = idle + 1 if after == before else 0
+        if idle >= 2:
+            break
+    origin = getattr(w, "fight_at", (w.hero_x, w.hero_y))
+    if w.hero_hp > 0 and w.fighters():
+        status = _flee(w, script)
+        extra = []
+    else:
+        status, extra = finish(w, script)
+        # Auto fight never plays the movement script (i.java sends this
+        # reply to d.b, not d.e), so the hero is still on the square the
+        # fight started on. A loss already moved them via tags 26/27.
+        if status == 2:
+            w.hero_x, w.hero_y = origin
+    _log_world(w, status)
+    if not script:
+        script.append(result(0, [0, 0]))
+    return build_response(status=status,
+                          chunks=[chunk_raw(20, 0, r) for r in script] + extra)
 
 
 @handler(13)
 def end_turn(req):
-    """Opcode 13 — end turn. tag 1 carries the whole queued action stack; note
-    the client re-adds it on every loop iteration with a growing buffer, so the
-    LAST chunk is the complete one. We answer with the animation script in
-    repeated tag 20 chunks, and a status d.b(b) switches on:
+    """Opcode 13 — end turn. d.java j() writes one tag 1 per queued action
+    and resets the buffer in between, so the chunks are concatenated.
+
+    The reply is the animation script in repeated tag 20 chunks, and a
+    status d.b(b) switches on:
 
         1 = new turn   2 = fight won   3 = lost   4 = fled
     """
     w, _, hero = session_world(req)
     sync(req, w)
-    acts = parse_actions(req.get(1))
+    raw = b"".join(req.all(1))
+    if raw == FLEE:
+        script = []
+        status = _flee(w, script)
+        extra = []
+        acts = []
+    else:
+        acts = parse_actions(raw)
+        script = resolve(w, acts)
+        status, extra = finish(w, script)
     if acts:
         print("    \033[35mactions: " +
               ", ".join(f"{n}(mode {m}){p}" for n, _, m, p in acts) + "\033[0m")
-    script = resolve(w, acts)
     if not script:
-        script.append(result(0, [0]))
-
-    status = 1
-    if not w.living():
-        status = 2                                  # everything here is dead
-    elif w.hero_hp <= 0:
-        status = 3
-        w.hero_hp = w.hero_max
-        w.hero_x, w.hero_y = 12, 17
-
-    print(f"    \033[35mworld: {w.LOCATION_NAMES.get(w.location, w.location)} "
-          f"hero({w.hero_x},{w.hero_y}) hp {w.hero_hp}/{w.hero_max}  "
-          + "  ".join(f"mob{m.node}({m.x},{m.y}) hp {m.hp}" for m in w.living())
-          + f"  -> status {status}\033[0m")
-
+        script.append(result(0, [0, 0]))
+    _log_world(w, status)
     if hero:
         saves().save(hero, w.game)
-
-    chunks = [chunk_raw(20, 0, r) for r in script]
-    if status == 3:
-        chunks += [chunk_int(25, w.location),
-                   chunk_int(26, w.hero_x), chunk_int(27, w.hero_y)]
-    if status == 2:
-        # d.b(b) case 2 (the win path) is what drops the game out of combat and
-        # back into exploration, where entities and exits actually fire:
-        #   c(var1)                      tag 21 int; if non-zero it then reads
-        #                                tag 22 as a byte[6]
-        #   this.l = d.get(23)           MUST be a byte[] or l goes null
-        #   this.a(var1, d.get(28))      nodes to remove; !var1.i sets c = false
-        dead = bytes(m.node for m in w.mobs.values()
-                     if not m.alive and m.location == w.location)
-        chunks += [chunk_int(21, 0),
-                   chunk_raw(23, 0, w.node_states()),
-                   chunk_str(24, w.victory_text()),
-                   chunk_raw(28, 0, dead)]
+    chunks = [chunk_raw(20, 0, r) for r in script] + extra
     return build_response(status=status, chunks=chunks)
 
 
