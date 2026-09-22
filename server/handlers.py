@@ -818,14 +818,21 @@ def finish(w, script):
         if leveled:
             report += f"\nLevel {w.level}!"
             _note(script, f"Level {w.level}!", red=False)
+        w.commit_kills()
         dead = bytes(n for n in (w.engaged or [])
                      if n in w.mobs and not w.mobs[n].alive)
         w.engaged = None
+        # tag 21 opens "Raises left" (d.c). tag 22 is the six scores, in
+        # z[] order, and the screen NPEs if it is missing while 21 is set.
         # tag 23 replaces d.l and must be a byte[]. tag 28 is who died.
-        return 2, [chunk_int(21, 0),
-                   chunk_raw(23, 0, w.node_states()),
-                   chunk_str(24, report),
-                   chunk_raw(28, 0, dead)]
+        offer = [chunk_int(21, w.raises)]
+        if w.raises:
+            offer.append(chunk_raw(22, 0, bytes(
+                w.stats[s] & 0xFF for s in w.STATS)))
+        return 2, offer + [
+            chunk_raw(23, 0, w.node_states()),
+            chunk_str(24, report),
+            chunk_raw(28, 0, dead)]
     return 1, []
 
 
@@ -962,25 +969,26 @@ def equipped(req):
                           chunks=[chunk_str(20, r) for r in rows])
 
 
-@handler(22)
-def shop(req):
-    """Opcode 22 — a Market category. The client renders tag 20 as a list with
-    the title from tag 21 and the selected index from tag 22.
-
-    Categories are the client's own (d.java:37): Melee weapons, Missile
-    weapons, Armours, Skills, Spells.
-    """
-    w, _, _ = session_world(req)
-    which = req.int_(1)
+def market_rows(w, which):
+    """One shelf. d.java b[] is Melee, Missile, Armours, Skills, Spells."""
     kinds = ["weapon", "weapon", "armour", "skill", "spell"]
     kind = kinds[which] if 0 <= which < len(kinds) else "weapon"
     title = w.SHOP_CATEGORIES[which] if 0 <= which < 5 else "Market"
-
     items = [i for i in catalogue().get(kind)
              if which != 1 or i.cls in ("bow", "bomb")]
     if which == 0:
         items = [i for i in items if i.cls in ("sword", "axe", "hammer")]
     rows = [i.label() for i in items[:14]] or ["Nothing in stock"]
+    return title, rows
+
+
+@handler(22)
+def shop(req):
+    """Opcode 22 — a Market category. The client renders tag 20 as a list with
+    the title from tag 21 and the selected index from tag 22.
+    """
+    w, _, _ = session_world(req)
+    title, rows = market_rows(w, req.int_(1))
     return build_response(status=1, chunks=[
         chunk_str(21, f"{title} ({w.gold}g)"), chunk_int(22, 0)] +
         [chunk_str(20, r) for r in rows])
@@ -994,11 +1002,15 @@ def buy(req):
     name = req.get(1).decode("utf-8", "replace").split(" ")[0:99]
     wanted = " ".join(n for n in name if not n.endswith("g")
                       and not n.startswith(("E", "Ti"))).strip()
-    it = w.buy(wanted)
+    looked = w.item(wanted)
+    if looked and not w.can_wield(looked):
+        msg = f"You need {looked.ability} {looked.requirement}."
+    else:
+        it = w.buy(wanted)
+        msg = (f"Bought {it.name} for {it.price}g." if it
+               else "You cannot afford that.")
     if hero:
         saves().save(hero, w.game)
-    msg = (f"Bought {it.name} for {it.price}g." if it
-           else "You cannot afford that.")
     return build_response(status=1, chunks=[chunk_str(21, msg)])
 
 
@@ -1064,6 +1076,18 @@ def interact(req):
     """
     w, _, hero = session_world(req)
     state = req.int_(1)
+    # Shirad's kind-3 rows are checkpoints. The phone already showed the
+    # line and flipped the quest switch. The reply pays a stated gift, if
+    # the line named one, and otherwise stays quiet. A second sentence
+    # here would cover the jar's own text.
+    if w.real1:
+        paid = w.claim_gift(state)
+        if hero:
+            saves().save(hero, w.game)
+        if paid:
+            print(f"    \033[35mgift: state {state} +{paid} gold\033[0m")
+        return build_response(status=1, chunks=[])
+
     entry = getattr(w, "interactables", {}).get(state)
     chunks = []
 
@@ -1186,25 +1210,32 @@ def save_game(req):
 
 
 @handler(14)
-def map_message(req):
-    """Opcode 14 — a string typed on the map screen (d.java f(), field aI).
-    Whatever it addressed is gone; log it and acknowledge."""
-    text = req.get(1).decode("utf-8", "replace")
-    print(f"    \033[35mmap message: {text!r}\033[0m")
+def spend_raises(req):
+    """Opcode 14 — d.f(). Tag 1 is six bytes, points just spent on each
+    ability, in z[] order. "Save points for later" sends the same message
+    with only the points already spent."""
+    w, _, hero = session_world(req)
+    raw = req.get(1)
+    if len(raw) == 6:
+        w.spend_raises(raw)
+        if hero:
+            saves().save(hero, w.game)
+        print(f"    \033[35mraises: {list(raw)} left {w.raises} "
+              f"{[w.stats[s] for s in w.STATS]}\033[0m")
     return build_response(status=1, chunks=[])
 
 
 @handler(15)
 def interest(req):
-    """Opcode 15 — the detail behind a "Pick interest" row (type 1 entity kind
-    10). The client renders tag 20 as a list under the tag 21 title."""
+    """Opcode 15 — "Pick interest" (type 1 kind 10). The list the phone
+    shows is d.b[], the five market shelves, and this reply is that shelf."""
     w, _, _ = session_world(req)
     which = req.int_(1)
-    lines = [l for l in w.text().values() if 20 < len(l) < 200]
-    body = lines[which % len(lines)] if lines else "Nothing of interest."
+    if not 0 <= which < 5:
+        return build_response(status=1, chunks=[chunk_str(21, "Interest")])
+    title, rows = market_rows(w, which)
     return build_response(status=1, chunks=[
-        chunk_str(21, "Interest"),
-        chunk_str(20, body[:200])])
+        chunk_str(21, title)] + [chunk_str(20, r) for r in rows])
 
 
 @handler(17)
@@ -1294,13 +1325,15 @@ def rankings(req):
 
 
 HELP_TOPICS = [
-    "Move with the direction keys. Walk into a creature to attack it.",
-    "A turn gives you 720 time. Moving costs 30 a tile, a strike 120.",
-    "Actions sit on the bar at the bottom; pick one, then pick a target.",
-    "Crates and barrels can be opened by standing next to them.",
+    "Move with the direction keys. You cannot move diagonally.",
+    "A turn gives you 720 time. A step costs 40. A blow or a shot costs 60.",
+    "Actions sit on the bar at the bottom. Pick one, then pick a target.",
+    "A close attack needs you next to the creature, with a sword, axe or hammer.",
+    "A bow needs a clear view, and cannot be used while you are next to the target.",
     "Red tiles marked with arrows lead to the next location.",
     "Gold buys weapons, armour, skills and spells at the Market.",
-    "Save & exit writes your hero; Start game picks up where you left off.",
+    "A level gives 2 ability points. After a win you can spend them or save them.",
+    "Save & exit writes your hero. Start game picks up where you left off.",
 ]
 
 

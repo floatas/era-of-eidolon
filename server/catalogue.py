@@ -204,16 +204,20 @@ class Catalogue:
         return [i for i in self.get(kind) if i.price <= gold][:limit]
 
     def starting_kit(self):
-        """The rules say a hero starts with the most basic sword and bow."""
+        """The rules say a hero starts with the most basic sword and bow.
+
+        Basic means the lowest requirement, then the earliest in the
+        catalogue. List order is not that: Haunter is a late bow that
+        happens to be filed first.
+        """
         out = {}
-        for kind, cls in (("weapon", "sword"), ("weapon", "bow")):
-            for i in self.get(kind):
-                if i.cls == cls:
-                    out[cls] = i
-                    break
-        for i in self.get("armour"):
-            out["armour"] = i
-            break
+        for cls in ("sword", "bow"):
+            picks = [i for i in self.get("weapon") if i.cls == cls]
+            if picks:
+                out[cls] = min(picks, key=lambda i: (i.requirement, i.rank))
+        armours = self.get("armour")
+        if armours:
+            out["armour"] = min(armours, key=lambda i: (i.requirement, i.rank))
         return out
 
 

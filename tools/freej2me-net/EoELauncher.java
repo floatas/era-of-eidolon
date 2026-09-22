@@ -1,3 +1,6 @@
+import java.awt.KeyboardFocusManager;
+import java.awt.event.KeyEvent;
+
 import org.recompile.freej2me.AWTGUI;
 
 /**
@@ -17,9 +20,25 @@ import org.recompile.freej2me.AWTGUI;
  */
 public class EoELauncher {
    public static void main(String[] args) throws Exception {
+      // WASD joins the arrow keys. The phone only has one slot per button, so
+      // the keys those letters used to be are moved: right soft key is F,
+      // the clear button is Z.
+      KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(e -> {
+         int code = e.getKeyCode();
+         int mapped = code;
+         if (code == KeyEvent.VK_W) mapped = KeyEvent.VK_UP;
+         else if (code == KeyEvent.VK_A) mapped = KeyEvent.VK_LEFT;
+         else if (code == KeyEvent.VK_S) mapped = KeyEvent.VK_DOWN;
+         else if (code == KeyEvent.VK_D) mapped = KeyEvent.VK_RIGHT;
+         if (mapped != code) {
+            e.setKeyCode(mapped);
+            e.setKeyChar(KeyEvent.CHAR_UNDEFINED);
+         }
+         return false;
+      });
       AWTGUI.inputKeycodes = new int[] {
          81,  // Q      soft left
-         87,  // W      soft right
+         70,  // F      soft right (W is up)
          38,  // Up
          37,  // Left
          10,  // Enter  fire
@@ -31,7 +50,7 @@ public class EoELauncher {
          69,  // E      star
          48,  // 0      (was NUMPAD0)
          82,  // R      hash
-         65,  // A
+         90,  // Z      clear (A is left)
          32,  // Space
          67,  // C
          88,  // X

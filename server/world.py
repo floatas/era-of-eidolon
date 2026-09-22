@@ -11,6 +11,7 @@ import os
 import random
 import re
 import struct
+import time
 import zipfile
 
 from catalogue import catalogue
@@ -150,6 +151,11 @@ class Mob:
         self.alive = True
         self.home = (x, y)
         self.fight_hp = hp
+        # Type 9 byte 11. The client copies it into a countdown when the
+        # creature dies and ticks it once every 10 seconds (d.java:1202).
+        # Zero never starts, so that fight is gone for good.
+        self.respawn = 0
+        self.dead_at = None
 
     # d.java:226 reads byte 15 and, when it is set, starts the WALK animation
     # on the creature: `this.n[id].a(14, true)`. Only creatures that move have
@@ -164,6 +170,7 @@ class Mob:
         r[1] = self.location
         r[3] = self.x
         r[4] = self.y
+        r[11] = self.respawn & 0xFF
         r[12] = self.creature
         r[13] = self.anim
         r[15] = 1 if animated else 0
@@ -227,19 +234,16 @@ class World:
         # entered on. The client keeps the same thing in d.W, d.X.
         self.recall = (self.hero_x, self.hero_y)
 
-        # The character system is NOT lost — it is in the client, d.java:27-37:
-        #   y[] the six action-bar categories
-        #   z[] the six stat names
-        #   A[] what each stat actually does
-        #   b[] the shop categories
-        # and d.a(int) has the raise-cost curve: a stat under 48 costs 3 per
-        # point, under 78 costs 2, above that 1. What is missing is the item
-        # and spell catalogue, which the server sent.
-        self.stats = dict(zip(self.STATS, [30, 20, 25, 30, 20, 25]))
-        self.level = 1
+        # Rules 1.5: level 0, every ability starts at 15. Life is "directly
+        # connected" to Toughness, but the rules give no ratio, so life stays
+        # a flat 40 until that ratio is known. d.java z[] is the stat order
+        # the raise screen uses.
+        self.stats = dict(zip(self.STATS, [15, 15, 15, 15, 15, 15]))
+        self.level = 0
         self.xp = 0
         self.gold = 50
         self.raises = 0
+        self.gifts_paid = []
 
         # "Your hero starts with the most basic sword as a default" and the
         # same for bows — EOE GAME RULES, Items.
@@ -445,6 +449,7 @@ class World:
                     hp=r[11] or 10, anim=r[13],
                     npc=r[12] == self.npc_creature)
             m.text_key = int.from_bytes(r[7:9], "big") or None
+            m.respawn = r[11]
             # Five of Shirad's Forge's 111 creatures stand on void tiles,
             # all of them in the Crypt and all with the highest node ids in
             # the table: four fire devils in a 2x2 and a ghost, parked off
@@ -821,12 +826,28 @@ class World:
                        "Skills", "Spells", "Back"]
 
     def raise_cost(self, stat):
-        """d.a(int): under 48 a point buys 3, under 78 buys 2, else 1."""
+        """d.java a(int): one point adds 3 while the score is under 48,
+        2 while it is under 78, and 1 after that."""
         v = self.stats.get(stat, 0)
         return 3 if v < 48 else (2 if v < 78 else 1)
 
+    def spend_raises(self, counts):
+        """Opcode 14. `counts` is six bytes, how many points went to each
+        stat on this visit to the raise screen. Points not in the list were
+        saved for later and stay in `raises`."""
+        if len(counts) < 6:
+            return
+        for i, stat in enumerate(self.STATS):
+            for _ in range(counts[i]):
+                if self.raises <= 0:
+                    return
+                self.stats[stat] = self.stats.get(stat, 0) + self.raise_cost(stat)
+                self.raises -= 1
+
     def xp_for_next(self):
-        return 100 * self.level
+        # The threshold itself is not in the rules. Level 0 must not cost 0
+        # or gaining experience never returns.
+        return 100 * max(1, self.level)
 
     def grant_xp(self, amount):
         self.xp += amount
@@ -933,13 +954,35 @@ class World:
         self.equipped[slot] = it.name
         return it
 
+    def can_wield(self, it):
+        """The requirement is watAgame's. Zero means the item asks for none."""
+        if not it or not it.requirement:
+            return True
+        return self.stats.get(it.ability, 0) >= it.requirement
+
     def buy(self, name):
         it = self.item(name)
         if not it or it.price > self.gold or it.name in self.inventory:
             return None
+        if not self.can_wield(it):
+            return None
         self.gold -= it.price
         self.inventory.append(it.name)
         return it
+
+    # Lines that name a sum. Tillic says "a few" and gives no number; 3 is
+    # the same token Dreyfus states outright. The state ids are the kind-3
+    # checkpoints in the Shirad's Forge table.
+    GIFTS = {"ShiradsForge": {117: 3, 136: 3, 148: 5}}
+
+    def claim_gift(self, state):
+        """Pay a checkpoint's stated gold once. Returns what was paid."""
+        gift = self.GIFTS.get(self.game, {}).get(state, 0)
+        if not gift or state in self.gifts_paid:
+            return 0
+        self.gifts_paid.append(state)
+        self.gold += gift
+        return gift
 
     def hero_sheet(self):
         w, a = self.weapon(), self.armour()
@@ -1057,9 +1100,34 @@ class World:
 
     # -- queries ------------------------------------------------------------
 
+    def commit_kills(self):
+        """A won fight. Wildlife starts the client's comeback clock now,
+        which is when tag 28 tells the phone the node died. A zero timer
+        stays dead."""
+        now = time.time()
+        for n in list(self.engaged or []):
+            m = self.mobs.get(n)
+            if m and not m.alive and m.respawn and not m.dead_at:
+                m.dead_at = now
+
+    def refresh_respawns(self, now=None):
+        """Bring back anyone whose countdown has finished. The phone does
+        this on its own; this is so the next state we send agrees with it."""
+        now = time.time() if now is None else now
+        for m in self.mobs.values():
+            if m.alive or not m.respawn or not m.dead_at:
+                continue
+            if now < m.dead_at + m.respawn * 10:
+                continue
+            m.alive = True
+            m.hp = m.max_hp
+            m.x, m.y = m.home
+            m.dead_at = None
+
     def living(self):
         """Fighting creatures here. NPCs are nodes too, but they never fight,
         so they stay out of the combat list and out of tag 22."""
+        self.refresh_respawns()
         return [m for m in self.mobs.values()
                 if m.alive and m.location == self.location and not m.npc]
 
@@ -1109,6 +1177,7 @@ class World:
                 continue
             m.alive = True
             m.hp = getattr(m, "fight_hp", m.max_hp)
+            m.dead_at = None
             home = getattr(m, "home", None)
             if home:
                 m.x, m.y = home
@@ -1154,6 +1223,7 @@ class World:
         state 1 exists, blocks movement and takes its turn while never being
         drawn. 3 means gone.
         """
+        self.refresh_respawns()
         s = bytearray(self.node_count)
         for m in self.mobs.values():
             s[m.node] = 2 if m.alive else 3
@@ -1561,13 +1631,16 @@ def _world_to_dict(self):
         "inventory": self.inventory, "equipped": self.equipped,
         "engaged": self.engaged,
         "pending_gold": self.pending_gold, "pending_xp": self.pending_xp,
+        "gifts_paid": list(self.gifts_paid),
         "mobs": [{"node": m.node, "location": m.location, "x": m.x, "y": m.y,
                   "creature": m.creature, "hp": m.hp, "max_hp": m.max_hp,
                   "alive": m.alive, "npc": m.npc,
                   "label": getattr(m, "label", None),
                   "text_key": getattr(m, "text_key", None),
                   "home": list(getattr(m, "home", (m.x, m.y))),
-                  "fight_hp": getattr(m, "fight_hp", m.hp)}
+                  "fight_hp": getattr(m, "fight_hp", m.hp),
+                  "respawn": m.respawn,
+                  "dead_at": m.dead_at}
                  for m in self.mobs.values()],
     }
 
@@ -1591,9 +1664,32 @@ def _world_from_dict(self, d):
     self.engaged = d.get("engaged")
     self.pending_gold = d.get("pending_gold", 0)
     self.pending_xp = d.get("pending_xp", 0)
+    self.gifts_paid = list(d.get("gifts_paid") or [])
+    saved = d.get("mobs") or []
+    if self.real9:
+        # The type 9 table is who stands where. A save from before that table
+        # existed has two invented villagers on node ids the real creatures
+        # now use. Taking it wholesale hid every sprite: the phone only draws
+        # a node whose state is 2, and those nodes were no longer in the list.
+        for md in saved:
+            m = self.mobs.get(md.get("node"))
+            if not m or md.get("creature") != m.creature:
+                continue
+            if md.get("location") != m.location:
+                continue
+            m.x = md.get("x", m.x)
+            m.y = md.get("y", m.y)
+            m.hp = md.get("hp", m.hp)
+            m.alive = md.get("alive", True)
+            if md.get("home"):
+                m.home = tuple(md["home"])
+            m.fight_hp = md.get("fight_hp", m.hp)
+            m.respawn = md.get("respawn", m.respawn)
+            m.dead_at = md.get("dead_at")
+        return self
     self.refresh_npcs()
     self.mobs = {}
-    for md in d.get("mobs", []):
+    for md in saved:
         m = Mob(md["node"], md["location"], md["x"], md["y"], md["creature"],
                 hp=md.get("max_hp", 12), npc=md.get("npc", False))
         m.hp = md.get("hp", m.max_hp)
@@ -1605,6 +1701,8 @@ def _world_from_dict(self, d):
         if md.get("home"):
             m.home = tuple(md["home"])
         m.fight_hp = md.get("fight_hp", m.hp)
+        m.respawn = md.get("respawn", 0)
+        m.dead_at = md.get("dead_at")
         self.mobs[m.node] = m
     return self
 

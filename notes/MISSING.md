@@ -1,88 +1,66 @@
 # What is still missing
 
-An honest inventory, written after the archive stopped growing.
+One list. Shirad's Forge is the chapter being played. The other two chapters
+and the Arena are recorded at the bottom so they are not forgotten.
 
-## Have
+## Shirad's Forge — in place
 
-Seven titles in fifteen jars: the chapters **Shirad's Forge**, **Sterling
-Lake** and **Mistral Grove** (all three play), the Arena towns **Dagonar** and
-**Orumant**, and the spin-offs **Badaz Blackjack** and **Badaz Poker**.
+The early 176×208 jar holds the world: 18 tilemaps, the text, the quests,
+235 placed entities (doors, crates, the lava bridge, the fight triggers) and
+111 creatures with squares and names. The phone keeps the quest log itself.
 
-All thirteen pages of the official site, including `costs`, `faq` and
-`gamerules`, which 503'd on the first attempt. Both versions of the rules PDF.
-The 305-entry catalogue. The gen-2 wire protocol, fully documented and
-reimplemented across all 28 opcodes. The gen-1 Arena's 64 endpoint names.
-Every tilemap, sprite sheet, animation script, text table and quest in every
-chapter.
+Fights follow the rules text: straight steps, contact for a blow, a bow needs
+a clear view and cannot be used up close, spells ignore armour, Dodge lasts
+the turn, both sides share the 720 clock. A win opens **Raises left** (2
+points a level; one point adds 3 / 2 / 1). Dreyfus pays 3 gold, Milas 5,
+Tillic 3. Other checkpoints stay silent, because the jar already showed the
+line. Wildlife comes back on the jar's own countdown. Story fights do not.
+A new hero is level 0, every ability starts at 15, and the free weapons are
+the basic sword, the basic bow and the Scrapsuit. The market refuses an item
+whose requirement you do not meet.
 
-## Missing, and not coming back
+## Shirad's Forge — still open
 
-**The type 1 tables — what stood where.** Placed entities for all three
-chapters: which entity triggers which quest step, where each doorway leads,
-and the transitions that were never painted on the map. Partly reconstructed:
-each chapter's main chain is recovered from its own dialogue (see FLOW.md),
-seven or eight locations of the eighteen. Where the remaining side chambers
-hang off that chain is not recoverable from anything in the jars.
+**How hard a creature is.** Byte 11 of a creature row is the respawn
+countdown, not hit points. Unique fights and packs that never return are 0,
+so they were given 10 life as a stand-in. Damage, dodge, will, experience
+and kill gold are scaled from that stand-in. None of it is in the jar.
 
-**The type 9 tables — who stood where.** Creature placement: which creature on
-which tile, with what hit points, in what group. Every monster this server
-puts on a map is our invention.
+**The experience threshold.** Level 0 costs 100, and each level after costs
+100 times the level. That number is ours. The rules only say a hero has 49
+levels and earns 2 points each. One clear of this chapter, plus the creatures
+that come back, should be able to reach that ceiling. The curve does not do
+that yet.
 
-**The Arena server, entirely.** Sixty-four endpoints of it. The parts that
-hurt most are not the ladder but the assets it served:
+**Life, speed, weight, prices.** Life is a flat 40, plus 6 on each level.
+The rules tie life to Toughness and give no ratio. Speed should shorten
+actions, weight should slow you, Willpower should lower prices. No formula
+was published. Starting gold is 50 because the rules never name a purse.
 
-- `panimscripts` — the Arena downloaded its animation scripts, so we have
-  torso, legs and weapon art with nothing to drive it
-- `pgethead`, `headlist`, `customupload` — every player's custom head, the
-  one piece of visual identity the game had
-- clans, rankings, Respect, mail, the Blood Duel results
+**The fight bar.** It is always Move, Hit, Shoot, Dodge, Zap, Minor Cure.
+A skill you buy is listed under Skills and cannot be used in a fight. Bombs,
+traps and charms have no effect, and a charm has nowhere to be worn. The bar
+has exactly six slots, so a bought skill would have to replace the starter
+of the same kind. That replacement rule has not been chosen.
 
-**Ravarcil.** Announced as the third regional town — Blissmor/Sorena/Orumant,
-Vulcor/Furyana/Dagonar, Mystor/Arsenica/Ravarcil — and present in no archive
-under either spelling, across nine independent source sites and a 120 GB
-hoard that holds everything else in the series several times over. The
-likeliest reading is that it was never released.
+**What the trader stocks.** Each shelf is the first 14 entries of that
+category. Prices are 14 times weight plus 6 times requirement, which is a
+formula, not a printed list. Which of the 305 entries this chapter sold is
+not in the jar. "Pick interest" now opens the same shelves as the Market.
 
-**Which items each chapter sold.** This one narrowed rather than closed. The
-statistics themselves turned out to be watAgame's after all — cross-checked
-four ways against the rules PDF and the site listings, see
-`eoe-arena/SOURCE.md` — and they cover the whole series, not just the Arena,
-because the site catalogue is the series catalogue. What is missing is the
-per-chapter *stock*. The chapters name their monsters in their own text but
-never their shop inventory, so which of the 305 entries Shirad's Forge sold is
-server-side and gone.
+**A few screens that are still ours.** The icon overview in Help is guessed.
+Kind 11, the one entity that asked the server to run a script, has no script.
+The twenty-five checkpoints may have carried an extra sentence on top of the
+jar's own line. Only the three gold sums were written down.
 
-Only one signal survives, and it is flavour rather than fact: about a quarter
-of the descriptions name a region. Longfang, Bone Crusher, Spike Axe, Lava
-Plate and the Vulcor Suit are all "of Vulcor", which is the volcanic region
-Shirad's Forge is set in; Mystor and Blissmor items cluster the same way.
-Thematic grouping, not a partition.
+## The other games
 
-**The balance curve, in part.** Experience thresholds, shop prices and monster
-hit points are still ours. But the item requirements are real, and the rules
-PDF says a hero starts at level 0, gains 49 levels and takes 2 Ability points
-each — 98 points to spend. A specialist's main ability therefore runs at
-roughly twice their level, which turns every requirement into a level gate:
+**Sterling Lake and Mistral Grove** play on reconstructed doors and
+reconstructed creatures. No jar of either contains the placement tables.
+The same combat and hero rules apply. Their shops, gifts and creature
+numbers are the same open questions, with less to anchor them.
 
-    requirement   3  ->  about level  1        44  ->  level 22
-                 12  ->  level  6              56  ->  level 28
-                 21  ->  level 10              68  ->  level 34
-                 30  ->  level 15              78  ->  level 39
-
-So the progression a player was meant to walk is recoverable even though the
-shop lists are not.
-
-## Not missing, but worth writing down
-
-The site published what the game cost to play, which is why the protocol is
-as tight as it is:
-
-> Average consumption is less than 0,1 Mb per hour
->
-> Denmark CBB 0,14 Euro/hour · UK Orange 0,2 · USA Verizon 0,35 ·
-> Germany Vodafone 0,4 · Sweden Telia 0,50 · Italy Vodafone 0,6
-
-A hundred kilobytes an hour for a live multiplayer RPG. Every design decision
-in `protocol/PROTOCOL.md` — two-byte resource keys, a shared text table, the
-whole world shipped in the jar and only the placements sent — follows from
-that line.
+**The Arena** (Dagonar, Orumant) is a different game. Its server is gone:
+animation scripts, custom heads, clans, rankings, Respect, mail, duels.
+**Ravarcil**, the third town, is in no archive and was probably never
+released.

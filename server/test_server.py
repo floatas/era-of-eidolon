@@ -491,6 +491,107 @@ def main():
     check("rules results still carry >= 2 payload bytes", not short,
           f"{len(short)} too short")
 
+    import time as _time
+    w = World("ShiradsForge")
+    gorrak = w.mobs[7]
+    check("a story fight has no comeback timer", gorrak.respawn == 0)
+    wild = next(m for m in w.mobs.values() if m.respawn and m.alive)
+    w.location = wild.location
+    w.begin_fight([wild.node])
+    wild.alive = False
+    wild.hp = 0
+    w.commit_kills()
+    check("wildlife stays down until its countdown ends",
+          wild.dead_at and not any(m.node == wild.node for m in w.living()))
+    wild.dead_at -= wild.respawn * 10 + 1
+    back = [m for m in w.living() if m.node == wild.node]
+    check("wildlife stands again, at full life, where the fight found it",
+          len(back) == 1 and wild.hp == wild.max_hp
+          and (wild.x, wild.y) == wild.home and wild.dead_at is None)
+    check("the state table shows them present again",
+          w.node_states()[wild.node] == 2)
+
+    w = World("ShiradsForge")
+    gorrak = w.mobs[7]
+    w.begin_fight([7])
+    gorrak.alive = False
+    w.commit_kills()
+    gorrak.dead_at = _time.time() - 10_000
+    w.location = gorrak.location
+    check("Gorrak does not come back",
+          not any(m.node == 7 for m in w.living())
+          and w.node_states()[7] == 3)
+
+    w = World("ShiradsForge")
+    wild = next(m for m in w.mobs.values() if m.respawn)
+    w.location = wild.location
+    w.begin_fight([wild.node])
+    wild.hp = 1
+    wild.alive = False
+    w.revert_fight()
+    check("fleeing does not start a comeback clock",
+          wild.alive and wild.dead_at is None)
+
+    print("\ndetails the client already specified")
+    w = World("ShiradsForge")
+    check("a new hero is level 0 and every ability starts at 15",
+          w.level == 0 and set(w.stats.values()) == {15},
+          str(w.stats))
+    kit = catalogue().starting_kit()
+    check("the free sword and bow are the basic ones",
+          kit["sword"].requirement <= 3 and kit["bow"].requirement <= 3
+          and kit["bow"].name != "Haunter",
+          f"{kit['sword'].name}, {kit['bow'].name}")
+    w.grant_xp(100)
+    check("level 0 can become level 1", w.level == 1 and w.raises == 2)
+
+    w.spend_raises(bytes([1, 0, 0, 0, 0, 0]))
+    check("one raise adds 3 to Strength and keeps the spare point",
+          w.stats["Strength"] == 18 and w.raises == 1)
+    status, extra = handlers.finish.__wrapped__ if False else (None, None)
+    w.engaged = []
+    # finish needs fighters() empty and hero alive. engaged [] means no
+    # fighters, which is a win.
+    w.hero_hp = w.hero_max
+    status, extra = handlers.finish(w, [])
+    tags = [c[0] if False else None for c in extra]
+    # chunks are encoded bytes; look for the raises int via a fresh offer
+    offered = extra[0]
+    check("a win with points waiting opens Raises left",
+          status == 2 and offered[0] == 21, offered[:8].hex())
+
+    gold = w.gold
+    check("Dreyfus pays 3, and only once",
+          w.claim_gift(117) == 3 and w.claim_gift(117) == 0
+          and w.gold == gold + 3)
+    check("Milas pays 5", w.claim_gift(148) == 5)
+
+    pricey = next(i for i in catalogue().get("weapon")
+                  if i.requirement > 15 and i.name not in w.inventory)
+    w.gold = pricey.price + 5
+    check("the market refuses what you cannot wield",
+          w.buy(pricey.name) is None and pricey.name not in w.inventory,
+          pricey.name)
+
+    rows = handlers.market_rows(w, 0)
+    check("Pick interest lists a market shelf, not a random sentence",
+          rows[0] == "Melee weapons" and rows[1]
+          and "Nothing happens" not in rows[1][0])
+
+    # An old save parked invented villagers on node ids the real table uses.
+    w = World("ShiradsForge")
+    gorrak = (w.mobs[7].location, w.mobs[7].x, w.mobs[7].y)
+    secret = (w.mobs[1].location, w.mobs[1].x, w.mobs[1].y)
+    w.from_dict({"location": 1, "hero_x": 10, "hero_y": 13, "mobs": [
+        {"node": 1, "location": 1, "x": 11, "y": 15, "creature": 24,
+         "hp": 6, "max_hp": 6, "alive": True},
+    ]})
+    check("an old save does not hide the village creatures",
+          (w.mobs[7].location, w.mobs[7].x, w.mobs[7].y) == gorrak
+          and w.node_states()[7] == 2 and w.mobs[7].alive)
+    check("an old save does not move a real creature onto a reused node",
+          (w.mobs[1].location, w.mobs[1].x, w.mobs[1].y) == secret)
+
     print()
     if FAILED:
         print(f"\033[31m{len(FAILED)} failed\033[0m: " + ", ".join(FAILED))
