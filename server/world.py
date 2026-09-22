@@ -746,6 +746,16 @@ class World:
         "guard": 0x3f, "Salar": 0x3f,
     }
 
+    def creature_name(self, sheet):
+        """What the game calls a creature drawn on this sheet — the other way
+        round from creature_for, for putting a name in the status line."""
+        if not hasattr(self, "_by_sheet"):
+            self._by_sheet = {}
+            for loc in self.locations:
+                for n in self.fights(loc):
+                    self._by_sheet.setdefault(self.creature_for(n), n)
+        return self._by_sheet.get(sheet)
+
     def creature_for(self, name):
         """A sheet for a creature name, the same one every time."""
         if not hasattr(self, "_species"):

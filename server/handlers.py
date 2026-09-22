@@ -605,7 +605,9 @@ def _kill(w, target, script):
     gold, xp = target.spoil()
     w.pending_gold += gold
     w.pending_xp += xp
-    script.append(result(0, [1, target.node, w.anim(target.creature, "die")], dur=12))
+    name = w.creature_name(target.creature) or "It"
+    script.append(result(0, [1, target.node, w.anim(target.creature, "die")],
+                         dur=12, msg=f"{name} dies  +{xp} XP", red=False))
     script.append(res_remove([target.node]))
 
 
@@ -619,7 +621,11 @@ def _land_on_mob(w, attacker, target, outcome, dmg, anim, script):
         return
     target.hp -= dmg
     label = {"crit": "CRIT", "precise": "Precise"}.get(outcome, "")
-    msg = f"{label} -{dmg}".strip()
+    # The status line above the action bar is the one place the game tells
+    # you what just happened, and it was saying "-7" with no idea what to.
+    # Now that the chapters name their own creatures, use the name.
+    who = w.creature_name(target.creature) or "It"
+    msg = f"{label} {who} -{dmg}".strip()
     script.append(res_attack(attacker, [(target.node, dmg)], anim=anim, msg=msg))
     if target.hp <= 0:
         _kill(w, target, script)
@@ -743,8 +749,9 @@ def _mob_attack(w, m, script, rng):
         return
     w.hero_hp = max(0, w.hero_hp - dmg)
     label = {"crit": "CRIT", "precise": "Precise"}.get(outcome, "")
+    who = w.creature_name(m.creature) or "It"
     script.append(res_attack(m.node, [(0, dmg)], anim=anim,
-                             msg=f"{label} -{dmg}".strip()))
+                             msg=f"{label} {who} hits -{dmg}".strip()))
 
 
 def resolve(w, actions, rng=None):
