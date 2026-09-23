@@ -124,14 +124,19 @@ difficulty curve, written down.
 
 The hero has a row too — 17, 13, 21, 17.
 
-Four numbers, and exactly four abilities matter for combat once hit points are
-already given at [11]: Strength, Dexterity, Intelligence and Willpower, which
-are also the only four any item asks for. Reading them as
-**Intelligence, Willpower, Strength, Dexterity** is the order that makes sense
-of the values: beasts come out with no magic at all (the Dune Burrow beetle is
-Int 0, Wil 0, Str 12, Dex 6), the fire devil has some (Int 8, Wil 0, Str 16,
-Dex 10), and the hero reads as a balanced starter leaning slightly to
-Strength. Every other ordering gives beetles intelligence and no strength.
+What they are is **not settled**, and my first reading was wrong. I took them
+for Intelligence, Willpower, Strength and Dexterity, because exactly four
+abilities matter for combat once hit points are given separately. The rules
+kill that: *"Each Ability score has a starting value of 15"*, and the hero's
+own row reads 17, 13, 21, 17. Two of those are below 15, and 15 to 17 is a
+gain of two, which the raise curve cannot produce because it moves in threes
+(d.java:1255). So they are not abilities.
 
-That last part is inference. The client cannot settle it, because it never
-looks at these bytes.
+What they do is not in doubt. The first pair is zero for beasts and non-zero
+for things that cast; the second pair is never zero. And every one of them
+climbs with depth. So the server reads them as a magical pair and a physical
+pair and uses them as the difficulty curve they plainly are, without claiming
+which ability is which.
+
+Anyone who settles it should start with the hero's row, since a starting hero
+is the one creature whose real numbers the rules describe.

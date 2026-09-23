@@ -177,9 +177,29 @@ class Mob:
         return r
 
     def offence(self):
-        """Attack, avoidance and will are not in the jar. Scale them from
-        the hit points this creature is fought at: a 10-point fighter
-        should not cut a new hero down, and a 50-point one should."""
+        """What this creature hits and resists with.
+
+        The real table carries four numbers per creature and they are where
+        watAgame put the difficulty curve: the same Beetle reads 12 and 6 in
+        Dune Burrow and 32 and 33 in The Lair. Where we have them the fight
+        is theirs. Where we do not — Fungusmen carry hit points and none of
+        these — fall back to scaling from hit points, which is ours and
+        marked as such by `fitted`.
+        """
+        p = getattr(self, "power", None)
+        if p:
+            hit, quick = p["body"]
+            _, resolve = p["magic"]
+            return {
+                # a creature carries no weapon, so its blow is its own
+                "effect": 6 + hit // 2,
+                "precision": min(95, 55 + quick // 2),
+                # the same halving the hero gets in avoidance()
+                "avoid": quick // 2,
+                "will": resolve,
+                "armour": 0,
+                "fitted": False,
+            }
         hp = self.max_hp or 10
         return {
             # A 10-life fighter used to swing for 4, and a scrapsuit (3)
@@ -190,6 +210,7 @@ class Mob:
             "avoid": 10 + hp // 8,
             "will": max(5, hp // 2),
             "armour": 0,
+            "fitted": True,
         }
 
     def spoil(self):
@@ -241,10 +262,15 @@ class World:
         # entered on. The client keeps the same thing in d.W, d.X.
         self.recall = (self.hero_x, self.hero_y)
 
-        # Rules 1.5: level 0, every ability starts at 15. Life is "directly
-        # connected" to Toughness, but the rules give no ratio, so life stays
-        # a flat 40 until that ratio is known. d.java z[] is the stat order
-        # the raise screen uses.
+        # Rules 1.5, and they are explicit: "Each Ability score has a
+        # starting value of 15". The hero's own row in the recovered
+        # creature table reads 17, 13, 21, 17, which is NOT that — and 15
+        # to 17 is a gain of two, which the raise curve cannot produce
+        # because it moves in threes. So those four numbers are not
+        # abilities, whatever else they are. Life is "directly connected"
+        # to Toughness with no ratio given, so it stays a flat 40 until
+        # that ratio is known. d.java z[] is the stat order the raise
+        # screen uses.
         self.stats = dict(zip(self.STATS, [15, 15, 15, 15, 15, 15]))
         self.level = 0
         self.xp = 0
@@ -475,6 +501,15 @@ class World:
                     hp=r[11] or 10, anim=r[13],
                     npc=r[12] == self.npc_creature)
             m.text_key = int.from_bytes(r[7:9], "big") or None
+            # Bytes 16-19, only in the 20-byte rows. What they MEAN is not
+            # settled — see notes/recovered/README.md — but what they do is
+            # not in doubt: they climb with depth, so they are the
+            # difficulty curve. The first pair is zero for beasts and
+            # non-zero for things that cast, the second pair is never zero,
+            # so they are used here as a magical and a physical pair
+            # without claiming which ability is which.
+            if len(r) >= 20:
+                m.power = {"magic": (r[16], r[17]), "body": (r[18], r[19])}
             m.respawn = r[11]
             # Five of Shirad's Forge's 111 creatures stand on void tiles,
             # all of them in the Crypt and all with the highest node ids in
