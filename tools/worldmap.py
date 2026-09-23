@@ -11,8 +11,7 @@ one so its doorway meets its partner's, the whole chapter lays out flat.
 
 What does not lay out flat is a portal: a doorway in the middle of a map, or
 two doorways on the same side, which cannot be a shared border. The Forge is
-reached that way, and so is Aldor's Outpost. Those are drawn where they fit
-and joined with a line.
+reached that way. Those are drawn where they fit and joined with a line.
 
 Only Shirad's Forge has the real table (notes/recovered), so only Shirad's
 Forge can be trusted here; the others are laid out from the reconstruction.
@@ -37,16 +36,21 @@ STEP = {"N": (0, -1), "S": (0, 1), "W": (-1, 0), "E": (1, 0)}
 OPPOSITE = {"N": "S", "S": "N", "W": "E", "E": "W"}
 
 
-def edge(mp, x, y, slack=2):
-    """Which side of its map a doorway sits on, if any."""
+def edge(mp, x, y):
+    """Which side of its map a doorway sits on, if any.
+
+    Only the last tile of a side counts. A door flush with one side and a
+    couple of tiles in from another is just that one side — calling it both
+    glued Aldor's west door onto Fire Cave's south edge.
+    """
     sides = []
-    if x <= slack:
+    if x == 0:
         sides.append("W")
-    if x >= mp.w - 1 - slack:
+    if x == mp.w - 1:
         sides.append("E")
-    if y <= slack:
+    if y == 0:
         sides.append("N")
-    if y >= mp.h - 1 - slack:
+    if y == mp.h - 1:
         sides.append("S")
     return sides
 
@@ -85,34 +89,78 @@ def seams(w):
     return out
 
 
+def _ground(w, loc, origin):
+    """World tiles this map actually draws, given where its (0, 0) sits."""
+    gx, gy = origin
+    mp = w.map(loc)
+    out = set()
+    for y in range(mp.h):
+        for x in range(mp.w):
+            if mp.tile(x, y) & 15:
+                out.add((gx + x, gy + y))
+    return out
+
+
+def _overlaps_placed(w, at, loc, origin):
+    """True when this placement would paint over ground already laid down."""
+    tiles = _ground(w, loc, origin)
+    for other, oorigin in at.items():
+        if tiles & _ground(w, other, oorigin):
+            return True
+    return False
+
+
 def lay_out(w):
-    """Place every location on one tile grid, following the seams."""
+    """Place every location on one tile grid, following the seams.
+
+    The route the chapter states out loud is laid first — the Lair really
+    is east of Mira's Hideout — and a later border is kept only when its
+    ground does not cover a room already placed. Fire Cave's door in the
+    east wall of Dwarven Hall is real, but honouring it as a shared edge
+    sets Fire Cave and Ilrik's Tomb down on top of The Lair. They are drawn
+    as their own patch instead, and the door is marked as a portal.
+    """
     joins = {}
     for a, ta, b, tb, side in seams(w):
         joins.setdefault(a, []).append((ta, b, tb, side))
 
-    def spread(at, queue):
-        """Tile outwards from everything in the queue, following borders."""
+    story = set()
+    for a, b in w.story_links():
+        story.add((a, b))
+        story.add((b, a))
+
+    def spread(at, queue, only_story):
+        """Tile outwards. Never onto ground that is already occupied."""
         while queue:
             a = queue.pop(0)
-            ax0, ay0 = at[a]
-            for (ax, ay), b, (bx, by), side in joins.get(a, []):
+            pending = []
+            order = sorted(joins.get(a, []),
+                           key=lambda j: (0 if (a, j[1]) in story else 1, j[1]))
+            for (ax, ay), b, (bx, by), side in order:
                 if b in at:
                     continue
+                if only_story and (a, b) not in story:
+                    continue
                 # the two doorways are the same border seen from either side,
-                # so B's sits exactly one step beyond A's:
-                #     at[B] + (bx,by) == at[A] + (ax,ay) + step
+                # so B sits exactly one step beyond A:
+                #     at[B] + (bx, by) == at[A] + (ax, ay) + step
+                ax0, ay0 = at[a]
                 dx, dy = STEP[side]
-                at[b] = (ax0 + ax - bx + dx, ay0 + ay - by + dy)
-                queue.append(b)
+                origin = (ax0 + ax - bx + dx, ay0 + ay - by + dy)
+                if _overlaps_placed(w, at, b, origin):
+                    continue
+                at[b] = origin
+                pending.append(b)
+            queue.extend(pending)
 
     start = w.locations[0]
     at = {start: (0, 0)}
-    spread(at, [start])
+    spread(at, [start], only_story=True)
+    spread(at, list(at), only_story=False)
 
-    # Whatever the borders never reach lies through an arch. Give it its own
-    # patch of ground and then keep tiling from there — Golem Secret shares a
-    # real border with The Forge, and only looked stranded because The Forge
+    # Whatever the borders never reach, or could not be laid flat without
+    # covering another room, gets its own patch. Golem Secret shares a real
+    # border with The Forge, and only looked stranded because The Forge
     # itself is behind a portal.
     portals = []
     while True:
@@ -122,10 +170,28 @@ def lay_out(w):
         far = max((x + w.map(l).w + 8 for l, (x, _) in at.items()), default=0)
         low = min((y for _, (_, y) in at.items()), default=0)
         seed = left[0]
-        at[seed] = (far, low)
+        origin = (far, low)
+        while _overlaps_placed(w, at, seed, origin):
+            origin = (origin[0] + w.map(seed).w + 8, low)
+        at[seed] = origin
         portals.append(seed)
-        spread(at, [seed])
+        spread(at, [seed], only_story=False)
     return at, portals
+
+
+def flat_pairs(w, at):
+    """Seams whose two maps really do sit one step apart in this layout."""
+    out = set()
+    for a, ta, b, tb, side in seams(w):
+        if a not in at or b not in at:
+            continue
+        ax, ay = ta
+        bx, by = tb
+        dx, dy = STEP[side]
+        exp = (at[a][0] + ax - bx + dx, at[a][1] + ay - by + dy)
+        if at[b] == exp:
+            out.add((min(a, b), max(a, b)))
+    return out
 
 
 def marker_strip(w, fade=0.6):
@@ -243,7 +309,7 @@ def main():
     # A portal is drawn the way a road map shows a junction that leaves the
     # page: a ring where it stands and the number of the place it goes. A
     # line across the whole world only looked like a road.
-    joined = {(min(a, b), max(a, b)) for a, _, b, _, _ in seams(w)}
+    joined = flat_pairs(w, at)
     stub = font(22)
     for a, links in w.EXITS.items():
         for ta, b in links:
@@ -280,7 +346,7 @@ def main():
     head = f"{game} - one continuous world"
     draw.text((margin + 2, 22), head, font=title, fill=(0, 0, 0, 255))
     draw.text((margin, 20), head, font=title, fill=(245, 245, 250, 255))
-    sub = (f"{len(seams(w))//2} shared borders laid out flat. A purple ring "
+    sub = (f"{len(joined)} shared borders laid out flat. A purple ring "
            f"is a portal, labelled with the location it reaches. Faded red "
            f"tiles are doorways watAgame left unmarked.")
     draw.text((margin, 78), sub, font=label, fill=(160, 160, 180, 255))
@@ -294,7 +360,7 @@ def main():
     path = os.path.join(OUT, f"{game}-world.png")
     sheet.convert("RGB").save(path)
     print(f"{path}  {sheet.size[0]}x{sheet.size[1]}  "
-          f"{len(imgs)} locations, {len(seams(w))//2} seams, "
+          f"{len(imgs)} locations, {len(joined)} seams, "
           f"{len(portals)} behind portals")
     return 0
 

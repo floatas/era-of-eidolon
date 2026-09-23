@@ -1420,22 +1420,22 @@ extends e {
         } else {
             switch (n2) {
                 case 2: {
-                    this.a.j = -45;
+                    this.a.j = -90;
                     this.a.a(14, true);
                     break;
                 }
                 case 5: {
-                    this.a.j = 45;
+                    this.a.j = 90;
                     this.a.a(206, true);
                     break;
                 }
                 case 1: {
-                    this.a.k = -45;
+                    this.a.k = -90;
                     this.a.a(142, true);
                     break;
                 }
                 case 6: {
-                    this.a.k = 45;
+                    this.a.k = 90;
                     this.a.a(78, true);
                     break;
                 }

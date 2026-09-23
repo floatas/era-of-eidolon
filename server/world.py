@@ -182,7 +182,10 @@ class Mob:
         should not cut a new hero down, and a 50-point one should."""
         hp = self.max_hp or 10
         return {
-            "effect": max(4, hp // 4),
+            # A 10-life fighter used to swing for 4, and a scrapsuit (3)
+            # turned that into 1. The hero has 40 life, so the blow has to
+            # come through the suit as a real hit or the fight is free.
+            "effect": 6 + hp // 4,
             "precision": 70,
             "avoid": 10 + hp // 8,
             "will": max(5, hp // 2),
@@ -193,7 +196,11 @@ class Mob:
         """Gold and experience for winning against this creature. The rules
         pay more for a harder fight; hit points are the only scale we have."""
         hp = self.max_hp or 10
-        return max(1, hp // 5), max(2, hp // 2)
+        # Experience is the creature's life, so a clear of this chapter is
+        # worth a run of levels and a few revisits of the wilds can reach 50.
+        # Gold is that same life. Half was enough to look at a 250-gold
+        # piece and not buy it; the full amount buys one upgrade a shop.
+        return hp, max(8, hp)
 
 
 class World:
@@ -244,6 +251,8 @@ class World:
         self.gold = 50
         self.raises = 0
         self.gifts_paid = []
+        self.opened = []          # crate state ids already looted
+        self.progress = None      # the phone's quest switches, d.i, once saved
 
         # "Your hero starts with the most basic sword as a default" and the
         # same for bows — EOE GAME RULES, Items.
@@ -259,6 +268,10 @@ class World:
         self.guard = 0            # avoidance added by a defence skill this turn
         self.pending_gold = 0
         self.pending_xp = 0
+        # Title and percent for each skill, spell, and weapon class. A landed
+        # use during a fight lands in fight_gains and is kept only on a win.
+        self.practice = {}
+        self.fight_gains = {}
         self.mobs = {}
         self.next_node = 1
         # Node ids index into the tag-21 and tag-25 state arrays and into
@@ -316,6 +329,19 @@ class World:
             self._names[loc] = self.text(loc).get(mp.aD, f"Area {loc:#x}") if mp \
                 else f"Area {loc:#x}"
         return self._names[loc]
+
+    def note_place(self, location):
+        """The room the phone last reported.
+
+        A door changes the map on the handset. The server hears the new id
+        only when a later message carries it: a resource fetch, a fight, a
+        crate, or a save.
+        """
+        if location:
+            self.seen = location
+
+    def place(self):
+        return getattr(self, "seen", None) or self.location
 
     @property
     def LOCATION_NAMES(self):
@@ -597,16 +623,84 @@ class World:
         return wired or list(self.exit_tiles(location))
 
     def spawn_point(self, location):
-        """A walkable tile to stand on: just outside a doorway's trigger box if
-        there is one, else near the middle.
+        """Where a new hero, or a defeated one, stands.
 
-        Standing next to it rather than on it is the whole point: arrive on a
-        doorway and it fires again the instant the map loads, and the two
-        locations bounce the player back and forth forever.
+        arrival() stands beside the door you came through. A new game must
+        not: the Village's first door is the way on, and the tile outside it
+        lies inside Hrom's cry for help, so the line and the exit both fire
+        before anyone has taken a step.
+
+        Where watAgame's table survived, stand on open ground clear of every
+        auto-firing box and a step away from every door, nearest the
+        townsfolk who are themselves standing clear. Other chapters keep the
+        old placement, just outside the first door.
         """
         mp = self.map(location)
         if not mp:
             return 1, 1
+        if self.real1:
+            quiet = self._quiet_spawn(location)
+            if quiet:
+                return quiet
+        return self._spawn_by_door(location)
+
+    def _boxes(self, location):
+        """Exit tiles, auto-fire boxes and fight boxes from the type 1 table.
+
+        A row whose x2 is 0 matches every square once it is armed (d.java
+        b() skips the box test), so it is not ground a spawn can avoid.
+        """
+        exits, autos, fights = set(), [], []
+        for r in self.real1 or ():
+            if len(r) < 6 or r[1] not in (0, location) or r[4] == 0:
+                continue
+            x1, y1, x2, y2 = r[2], r[3], r[4], r[5]
+            if r[12] == 4:
+                for y in range(y1, y2):
+                    for x in range(x1, x2):
+                        exits.add((x, y))
+            elif r[6] == 0:
+                autos.append((x1, y1, x2, y2))
+            elif r[12] == 2:
+                fights.append((x1, y1, x2, y2))
+        return exits, autos, fights
+
+    def _quiet_spawn(self, location):
+        mp = self.map(location)
+        exits, autos, fights = self._boxes(location)
+
+        def inside(x, y, boxes):
+            return any(a <= x < c and b <= y < d for a, b, c, d in boxes)
+
+        def crowded(x, y):
+            return (inside(x, y, autos) or inside(x, y, fights)
+                    or any(max(abs(x - ex), abs(y - ey)) <= 1
+                           for ex, ey in exits))
+
+        free = [(x, y) for y in range(mp.h) for x in range(mp.w)
+                if mp.walkable(x, y) and not crowded(x, y)]
+        if not free:
+            return None
+        anchors = []
+        npc = self.npc_creature
+        for r in self.real9 or ():
+            if len(r) < 13 or r[1] != location or r[12] != npc:
+                continue
+            if not crowded(r[3], r[4]):
+                anchors.append((r[3], r[4]))
+        if anchors:
+            ax = sum(x for x, _ in anchors) / len(anchors)
+            ay = sum(y for _, y in anchors) / len(anchors)
+        else:
+            ax, ay = mp.w / 2, mp.h / 2
+        standing = set(anchors)
+        choices = [p for p in free if p not in standing] or free
+        return min(choices, key=lambda p: (
+            abs(p[0] - ax) + abs(p[1] - ay), p[1], p[0]))
+
+    def _spawn_by_door(self, location):
+        """Just outside the first doorway, else near the middle."""
+        mp = self.map(location)
         exits = list(self.doorway_tiles(location))
 
         def clear(x, y):
@@ -855,9 +949,12 @@ class World:
                 self.raises -= 1
 
     def xp_for_next(self):
-        # The threshold itself is not in the rules. Level 0 must not cost 0
-        # or gaining experience never returns.
-        return 100 * max(1, self.level)
+        # The threshold is not in the rules. A flat 100 a level makes 50
+        # unreachable on this map: one clear is about a thousand experience
+        # and the climb to 50 would cost over a hundred thousand.
+        # 60 + 5 a level: the first clear is a dozen levels, and level 50
+        # is a few more tours of the creatures that come back.
+        return 60 + 5 * max(1, self.level)
 
     def grant_xp(self, amount):
         self.xp += amount
@@ -994,6 +1091,123 @@ class World:
         self.gold += gift
         return gift
 
+    def entity_label(self, state):
+        """The Choose-action text for one placed entity, or ""."""
+        for r in self.real1 or ():
+            if len(r) > 12 and r[0] == state:
+                key = int.from_bytes(bytes(r[7:9]), "big")
+                return self.text(r[1]).get(key, "")
+        return ""
+
+    def _empty_crates(self):
+        """Kind-1 rows whose only text is that the crate or barrel was empty."""
+        ids = set()
+        for r in self.real1 or ():
+            if len(r) < 16 or r[12] != 1:
+                continue
+            key = int.from_bytes(bytes(r[14:16]), "big")
+            lab = self.text(r[1]).get(key, "").lower()
+            if "nothing inside" in lab or "it is empty" in lab:
+                ids.add(r[0])
+        return ids
+
+    def _arm_silent_crate(self, rows):
+        """A Destroy Crate patch that arms nothing never asks what was inside.
+
+        Give it one kind-3 follow-up, box (0,0)-(0,0), so it fires the moment
+        it is armed, the same way the other crates do. Returns the new state
+        id, or 0 if every crate already has a follow-up.
+        """
+        by_state = {r[0]: r for r in rows}
+        silent = None
+        for r in rows:
+            if r[12] != 6:
+                continue
+            key = int.from_bytes(bytes(r[7:9]), "big")
+            lab = self.text(r[1]).get(key, "").lower()
+            if "destroy crate" not in lab and "destroy barrel" not in lab:
+                continue
+            p = 14 + r[13]
+            if p >= len(r):
+                continue
+            p = p + 1 + r[p]
+            if p >= len(r) or r[p] != 0:
+                continue
+            silent = (r, p)
+            break
+        if silent is None:
+            return 0
+        row, at = silent
+        sid = max(by_state) + 1
+        if sid > 254:
+            return 0
+        row[at] = 1
+        row[at + 1:at + 1] = bytes([sid])
+        made = bytearray(entity(sid, row[1], kind=3, tail=b"", box=(0, 0, 0, 0)))
+        rows.append(made)
+        return sid
+
+    def crate_payoffs(self):
+        """Kind-3 states a smashed crate or barrel arms.
+
+        The crate itself is a kind 6 patch labelled Destroy Crate or Destroy
+        barrel. Using it removes the obstacle and arms one of these, which
+        then asks the server what was inside. Quest crates arm a cog or a
+        door instead, and are not in this set.
+        """
+        ids = set(self._empty_crates())
+        ids |= set(getattr(self, "_extra_crates", ()))
+        by_state = {r[0]: r for r in (self.real1 or ()) if len(r) > 12}
+        for r in by_state.values():
+            if r[12] != 6:
+                continue
+            key = int.from_bytes(bytes(r[7:9]), "big")
+            lab = self.text(r[1]).get(key, "").lower()
+            if "crate" not in lab and "barrel" not in lab:
+                continue
+            p = 14 + r[13]
+            if p >= len(r):
+                continue
+            p = p + 1 + r[p]                 # skip prerequisites
+            if p >= len(r):
+                continue
+            n = r[p]
+            for sid in r[p + 1:p + 1 + n]:
+                other = by_state.get(sid)
+                if other is not None and other[12] == 3:
+                    ids.add(sid)
+        return ids
+
+    def loot_container(self, state):
+        """One thing the hero can already use, plus a little gold.
+
+        The roll is fixed by the crate's state id, so the same chest does
+        not hide a different prize every visit. A second smash returns
+        nothing.
+        """
+        if state in self.opened:
+            return [], 0
+        rng = random.Random(state)
+        held = set(self.inventory)
+        found = []
+        kinds = ("weapon", "armour")
+        order = kinds[state % len(kinds):] + kinds[:state % len(kinds)]
+        for kind in order:
+            pool = [i for i in catalogue().get(kind)
+                    if self.usable(i) and i.name not in held
+                    and i.name not in self.BAR_SKILLS
+                    and i.requirement <= self.stats.get(i.ability, 0)]
+            if not pool:
+                continue
+            found.append(rng.choice(pool))
+            break
+        for it in found:
+            self.inventory.append(it.name)
+        gold = 8 + (state % 15)
+        self.gold += gold
+        self.opened.append(state)
+        return found, gold
+
     def hero_sheet(self):
         w, a = self.weapon(), self.armour()
         lines = [f"Level {self.level}   XP {self.xp}/{self.xp_for_next()}",
@@ -1006,6 +1220,10 @@ class World:
             lines.append(f"{st}: {self.stats[st]}")
         if self.raises:
             lines += ["", f"Raises left: {self.raises}"]
+        trained = [f"{name}: {self.practice_label(name)}"
+                   for name in self.practice]
+        if trained:
+            lines += ["", "Practice"] + trained
         return "\n".join(lines)
 
     # What each animation id MEANS, which took a while to pin down.
@@ -1094,19 +1312,32 @@ class World:
                 return a
         return min(have) if have else 1
 
-    def victory_text(self):
-        """Prefer a real line from the location's own type 3 table."""
-        t = self.text()
-        for key in (0x1974, 0x1988, 0x198a):
-            if key in t:
-                return t[key][:200]
-        return "The way is clear."
-
     def add_mob(self, x, y, creature, hp=12):
         m = Mob(self.next_node, self.location, x, y, creature, hp=hp)
         self.mobs[m.node] = m
         self.next_node += 1
         return m
+
+    # Already on the fight bar. Buying or finding a second copy changes nothing.
+    BAR_SKILLS = frozenset({
+        "Move", "Hit", "Shoot", "Dodge", "Zap", "Minor Cure"})
+
+    @staticmethod
+    def usable(it):
+        """Something this chapter can wear, or a button already on the bar.
+
+        Charms, bombs, and any spell or skill that is not one of those
+        buttons have no effect, so the shop and the crates do not offer them.
+        """
+        if it is None:
+            return False
+        if it.kind == "armour":
+            return True
+        if it.kind == "weapon":
+            return it.cls in ("sword", "axe", "hammer", "bow")
+        if it.kind in ("skill", "spell"):
+            return it.name in World.BAR_SKILLS
+        return False
 
     # -- queries ------------------------------------------------------------
 
@@ -1166,17 +1397,46 @@ class World:
                 if m and m.alive and not m.npc:
                     m.x, m.y = x, y
         alive = {m.node: m for m in self.living()}
-        picked = [n for n in nodes if n in alive]
-        self.engaged = picked or list(alive)
+        # The phone names who it stepped up to. Keep that list even when the
+        # creature is already dead, so the win can still tell the phone the
+        # node died and the fight box can close.
+        self.engaged = list(nodes) if nodes else list(alive)
+        # Exploration will let the hero walk onto a creature. Melee does not
+        # reach that square, so open the fight one step off it.
+        self.step_off_fighter()
         self.fight_at = (self.hero_x, self.hero_y)
         self.guard = 0
         self.pending_gold = 0
         self.pending_xp = 0
+        self.fight_gains = {}
         for n in self.engaged:
             m = alive.get(n)
             if m:
                 m.home = (m.x, m.y)
                 m.fight_hp = m.hp
+
+    def step_off_fighter(self):
+        """Step onto a free neighbour when the hero shares a fighter's square.
+
+        Returns the square stepped to, or None. Orthogonal first: that is a
+        step the client itself would accept. Never onto a door.
+        """
+        if self.mob_at(self.hero_x, self.hero_y, include_npcs=False) is None:
+            return None
+        exits = self._boxes(self.location)[0]
+        mp = self.map()
+        for dx, dy in ((0, 1), (1, 0), (0, -1), (-1, 0),
+                       (1, 1), (1, -1), (-1, 1), (-1, -1)):
+            x, y = self.hero_x + dx, self.hero_y + dy
+            if mp and not (0 <= x < mp.w and 0 <= y < mp.h):
+                continue
+            if not self.can_stand(x, y) or (x, y) in exits:
+                continue
+            if self.mob_at(x, y):
+                continue
+            self.hero_x, self.hero_y = x, y
+            return x, y
+        return None
 
     def revert_fight(self):
         """The fight did not count: flee, or the hero went down. Creatures
@@ -1195,14 +1455,117 @@ class World:
         self.guard = 0
         self.pending_gold = 0
         self.pending_xp = 0
+        self.fight_gains = {}
+
+    # One landed use fills this much of the bar. At 100% the title advances
+    # and the percent starts over. Sensei is the last title.
+    TITLES = ("Fumbler", "Beginner", "Trained", "Experienced",
+              "Master", "Expert", "Sensei")
+    PRACTICE_STEP = 5
+
+    def practice_rank(self, name):
+        rank, _ = self.practice.get(name, (0, 0))
+        return max(0, min(rank, len(self.TITLES) - 1))
+
+    def practice_label(self, name):
+        rank = self.practice_rank(name)
+        _, pct = self.practice.get(name, (0, 0))
+        title = self.TITLES[rank]
+        if rank >= len(self.TITLES) - 1:
+            return f"{title}"
+        return f"{title} {pct}%"
+
+    def trained_effect(self, name, base):
+        """Each title adds one to the skill's effect."""
+        return base + self.practice_rank(name)
+
+    def trained_time(self, name, base):
+        """Each title takes 5% off the time, and the cost never reaches 0."""
+        return max(1, base * (100 - 5 * self.practice_rank(name)) // 100)
+
+    def note_use(self, name):
+        """A successful use this fight. Kept only if the fight is won."""
+        if not name:
+            return
+        self.fight_gains[name] = self.fight_gains.get(name, 0) + self.PRACTICE_STEP
+
+    def commit_practice(self):
+        """Fold this fight's gains into the hero. Past Sensei, nothing more."""
+        last = len(self.TITLES) - 1
+        for name, gained in self.fight_gains.items():
+            rank, pct = self.practice.get(name, (0, 0))
+            if rank >= last:
+                self.practice[name] = (last, 0)
+                continue
+            pct += gained
+            while pct >= 100 and rank < last:
+                pct -= 100
+                rank += 1
+            if rank >= last:
+                pct = 0
+            self.practice[name] = (rank, pct)
+        self.fight_gains = {}
+
+    def practice_report(self):
+        """The Weapon / Skill / Spell lines of a win, from this fight only."""
+        gains = self.fight_gains
+        groups = (
+            ("Weapon points:", ("Bow", "Sword", "Axe", "Hammer"), "usage"),
+            ("Skill points:", ("Move", "Hit", "Shoot", "Dodge"), "skill"),
+            ("Spell points:", ("Zap", "Minor Cure"), "spell"),
+        )
+        lines = []
+        for heading, names, kind in groups:
+            lines.append(heading)
+            got = [n for n in names if gains.get(n)]
+            if not got:
+                lines.append("No gains")
+                continue
+            for name in got:
+                if kind == "usage":
+                    lines.append(f"{gains[name]}% {name} usage")
+                elif kind == "skill":
+                    lines.append(f"{gains[name]}% {name} skill")
+                else:
+                    lines.append(f"{gains[name]}% {name}")
+        return lines
 
     def battle_report(self):
+        """The Battle report dialog after a win.
+
+        The phone already shows "Congratulations, you won the fight!" on
+        its own. This is only who fell and what they paid. Quest lines
+        (the lava lever, the cogs, Hrom's speech) stay on the entities
+        that fire them. Pasting one onto every win on that map made the
+        same crate script appear for a different creature of the same kind.
+        """
+        fallen = []
+        for n in self.engaged or []:
+            m = self.mobs.get(n)
+            if m and not m.alive:
+                name = self.creature_name(m.creature)
+                if self.game == "ShiradsForge" and m.node == 20:
+                    name = "Shirard"
+                fallen.append(name or "It")
         lines = []
+        if len(fallen) == 1:
+            lines.append(f"{fallen[0]} defeated")
+        elif fallen:
+            lines.append(f"{', '.join(fallen[:-1])} and {fallen[-1]} defeated")
         if self.pending_gold or self.pending_xp:
             lines.append(f"Gold +{self.pending_gold}")
             lines.append(f"Experience +{self.pending_xp}")
-        lines.append(self.victory_text())
-        return "\n".join(lines)
+        lines += self.practice_report()
+        if (self.game == "ShiradsForge" and any(
+                n == 20 and (m := self.mobs.get(n)) and not m.alive
+                for n in (self.engaged or []))):
+            lines += ["",
+                      "Congratulations. You have completed Shirad's Forge "
+                      "and saved the mountain.",
+                      "Shirard is defeated, and the lava runs its old course.",
+                      "The world is still yours. Explore as long as you like, "
+                      "and leave when you wish."]
+        return "\n".join(lines) or "The fight is over."
 
     def npcs(self):
         return [m for m in self.mobs.values()
@@ -1274,14 +1637,40 @@ class World:
 
         if self.real1:
             self.interactables = {}
-            for r in self.real1:
+            rows = [bytearray(r) for r in self.real1]
+            # "Nothing inside" lines are kind 1, so the server never hears
+            # about them. Make them kind 3 and answer with a prize instead.
+            # The cog crates, the lever and the portal stay as written.
+            for r in rows:
+                if len(r) > 13 and r[12] == 1 and r[0] in self._empty_crates():
+                    r[12] = 3
+            extra = self._arm_silent_crate(rows)
+            self._extra_crates = {extra} if extra else set()
+            for r in rows:
+                # A fight box (kind 2) stays live until something completes
+                # it. The client completes an entity whose trigger is "this
+                # node died" (byte 6 == 2, byte 8 == the node) when tag 28
+                # names that node. These rows started the fight from a box
+                # and left that trigger empty, so killing Shirard never
+                # turned the box off and it asked to fight him again.
+                if (len(r) > 14 and r[12] == 2 and r[6] == 0
+                        and r[13] >= 1):
+                    r[6] = 2
+                    r[8] = r[14]
+                # Shirard's death switch also armed entity 226, a kind 11
+                # request. The phone answers that by opening a blank screen
+                # which quits the game. Leave the player in the world; the
+                # battle report carries the ending instead.
+                if r[0] == 132 and len(r) > 16 and r[16] == 226:
+                    r[15:17] = b"\x00"
+            for r in rows:
                 if len(r) > 12 and r[12] == 3:
                     key = int.from_bytes(r[7:9], "big")
                     self.interactables[r[0]] = (r[1], self.text(r[1]).get(key, "Use"), key)
-            self.entity_count = max((r[0] for r in self.real1), default=0) + 1
+            self.entity_count = max((r[0] for r in rows), default=0) + 1
             # both state arrays are u8-indexed, so they can hold 255
             self.node_count = max(self.node_count, self.entity_count)
-            return list(self.real1)
+            return [bytes(r) for r in rows]
 
         painted = {loc: set(self.exit_tiles(loc)) for loc in self.locations}
         rows, state = [], 1
@@ -1368,14 +1757,8 @@ class World:
                 out.append((key, v))
         return out
 
-    def entity_states(self):
-        """tag 21 -> d.i. An entity only fires while its state is 2
-        (d.java b()), so everything armed has to be marked here.
-
-        With the real table we can do better than arming everything: an
-        entity that some other entity's arms block switches on must have
-        started dormant, at 1. The table describes its own progression.
-        """
+    def _fresh_entity_states(self):
+        """A new game: live entities at 2, anything armed later at 1."""
         s = bytearray(self.node_count)
         for i in range(1, getattr(self, "entity_count", 1)):
             s[i] = 2
@@ -1383,6 +1766,31 @@ class World:
             if i < len(s):
                 s[i] = 1
         return bytes(s)
+
+    def note_progress(self, blob):
+        """Keep the phone's quest array. Save & exit and a fight both send
+        d.i as tag 10. A blob of the wrong length is ignored."""
+        if not blob:
+            return
+        fresh = self._fresh_entity_states()
+        if len(blob) != len(fresh):
+            return
+        self.progress = bytes(blob)
+
+    def entity_states(self):
+        """tag 21 -> d.i. An entity only fires while its state is 2
+        (d.java b()), so everything armed has to be marked here.
+
+        With the real table we can do better than arming everything: an
+        entity that some other entity's arms block switches on must have
+        started dormant, at 1. The table describes its own progression.
+        A continued hero sends back the array it saved, cog by cog.
+        """
+        saved = getattr(self, "progress", None)
+        fresh = self._fresh_entity_states()
+        if saved and len(saved) == len(fresh):
+            return bytes(saved)
+        return fresh
 
     def armed_later(self):
         """State indices that another entity turns on (block 2 of a type 1
@@ -1641,7 +2049,11 @@ def _world_to_dict(self):
         "inventory": self.inventory, "equipped": self.equipped,
         "engaged": self.engaged,
         "pending_gold": self.pending_gold, "pending_xp": self.pending_xp,
+        "practice": {k: list(v) for k, v in self.practice.items()},
         "gifts_paid": list(self.gifts_paid),
+        "opened": list(getattr(self, "opened", ())),
+        "progress": (list(self.progress)
+                     if getattr(self, "progress", None) else None),
         "mobs": [{"node": m.node, "location": m.location, "x": m.x, "y": m.y,
                   "creature": m.creature, "hp": m.hp, "max_hp": m.max_hp,
                   "alive": m.alive, "npc": m.npc,
@@ -1669,12 +2081,25 @@ def _world_from_dict(self, d):
     self.xp = d.get("xp", 0)
     self.gold = d.get("gold", 50)
     self.raises = d.get("raises", 0)
-    self.inventory = d.get("inventory") or self.inventory
+    kept = []
+    for name in d.get("inventory") or self.inventory:
+        it = self.item(name)
+        if it is None or self.usable(it):
+            kept.append(name)
+    self.inventory = kept
     self.equipped = d.get("equipped") or self.equipped
     self.engaged = d.get("engaged")
     self.pending_gold = d.get("pending_gold", 0)
     self.pending_xp = d.get("pending_xp", 0)
+    self.practice = {}
+    for name, pair in (d.get("practice") or {}).items():
+        if isinstance(pair, (list, tuple)) and len(pair) == 2:
+            self.practice[name] = (int(pair[0]), int(pair[1]))
+    self.fight_gains = {}
     self.gifts_paid = list(d.get("gifts_paid") or [])
+    self.opened = list(d.get("opened") or [])
+    raw = d.get("progress")
+    self.progress = bytes(raw) if raw else None
     saved = d.get("mobs") or []
     if self.real9:
         # The type 9 table is who stands where. A save from before that table
@@ -1739,7 +2164,8 @@ class Saves:
                     self.data = json.load(fh)
             except (ValueError, OSError):
                 pass
-        self.live = {}          # hero name -> live World
+        self.live = {}          # "game:name" -> live World
+        self.active = None      # (game, name) the handset is playing
 
     def flush(self):
         tmp = self.path + ".tmp"
@@ -1804,6 +2230,16 @@ class Saves:
                 w.from_dict(saved)
             self.live[slot] = w
         return self.live[slot]
+
+    def touch(self, name, game=DEFAULT_GAME):
+        """Remember which hero the latest request belonged to."""
+        self.active = (game or DEFAULT_GAME, name)
+
+    def playing(self):
+        if not self.active:
+            return None
+        game, name = self.active
+        return self.live.get(f"{game}:{name}")
 
     def save(self, name, game=DEFAULT_GAME):
         slot = f"{game}:{name}"

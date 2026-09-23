@@ -84,3 +84,54 @@ Sterling Lake and Mistral Grove have no such build among the fifteen we hold,
 and the candidates are gone: Mistral Grove's Motorola 128x128 and 176x220
 adaptations survive only as descriptors on mox.su, whose jars are dead on the
 live web and absent from the Wayback Machine's copy of that site.
+
+## The type 9 row, decoded
+
+Most of it the client reads, so the meaning is not a guess:
+
+    [0]     node id
+    [1]     location
+    [2]     group id          d.java:848 — a type 1 entity with trigger 3
+                              fires when a member of group N dies, which is
+                              how "clear the room" objectives work. Shirad's
+                              Forge has 10 groups, of 13, 9, 9, 8, 6, 6, 4,
+                              4, 2 and 1 creatures.
+    [3][4]  x, y
+    [5:7]   u16 text key      what it says when it notices you
+    [7:9]   u16 text key      its action label, "Fight Beetle"
+    [9]     notice radius     d.java:622. Step within this many tiles, with
+                              line of sight, and its text fires and the
+                              encounter starts. 0 means it never speaks
+                              first. This is why Hrom shouts for help the
+                              moment you leave the Village.
+    [10]    reach radius      same loop: within this many tiles it joins the
+                              "Choose action" list, so you can fight or talk
+                              to it. 0 means never.
+    [11]    hit points        Skeleton 18, Ghost 20, Gorrak 24, Beetle 30,
+                              Golem 36-50, Fungusman 50. Per species.
+    [12]    sprite sheet
+    [13]    animation
+    [15]    moves             starts the walk animation on load
+    [16..19]                  only in the 20-byte rows, and the client never
+                              reads them at all
+
+## The four the client never reads
+
+They were the server's, which is why they survive only here. They are per
+creature rather than per species, and they climb with depth: a Beetle in Dune
+Burrow is 0, 0, 12, 6 and a Beetle in The Lair is 26, 27, 32, 33. That is a
+difficulty curve, written down.
+
+The hero has a row too — 17, 13, 21, 17.
+
+Four numbers, and exactly four abilities matter for combat once hit points are
+already given at [11]: Strength, Dexterity, Intelligence and Willpower, which
+are also the only four any item asks for. Reading them as
+**Intelligence, Willpower, Strength, Dexterity** is the order that makes sense
+of the values: beasts come out with no magic at all (the Dune Burrow beetle is
+Int 0, Wil 0, Str 12, Dex 6), the fire devil has some (Int 8, Wil 0, Str 16,
+Dex 10), and the hero reads as a balanced starter leaning slightly to
+Strength. Every other ordering gives beetles intelligence and no strength.
+
+That last part is inference. The client cannot settle it, because it never
+looks at these bytes.

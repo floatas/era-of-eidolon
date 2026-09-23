@@ -14,6 +14,7 @@ http.server does not do, so that is implemented here.
 Then open http://localhost:<port>/ and load run/EoE-ShiradsForge-web.jar.
 """
 
+import json
 import os
 import re
 import sys
@@ -35,6 +36,20 @@ TYPES = {
 }
 
 
+def compendium_view(store=None):
+    """What the side panel shows: the area title for the hero now playing.
+
+    Empty until a request has named that hero. The id is the location the
+    phone last reported, which is what a later hint page would key on.
+    """
+    from world import saves
+    w = (store or saves()).playing()
+    if w is None:
+        return {"title": None}
+    loc = w.place()
+    return {"id": loc, "title": w.name(loc)}
+
+
 class Handler(relay.Handler):
     """relay.Handler already does POST; this adds a Range-capable static GET."""
 
@@ -51,6 +66,8 @@ class Handler(relay.Handler):
         path = self.path.split("?", 1)[0]
         if path.rstrip("/") == "/relay":
             return relay.Handler.do_POST(self)
+        if path == "/compendium":
+            return self.compendium(head)
 
         rel = path.lstrip("/") or "index.html"
         full = os.path.normpath(os.path.join(WEB, rel))
@@ -105,6 +122,16 @@ class Handler(relay.Handler):
                     break
                 self.wfile.write(chunk)
                 remaining -= len(chunk)
+
+    def compendium(self, head=False):
+        body = json.dumps(compendium_view()).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if not head:
+            self.wfile.write(body)
 
 
 if __name__ == "__main__":

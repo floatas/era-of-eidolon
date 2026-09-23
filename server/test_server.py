@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import codec
 import handlers
 from catalogue import catalogue
-from world import World
+from world import Saves, World, get_world
 
 FAILED = []
 
@@ -140,6 +140,26 @@ def main():
         stuck = [l for l in w.locations if inside(l, *w.spawn_point(l))]
         check(f"{game}: no location spawns you inside a doorway", not stuck,
               f"locations {stuck[:5]}")
+        if w.real1:
+            # d.java b() fires trigger 0 when the hero is inside the box, and
+            # a door is the next tile over. A new game has to miss both.
+            def tangled(loc, x, y):
+                for r in w.real1:
+                    if len(r) < 6 or r[1] not in (0, loc) or r[4] == 0:
+                        continue
+                    x1, y1, x2, y2 = r[2], r[3], r[4], r[5]
+                    if r[12] == 4:
+                        for yy in range(y1, y2):
+                            for xx in range(x1, x2):
+                                if max(abs(x - xx), abs(y - yy)) <= 1:
+                                    return True
+                    elif (r[6] == 0 or r[12] == 2) and x1 <= x < x2 and y1 <= y < y2:
+                        return True
+                return False
+            bad = [(l, *w.spawn_point(l)) for l in w.locations
+                   if tangled(l, *w.spawn_point(l))]
+            check(f"{game}: a new hero starts clear of doors and opening dialogs",
+                  not bad, str(bad[:3]))
 
         # and the box has to cover ground you can actually stand on: the
         # doorway tile itself is not walkable, d.b() inverts the test for it
@@ -340,10 +360,10 @@ def main():
     check("starting kit resolves", len(c.starting_kit()) >= 2)
 
     print("\ncombat")
-    # Rules 1.5, exercised against Shirad's Forge as it actually stands:
-    # the hero begins on (7, 0) and the one fighter in that place, node 7,
-    # stands on (9, 2). Nothing here may depend on the roll coming up the
-    # same way twice unless the Random is handed in.
+    # Rules 1.5, exercised against Shirad's Forge as it actually stands.
+    # The opening fighter, node 7, stands on (9, 2). A new hero starts well
+    # clear of him. Nothing here may depend on the roll coming up the same
+    # way twice unless the Random is handed in.
 
     def said(script, text):
         return any(text.encode() in rec for rec in script)
@@ -378,6 +398,23 @@ def main():
 
     w = World("ShiradsForge")
     mob = w.living()[0]
+    w.hero_x, w.hero_y = mob.x, mob.y
+    w.begin_fight([mob.node])
+    check("opening a fight steps the hero off the creature",
+          w.contact(w.hero_x, w.hero_y, mob.x, mob.y),
+          f"hero {(w.hero_x, w.hero_y)} mob {(mob.x, mob.y)}")
+    # The end-turn message carries the handset's own coordinates, which are
+    # still the shared square.
+    w.hero_x, w.hero_y = mob.x, mob.y
+    script = handlers.resolve(w, [("Hit", 60, 2, [(mob.x, mob.y)])],
+                              rng=random.Random(1))
+    check("a blow aimed at a creature you are standing on is in range",
+          not said(script, "Too far away")
+          and w.contact(w.hero_x, w.hero_y, mob.x, mob.y),
+          f"hero {(w.hero_x, w.hero_y)}")
+
+    w = World("ShiradsForge")
+    mob = w.living()[0]
     w.hero_x, w.hero_y = mob.x - 1, mob.y
     beside = w.can_stand(w.hero_x, w.hero_y) and w.contact(
         w.hero_x, w.hero_y, mob.x, mob.y)
@@ -401,6 +438,92 @@ def main():
         check("the win carries node states and the battle report",
               len(extra) >= 4)
 
+    # The lever sentence lives in Lava Island's text table. It used to be
+    # copied into every win on that map, so a second Gorrak somewhere else
+    # repeated the crate-and-bridge line.
+    w = World("ShiradsForge")
+    lava = next(loc for loc, name in w.LOCATION_NAMES.items()
+                if name == "Lava Island")
+    check("the lever line still belongs to Lava Island",
+          any("lever" in v.lower() and "bridge" in v.lower()
+              for v in w.text(lava).values()))
+    mob = next(m for m in w.mobs.values()
+               if m.location == lava and not m.npc)
+    w.location = lava
+    w.begin_fight([mob.node])
+    who = w.creature_name(mob.creature) or "It"
+    mob.alive = False
+    mob.hp = 0
+    w.pending_gold, w.pending_xp = mob.spoil()
+    report = w.battle_report()
+    check("a Lava Island win names the creature, not the lever crate",
+          who in report and "Gold +" in report and "Experience +" in report
+          and "lever" not in report.lower() and "bridge" not in report.lower()
+          and "crate" not in report.lower(),
+          report.replace("\n", " | "))
+    village = next(loc for loc, name in w.LOCATION_NAMES.items()
+                   if name == "Village")
+    starter = next(m for m in w.mobs.values() if m.location == village and not m.npc)
+    w.location = village
+    w.begin_fight([starter.node])
+    starter.alive = False
+    starter.hp = 0
+    w.pending_gold, w.pending_xp = starter.spoil()
+    village_report = w.battle_report()
+    w = World("ShiradsForge")
+    w.entity_table()
+    shirard = next(r for r in w.entity_table() if r[0] == 111)
+    check("Shirard's fight closes when he dies",
+          shirard[6] == 2 and shirard[8] == 20 and shirard[14] == 20)
+    w.mobs[20].alive = False
+    w.mobs[20].hp = 0
+    w.location = 7
+    w.begin_fight([20])
+    check("a fight against a dead Shirard still names him",
+          w.engaged == [20] and not w.fighters())
+    closing = next(r for r in w.entity_table() if r[0] == 132)
+    check("defeating Shirard does not arm the quit-the-game screen",
+          closing[16] != 226 and 226 not in closing)
+    report = w.battle_report()
+    w.level, w.xp, w.gold = 14, 108, 1582
+    hud = b"".join(handlers.hud_chunks(w))
+    check("the status line is experience, level, gold, with no letters",
+          b"108" in hud and b"1582" in hud
+          and b"L14" not in hud and b"1582g" not in hud and b"108/" not in hud)
+
+    check("the win tells him the mountain is saved and the world is still open",
+          "saved the mountain" in report and "Explore as long as you like" in report
+          and "Shirard is defeated" in report,
+          report.replace("\n", " | "))
+
+    check("a Village win does not paste Hrom's speech",
+          "Hrom" not in village_report and "cog" not in village_report.lower()
+          and (w.creature_name(starter.creature) or "It") in village_report,
+          village_report.replace("\n", " | "))
+
+    w = World("ShiradsForge")
+    w.note_use("Move")
+    w.note_use("Move")
+    w.note_use("Move")
+    w.note_use("Move")
+    w.note_use("Hit")
+    report = w.battle_report()
+    check("a win lists only the skills that landed",
+          "20% Move skill" in report and "5% Hit skill" in report
+          and "Spell points:" in report and "No gains" in report,
+          report.replace("\n", " | "))
+    w.commit_practice()
+    check("those points stay on the hero", w.practice.get("Move") == (0, 20))
+    w.fight_gains = {}
+    w.practice["Hit"] = (0, 95)
+    w.note_use("Hit")
+    w.commit_practice()
+    check("a full bar promotes Hit to Beginner", w.practice.get("Hit") == (1, 0))
+    w.note_use("Dodge")
+    w.revert_fight()
+    check("a loss keeps none of the fight's practice",
+          "Dodge" not in w.practice)
+
     w = World("ShiradsForge")
     bow = catalogue().starting_kit()["bow"]
     mob = w.living()[0]
@@ -410,6 +533,27 @@ def main():
     script = handlers.resolve(w, [("Shoot", 60, 2, [(mob.x, mob.y)])],
                               rng=random.Random(1))
     check("a bow cannot be used in contact", said(script, "Too close"))
+
+    w = World("ShiradsForge")
+    mob = w.living()[0]
+    lane = None
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        hero = (mob.x + 2 * dx, mob.y + 2 * dy)
+        aim = (mob.x - dx, mob.y - dy)
+        if w.can_stand(*hero) and w.can_stand(*aim):
+            lane = (hero, aim)
+            break
+    check("there is a clear lane past the starter", lane is not None)
+    if lane:
+        w.hero_x, w.hero_y = lane[0]
+        w.equip("Short Bow")
+        w.begin_fight([mob.node])
+        before = mob.hp
+        script = handlers.resolve(w, [("Shoot", 60, 2, [lane[1]])],
+                                  rng=random.Random(1))
+        check("an arrow hits the creature standing on its path",
+              mob.hp < before or said(script, "Miss") or said(script, "Blocked"),
+              " ".join(rec[5:5 + rec[4]].decode() for rec in script))
 
     w = World("ShiradsForge")
     mob = w.living()[0]
@@ -439,6 +583,73 @@ def main():
     check("Dodge raises avoidance by the skill's precision for the rest of the turn",
           w.guard == 10 and w.avoidance() == base + 10,
           f"guard {w.guard} avoid {w.avoidance()} was {base}")
+
+    w = World("ShiradsForge")
+    mob = w.living()[0]
+    w.hero_x, w.hero_y = mob.x, mob.y + 1
+    w.begin_fight([mob.node])
+    script = handlers.resolve(
+        w, [("Move", 80, 1, [(w.hero_x - 1, w.hero_y),
+                             (w.hero_x - 2, w.hero_y)])],
+        rng=random.Random(1))
+    walks = []
+    for rec in script:
+        if rec[0] != 2:
+            continue
+        n = rec[4]
+        walks.append(rec[5 + n])
+    hero_at = walks.index(0) if 0 in walks else -1
+    mob_at = walks.index(mob.node) if mob.node in walks else len(walks)
+    check("a step at the same time as a creature keeps the hero first",
+          hero_at >= 0 and hero_at < mob_at, str(walks))
+
+    w = World("ShiradsForge")
+    mob = w.living()[0]
+    w.hero_x, w.hero_y = mob.x, mob.y + 1
+    aimed = (mob.x, mob.y)
+    w.begin_fight([mob.node])
+    mob.x -= 1
+    script = handlers.resolve(w, [("Hit", 60, 2, [aimed])],
+                              rng=random.Random(1))
+    check("an axe still lands if they stepped but you can touch them",
+          not said(script, "Too far away"),
+          " ".join(rec[5:5 + rec[4]].decode() for rec in script))
+
+    w = World("ShiradsForge")
+    w.hero_x, w.hero_y = w.living()[0].x, w.living()[0].y + 1
+    handlers.resolve(w, [("Zig-Zag", 118, 1, [(w.hero_x - 1, w.hero_y)])],
+                     rng=random.Random(1))
+    check("Zig-Zag is harder to hit while that step is the one you are on",
+          w.weave == 9, str(w.weave))
+
+    small = next(m for m in w.mobs.values() if not m.npc and m.max_hp <= 10)
+    check("a small creature's blow still hurts through a scrapsuit",
+          small.offence()["effect"] - 3 >= 5, str(small.offence()))
+    ten = next(m for m in w.mobs.values() if not m.npc and m.max_hp == 10)
+    fat = next(m for m in w.mobs.values() if not m.npc and m.max_hp == 50)
+    check("a kill pays the creature's life in gold",
+          ten.spoil()[0] == ten.max_hp and fat.spoil()[0] == fat.max_hp,
+          f"{ten.max_hp}->{ten.spoil()[0]} {fat.max_hp}->{fat.spoil()[0]}")
+
+    w = World("ShiradsForge")
+    total = sum(m.spoil()[1] for m in w.mobs.values() if not m.npc)
+    wild = sum(m.spoil()[1] for m in w.mobs.values() if not m.npc and m.respawn)
+    lvl, pool = 1, total
+    while lvl < 80:
+        w.level = lvl
+        cost = w.xp_for_next()
+        if pool < cost:
+            break
+        pool -= cost
+        lvl += 1
+    hero = World("ShiradsForge")
+    need = 0
+    for level in range(1, 50):
+        hero.level = level
+        need += hero.xp_for_next()
+    check("one clear is a run of levels, and 50 is a few revisits",
+          lvl >= 10 and wild and need <= wild * 8,
+          f"clear reaches {lvl}, need {need}, wild {wild}")
 
     w = World("ShiradsForge")
     spawn = (w.hero_x, w.hero_y)
@@ -471,6 +682,7 @@ def main():
 
     w = World("ShiradsForge")
     mob = w.living()[0]
+    w.hero_x, w.hero_y = mob.x - 1, mob.y
     w.begin_fight([mob.node])
     resp = handlers.auto_response(w, rng=random.Random(1))
     check("auto fight beats the starter and refills life",
@@ -566,6 +778,37 @@ def main():
           and w.gold == gold + 3)
     check("Milas pays 5", w.claim_gift(148) == 5)
 
+    w = World("ShiradsForge")
+    w.entity_table()
+    payoffs = w.crate_payoffs()
+    check("every plain crate asks the server for a prize",
+          len(payoffs) >= 20 and 69 in payoffs and 160 in payoffs
+          and 188 not in payoffs and 170 not in payoffs,
+          str(sorted(payoffs)))
+    first, gold = w.loot_container(69)
+    again, nothing = w.loot_container(69)
+    check("smashing a crate names one usable thing and pays gold",
+          len(first) == 1 and gold > 0 and nothing == 0
+          and first[0].name in w.inventory
+          and first[0].requirement <= 15,
+          str([i.name for i in first]))
+    other, _ = w.loot_container(118)
+    check("two crates do not hide the same prize",
+          other and other[0].name != first[0].name)
+
+    hero = World("ShiradsForge")
+    fresh = bytearray(hero.entity_states())
+    fresh[188] = 3
+    hero.note_progress(bytes(fresh))
+    kept = World("ShiradsForge")
+    kept.from_dict(hero.to_dict())
+    check("a continued hero still has the cog it found",
+          kept.entity_states()[188] == 3
+          and kept.entity_states()[72] == hero.entity_states()[72])
+    hero.note_progress(b"\x03")
+    check("a short quest blob does not wipe the saved one",
+          hero.entity_states()[188] == 3)
+
     pricey = next(i for i in catalogue().get("weapon")
                   if i.requirement > 15 and i.name not in w.inventory)
     w.gold = pricey.price + 5
@@ -573,10 +816,52 @@ def main():
           w.buy(pricey.name) is None and pricey.name not in w.inventory,
           pricey.name)
 
-    rows = handlers.market_rows(w, 0)
+    title, items = handlers.market_rows(w, 0)
     check("Pick interest lists a market shelf, not a random sentence",
-          rows[0] == "Melee weapons" and rows[1]
-          and "Nothing happens" not in rows[1][0])
+          title == "Melee weapons" and items
+          and "Nothing happens" not in items[0].label())
+    _, skills = handlers.market_rows(w, 3)
+    _, spells = handlers.market_rows(w, 4)
+    shown = {i.name for i in skills + spells}
+    check("the shop does not sell the skills already on the fight bar",
+          shown.isdisjoint(World.BAR_SKILLS),
+          str(sorted(shown & World.BAR_SKILLS)))
+    fresh = World("ShiradsForge")
+    _, melee = handlers.market_rows(fresh, 0)
+    check("a new hero's melee shelf is what he can wear, plus three ahead",
+          [i.name for i in melee] == [
+              "Bloody Blade", "Longfang", "Spike Axe", "Corrupter", "Fell Blade"],
+          str([i.name for i in melee]))
+    fresh.stats["Strength"] = 27
+    _, grown = handlers.market_rows(fresh, 0)
+    names = [i.name for i in grown]
+    check("raising Strength drops the Bloody Blade and opens the Smasher",
+          "Bloody Blade" not in names and "Smasher" in names
+          and names[-3:] == ["Lizard Sword", "Cleaverhead", "Giant Sword"],
+          str(names))
+
+    # The five traders, nearest the Village first. Each band starts higher
+    # and keeps the top of the shop before it.
+    rooms = (2, 3, 12, 5, 6)
+    bands = []
+    for loc in rooms:
+        fresh.location = loc
+        _, melee = handlers.market_rows(fresh, 0)
+        bands.append([i.name for i in melee])
+    check("Lava Island still sells the Bloody Blade",
+          bands[0][0] == "Bloody Blade" and "Bloody Blade" not in bands[-1],
+          str(bands[0]))
+    check("each next trader starts higher and keeps some of the last shop",
+          all(bands[i][-1] not in bands[i - 1] and
+              len(set(bands[i]) & set(bands[i - 1])) >= 2
+              for i in range(1, len(bands))),
+          " | ".join(", ".join(b[:2]) + "…" + b[-1] for b in bands))
+    fresh.stats["Strength"] = 60
+    fresh.location = 2
+    _, still = handlers.market_rows(fresh, 0)
+    check("the Lava Island shelf does not grow when Strength does",
+          [i.name for i in still] == bands[0],
+          str([i.name for i in still]))
 
     # An old save parked invented villagers on node ids the real table uses.
     w = World("ShiradsForge")
@@ -591,6 +876,121 @@ def main():
           and w.node_states()[7] == 2 and w.mobs[7].alive)
     check("an old save does not move a real creature onto a reused node",
           (w.mobs[1].location, w.mobs[1].x, w.mobs[1].y) == secret)
+
+    # i.java case 16 casts a chosen equipped-items row to f. A type-2 string
+    # there is the error dialog. b.java run() builds f only from a type-4 chunk.
+    resp = handlers.equipped(Req(21))
+    kinds = [typ for tag, typ, _ in chunks_of(resp) if tag == 20]
+    check("equipped rows are selectable records, not plain text",
+          kinds == [codec.T_STRUCT, codec.T_STRUCT], str(kinds))
+    w = World("ShiradsForge")
+    offered = b"".join(handlers.carried(w, "weapon"))
+    check("the weapon slot offers the bow you already carry",
+          b"Short Bow" in offered and b"Bloody Blade" in offered)
+    w = World("ShiradsForge")
+    check("wearing the bow takes the sword's slot",
+          w.equip("Short Bow") is not None and w.weapon().cls == "bow")
+
+    # i.java case 19 opens a box from f.a and f.d(). A type-2 string has
+    # neither, which is the error dialog on Skills.
+    resp = handlers.spellbook(Req(25, chunks=[(1, codec.T_INT, b"\x09")]))
+    skill_rows = [(typ, raw) for tag, typ, raw in chunks_of(resp) if tag == 20]
+    check("skill rows show each bar skill and its title",
+          len(skill_rows) == 4 and all(t == codec.T_STRUCT for t, _ in skill_rows)
+          and b"Move" in skill_rows[0][1] and b"Fumbler" in skill_rows[0][1],
+          str(len(skill_rows)))
+    _, spells = handlers.market_rows(w, 4)
+    _, bows = handlers.market_rows(w, 1)
+    check("the shop does not sell charms, spare spells, or bombs",
+          not spells and all(i.cls == "bow" for i in bows)
+          and all(i.kind != "charm" for i in bows))
+    live = get_world()
+    planted = ["Magic Coat", "Ox Charm", "Zig-Zag"]
+    live.inventory.extend(planted)
+    hidden = handlers.spellbook(Req(25, chunks=[(1, codec.T_INT, b"\x0d")]))
+    skills_hidden = handlers.spellbook(Req(25, chunks=[(1, codec.T_INT, b"\x09")]))
+    for name in planted:
+        if name in live.inventory:
+            live.inventory.remove(name)
+    check("a spare spell, charm, or skill does not appear in the lists",
+          b"Magic Coat" not in hidden and b"Ox Charm" not in hidden
+          and b"Zig-Zag" not in skills_hidden and b"Zap" in hidden)
+    prize, _ = World("ShiradsForge").loot_container(69)
+    check("a crate prize is gear you can wear",
+          prize and prize[0].kind in ("weapon", "armour")
+          and World.usable(prize[0]),
+          str([i.name for i in prize]))
+
+    # Every list the phone opens by casting the row to f and reading f.d()
+    # (i.java cases 12, 17, 19, 29). A type-2 string, or a record with no
+    # trailing text, is the error dialog.
+    def record_body(raw):
+        i = 0
+        def take():
+            nonlocal i
+            n = raw[i]
+            i += 1 + n
+            return raw[i - n:i]
+        take()
+        take()
+        i += 1
+        flags = raw[i]
+        i += 1
+        take()
+        n = int.from_bytes(raw[i:i + 2], "big")
+        return flags, raw[i + 2:i + 2 + n]
+
+    list_replies = [
+        ("skills", handlers.spellbook(Req(25, chunks=[(1, codec.T_INT, b"\x09")]))),
+        ("spells", handlers.spellbook(Req(25, chunks=[(1, codec.T_INT, b"\x0d")]))),
+        ("market", handlers.interest(Req(15, chunks=[(1, codec.T_INT, b"\x00")]))),
+        ("rankings", handlers.rankings(Req(26))),
+        ("help", handlers.help_pages(Req(27))),
+        ("icons", handlers.help_pages(Req(28))),
+        ("weapon", handlers.shop(Req(22, chunks=[(1, codec.T_STR, b"weapon")]))),
+    ]
+    bare = []
+    for name, resp in list_replies:
+        for tag, typ, raw in chunks_of(resp):
+            if tag != 20:
+                continue
+            if typ != codec.T_STRUCT:
+                bare.append(f"{name}: type {typ}")
+                continue
+            flags, body = record_body(raw)
+            if not (flags & 8) and not body:
+                bare.append(f"{name}: no dialog text")
+    check("every selectable list row carries the dialog text the phone reads",
+          not bare, ", ".join(bare))
+
+    class Here:
+        location = 1
+
+        def place(self):
+            return World.place(self)
+
+        def name(self, location=None):
+            loc = self.location if location is None else location
+            return {1: "Village", 2: "Lava Island"}.get(loc, "?")
+
+    box = Here()
+    World.note_place(box, 0)
+    check("a missing room report leaves the server's room",
+          World.place(box) == 1)
+    World.note_place(box, 2)
+    check("a reported room is the one the compendium shows",
+          World.place(box) == 2)
+
+    import tempfile
+    import webserve
+    empty = Saves(os.path.join(tempfile.mkdtemp(), "game.json"))
+    check("the compendium waits until a hero is playing",
+          webserve.compendium_view(empty)["title"] is None)
+    empty.live["ShiradsForge:Ana"] = box
+    empty.touch("Ana")
+    view = webserve.compendium_view(empty)
+    check("the compendium names the area the phone last reported",
+          view == {"id": 2, "title": "Lava Island"}, str(view))
 
     print()
     if FAILED:

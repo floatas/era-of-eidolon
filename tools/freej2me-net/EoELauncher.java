@@ -20,9 +20,11 @@ import org.recompile.freej2me.AWTGUI;
  */
 public class EoELauncher {
    public static void main(String[] args) throws Exception {
-      // WASD joins the arrow keys. The phone only has one slot per button, so
-      // the keys those letters used to be are moved: right soft key is F,
-      // the clear button is Z.
+      // WASD joins the arrow keys. Q is sent as Enter, the centre button:
+      // confirm, Choose action, and the fight bar. The clear button is Z.
+      // E is bound directly as the right soft key below. Rewriting the
+      // keystroke in this dispatcher does not reach FreeJ2ME on macOS, so
+      // E cannot be aliased onto F here.
       KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(e -> {
          int code = e.getKeyCode();
          int mapped = code;
@@ -30,6 +32,7 @@ public class EoELauncher {
          else if (code == KeyEvent.VK_A) mapped = KeyEvent.VK_LEFT;
          else if (code == KeyEvent.VK_S) mapped = KeyEvent.VK_DOWN;
          else if (code == KeyEvent.VK_D) mapped = KeyEvent.VK_RIGHT;
+         else if (code == KeyEvent.VK_Q) mapped = KeyEvent.VK_ENTER;
          if (mapped != code) {
             e.setKeyCode(mapped);
             e.setKeyChar(KeyEvent.CHAR_UNDEFINED);
@@ -37,8 +40,8 @@ public class EoELauncher {
          return false;
       });
       AWTGUI.inputKeycodes = new int[] {
-         81,  // Q      soft left
-         70,  // F      soft right (W is up)
+         81,  // soft left (Q is remapped to Enter above)
+         69,  // E      soft right, opens the main menu on the map
          38,  // Up
          37,  // Left
          10,  // Enter  fire
@@ -47,7 +50,7 @@ public class EoELauncher {
          55, 56, 57,  // 7 8 9   (was NUMPAD7/8/9)
          52, 53, 54,  // 4 5 6   (was NUMPAD4/5/6)
          49, 50, 51,  // 1 2 3   (was NUMPAD1/2/3)
-         69,  // E      star
+         192, // `      star (E is the right soft key)
          48,  // 0      (was NUMPAD0)
          82,  // R      hash
          90,  // Z      clear (A is left)

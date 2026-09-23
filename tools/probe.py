@@ -31,6 +31,16 @@ def one(w, loc):
     print(f"{loc}  {w.name(loc)}   {mp.w}x{mp.h}, {ground}/{len(mp.tiles)} "
           f"tiles have ground")
 
+    sx, sy = w.spawn_point(loc)
+    fired = []
+    for r in getattr(w, "real1", None) or ():
+        if len(r) < 6 or r[1] not in (0, loc) or r[6] != 0 or r[4] == 0:
+            continue
+        if r[2] <= sx < r[4] and r[3] <= sy < r[5]:
+            fired.append(f"state {r[0]} kind {r[12]}")
+    print(f"  spawn ({sx},{sy})"
+          + (f"   AUTO-FIRES {', '.join(fired)}" if fired else ""))
+
     doors = w.EXITS.get(loc, [])
     print(f"  doorways ({len(doors)})")
     for (x, y), dest in doors:

@@ -20,9 +20,10 @@ Reserved response tags (b.java run(), tag switch):
 import random
 import struct
 
-from codec import build_response, chunk_int, chunk_str, chunk_raw
+from codec import (build_response, chunk_int, chunk_str, chunk_raw,
+                   enc_utf8, T_STRUCT)
 from catalogue import catalogue
-from world import get_world, saves
+from world import get_world, saves, World
 
 HANDLERS = {}
 
@@ -38,7 +39,10 @@ def session_world(req):
     blob = (req.session or b"").decode("utf-8", "replace")
     key, _, hero = blob.partition(":")
     if hero:
-        return saves().world(hero, req.game), key, hero
+        st = saves()
+        w = st.world(hero, req.game)
+        st.touch(hero, req.game)
+        return w, key, hero
     return get_world(), key, None
 
 
@@ -177,7 +181,7 @@ def push_resource(tag, key, payload):
 #   kind 4  teleport:  p[0] node, p[1] x, p[2] y
 #   kind 6  remove:    p[0] count, then node ids
 
-def result(kind, payload, msg="", dur=18, refresh=0, red=False):
+def result(kind, payload, msg="", dur=220, refresh=0, red=False):
     """The playback loop reads as[p] and as[p+1] *before* switching on the kind
     (d.java:1077), so every record needs at least two payload bytes no matter
     what kind it is. A shorter one throws ArrayIndexOutOfBounds inside the
@@ -190,18 +194,19 @@ def result(kind, payload, msg="", dur=18, refresh=0, red=False):
 
 
 def res_walk(node, x, y, anim=None):
-    return result(2, [node, x, y, ANIM_IDLE if anim is None else anim])
+    # dur is held for dur<<4 ms. 110 is 1.76s, so each square can be seen.
+    return result(2, [node, x, y, ANIM_IDLE if anim is None else anim], dur=110)
 
 
 def res_attack(attacker, victims, anim=ANIM_IDLE, msg="", red=True):
     p = [attacker, anim, len(victims)]
     for node, dmg in victims:
         p += [node, (dmg >> 8) & 0xFF, dmg & 0xFF]
-    return result(1, p, msg=msg, red=red, dur=24)
+    return result(1, p, msg=msg, red=red, dur=220)
 
 
 def res_remove(nodes):
-    return result(6, [len(nodes)] + list(nodes), dur=8)
+    return result(6, [len(nodes)] + list(nodes), dur=40)
 
 
 def parse_actions(buf):
@@ -356,7 +361,7 @@ def enter_world(req):
         # d.java stores these as W,X: the square "Try to flee" returns to.
         chunk_int(26, w.hero_x),
         chunk_int(27, w.hero_y),
-    ])
+    ] + hud_chunks(w))
 
 
 def sync(req, w):
@@ -366,13 +371,25 @@ def sync(req, w):
     Location changes happen entirely client-side — a kind 4 exit sets d.I and
     reloads the map without asking us — so this is how the server finds out
     the player walked through a door."""
+    # Tag 10 is d.i, the quest switches. Tag 14 is which creatures are dead.
+    # Both ride along on Save & exit and on the fight request.
+    blob = req.get(10) if hasattr(req, "get") else b""
+    if blob:
+        w.note_progress(blob)
+    nodes = req.get(14) if hasattr(req, "get") else b""
+    if nodes:
+        for m in w.mobs.values():
+            if m.node < len(nodes):
+                m.alive = nodes[m.node] != 3
     loc = req.int_(11) if hasattr(req, "int_") else 0
     if loc and loc != w.location:
         w.travel(loc)
+        w.note_place(w.location)
         return True
     x, y = req.int_(12), req.int_(13)
     if x or y:
         w.hero_x, w.hero_y = x, y
+    w.note_place(w.location)
     return False
 
 
@@ -431,6 +448,7 @@ def turn(req):
     # menu arrives empty it inserts the *String* "Empty" itself, which then
     # throws ClassCastException. So: no empty slots, no plain strings.
     for tag, (label, cost, mode) in zip(range(30, 36), ACTIONS):
+        cost = w.trained_time(label, cost)
         chunks.append(chunk_f(tag, label, label, k=bytes([0, cost, mode])))
     return build_response(status=1, chunks=chunks)
 
@@ -503,11 +521,15 @@ def hero_timeline(w, actions):
     for name, ts, mode, pts in sorted(actions, key=lambda a: a[1]):
         if mode == 1:
             # Spread the walk across the time the client charged for it, so a
-            # long route genuinely takes longer than a short one.
+            # long route genuinely takes longer than a short one. Zig-Zag
+            # costs more per step than Move, which is the whole of its price.
             step = max(1, MOVE_COST)
+            if name == "Zig-Zag":
+                it = catalogue().find(name)
+                step = max(step, it.time if it else 118)
             for i, (x, y) in enumerate(pts):
                 events.append((ts - (len(pts) - 1 - i) * step,
-                               ("move", x, y)))
+                               ("move", name, x, y)))
         elif mode == 2 and pts:
             events.append((ts, ("attack", name, pts[0][0], pts[0][1])))
         elif mode == 0:
@@ -516,8 +538,11 @@ def hero_timeline(w, actions):
 
 
 def mob_timeline(w):
-    """Both sides share the 720 budget. Creatures close, then swing, and
-    they choose blind against where the hero is standing now."""
+    """The creature's plan, chosen blind from where everyone is standing now.
+
+    It is merged with the hero's queue and played in time order. A creature
+    does not know which way you will walk, and it does not wait for your
+    whole path to finish."""
     events = []
     reserved = {(w.hero_x, w.hero_y)} | _blocked(w)
     for m in w.fighters():
@@ -607,7 +632,7 @@ def _kill(w, target, script):
     w.pending_xp += xp
     name = w.creature_name(target.creature) or "It"
     script.append(result(0, [1, target.node, w.anim(target.creature, "die")],
-                         dur=12, msg=f"{name} dies  +{xp} XP", red=False))
+                         dur=240, msg=f"{name} dies  +{xp} XP", red=False))
     script.append(res_remove([target.node]))
 
 
@@ -640,6 +665,32 @@ def _aimed(w, tx, ty):
     return None
 
 
+def _arrow_target(w, tx, ty):
+    """The first fighter an arrow meets on the way to the aimed square.
+
+    Same steps as line_of_sight: the longer axis, and Y when they match.
+    A wall stops the shot. A creature standing on any square the arrow
+    enters, including the one it was aimed at, is the one that is hit.
+    Returns (fighter or None, blocked)."""
+    mp = w.map()
+    if not mp or (w.hero_x, w.hero_y) == (tx, ty):
+        return None, not mp
+    x, y = w.hero_x, w.hero_y
+    while (x, y) != (tx, ty):
+        if abs(x - tx) > abs(y - ty):
+            x += -1 if x > tx else 1
+        elif y > ty:
+            y -= 1
+        else:
+            y += 1
+        if not mp.walkable(x, y):
+            return None, True
+        who = _aimed(w, x, y)
+        if who is not None:
+            return who, False
+    return None, False
+
+
 def _hero_attack(w, name, tx, ty, script, rng):
     it = catalogue().find(name) if name else None
     cls = it.cls if it else ""
@@ -658,16 +709,22 @@ def _hero_attack(w, name, tx, ty, script, rng):
             return
         off = target.offence()
         outcome, dmg = w.strike(
-            it.effect if it else 9, it.precision if it else 100,
+            w.trained_effect(name, it.effect if it else 9),
+            it.precision if it else 100,
             w.stats["Intelligence"], 0, spell=True, resist=off["will"], rng=rng)
         _land_on_mob(w, 0, target, outcome, dmg, w.anim(0, "cast"), script)
+        if outcome == "hit":
+            w.note_use(name)
         return
     if cls == "long range":
         weapon = w.weapon()
         if weapon is None or weapon.cls != "bow":
             _note(script, "Need a bow")
             return
-        target = _aimed(w, tx, ty)
+        target, blocked = _arrow_target(w, tx, ty)
+        if blocked:
+            _note(script, "No line of sight")
+            return
         if target is None:
             if not _corpse_at(w, tx, ty):
                 _note(script, "Too far away")
@@ -675,31 +732,55 @@ def _hero_attack(w, name, tx, ty, script, rng):
         if w.contact(w.hero_x, w.hero_y, target.x, target.y):
             _note(script, "Too close")
             return
-        if not w.line_of_sight(w.hero_x, w.hero_y, target.x, target.y):
-            _note(script, "No line of sight")
-            return
         off = target.offence()
         outcome, dmg = w.strike(
-            it.effect if it else 9, it.precision if it else 100,
+            w.trained_effect(name, it.effect if it else 9),
+            it.precision if it else 100,
             w.stats["Strength"], off["avoid"], dex=w.stats["Dexterity"],
-            armour=off["armour"], weapon_mod=weapon.effect, rng=rng)
+            armour=off["armour"],
+            weapon_mod=weapon.effect + w.practice_rank("Bow"), rng=rng)
         _land_on_mob(w, 0, target, outcome, dmg, w.anim(0, "bow"), script)
+        if outcome in ("hit", "precise", "crit"):
+            w.note_use(name)
+            w.note_use("Bow")
         return
     weapon = w.weapon()
     if weapon is None or weapon.cls not in MELEE_CLS:
         _note(script, "Need a melee weapon")
         return
-    target = _aimed(w, tx, ty)
-    if target is None or not w.contact(w.hero_x, w.hero_y, target.x, target.y):
-        if target is not None or not _corpse_at(w, tx, ty):
+    # An axe does not travel. It lands on whoever you can still touch.
+    # The square you named picks which one when several are in reach, and
+    # it still counts if they stepped from that square to another you touch.
+    target = _melee_target(w, tx, ty)
+    if target is None:
+        if not _corpse_at(w, tx, ty):
             _note(script, "Too far away")
         return
     off = target.offence()
     outcome, dmg = w.strike(
-        it.effect if it else 10, it.precision if it else 100,
+        w.trained_effect(name, it.effect if it else 10),
+        it.precision if it else 100,
         w.stats["Strength"], off["avoid"], dex=w.stats["Dexterity"],
-        armour=off["armour"], weapon_mod=weapon.effect, rng=rng)
+        armour=off["armour"],
+        weapon_mod=weapon.effect + w.practice_rank(weapon.cls.capitalize()),
+        rng=rng)
     _land_on_mob(w, 0, target, outcome, dmg, w.anim(0, "attack"), script)
+    if outcome in ("hit", "precise", "crit"):
+        w.note_use(name)
+        w.note_use(weapon.cls.capitalize())
+
+
+def _melee_target(w, tx, ty):
+    """Who an axe or hammer reaches at the moment the blow comes up."""
+    touching = [m for m in w.fighters()
+                if w.contact(w.hero_x, w.hero_y, m.x, m.y)]
+    on_square = _aimed(w, tx, ty)
+    if on_square is not None and on_square in touching:
+        return on_square
+    if not touching:
+        return None
+    touching.sort(key=lambda m: (max(abs(m.x - tx), abs(m.y - ty)), m.node))
+    return touching[0]
 
 
 def _heal(w, it, script, rng):
@@ -707,7 +788,10 @@ def _heal(w, it, script, rng):
     if roll > (it.precision if it else 100):
         _note(script, "Fizzle")
         return
-    amount = max(0, (it.effect if it else 8) + w.stats["Willpower"] // 10)
+    w.note_use(it.name if it else "Minor Cure")
+    amount = max(0, w.trained_effect(it.name if it else "Minor Cure",
+                                      it.effect if it else 8)
+                 + w.stats["Willpower"] // 10)
     amount = min(amount, w.hero_max - w.hero_hp)
     w.hero_hp += amount
     script.append(res_attack(0, [(0, -amount)], anim=w.anim(0, "cast"),
@@ -719,17 +803,27 @@ def _self_act(w, name, script, rng):
     if it and it.cls == "spirit":
         _heal(w, it, script, rng)
         return
+    # A blow or a defence ends the zig-zag. You are no longer on that step.
+    w.weave = 0
     # Defence chosen early still applies to blows later on this timeline.
-    w.guard += it.precision if it else 10
+    # A higher title dodges a little more and is counted as a landed use.
+    w.guard += (it.precision if it else 10) + w.practice_rank(name or "Dodge")
+    w.note_use(name or "Dodge")
     _note(script, name or "Dodge", red=False)
 
 
-def _hero_move(w, x, y, script):
+def _hero_move(w, name, x, y, script):
     orthogonal = abs(x - w.hero_x) + abs(y - w.hero_y) == 1
     if not orthogonal or not w.can_stand(x, y) or w.occupied(x, y):
         _note(script, "Failed Move")
         return
     w.hero_x, w.hero_y = x, y
+    w.note_use(name or "Move")
+    if name == "Zig-Zag":
+        it = catalogue().find(name)
+        w.weave = it.effect if it else 9
+    else:
+        w.weave = 0
     script.append(res_walk(0, x, y, w.anim(0, "walk")))
 
 
@@ -738,8 +832,10 @@ def _mob_attack(w, m, script, rng):
         return
     off = m.offence()
     armour = w.armour().effect if w.armour() else 0
+    # Zig-Zag adds its effect only while that step is the one you are on.
     outcome, dmg = w.strike(
-        off["effect"], off["precision"], 0, w.avoidance(),
+        off["effect"], off["precision"], 0,
+        w.avoidance() + getattr(w, "weave", 0),
         armour=armour, rng=rng)
     anim = w.anim(m.creature, "attack")
     if outcome == "miss" or dmg <= 0:
@@ -754,24 +850,15 @@ def _mob_attack(w, m, script, rng):
                              msg=f"{label} {who} hits -{dmg}".strip()))
 
 
-def resolve(w, actions, rng=None):
-    """Merge both timelines and play them in time order.
-
-    Equal timestamps keep the hero's event first: the list is built that
-    way and the sort is stable. A dead hero takes no further actions.
-    """
-    rng = rng or random
-    w.guard = 0
-    script = []
-    events = hero_timeline(w, actions) + mob_timeline(w)
-    events.sort(key=lambda e: e[0])
+def _play(w, events, script, rng):
     for _, ev in events:
         if w.hero_hp <= 0:
-            break
+            return
         kind = ev[0]
         if kind == "move":
-            _hero_move(w, ev[1], ev[2], script)
+            _hero_move(w, ev[1], ev[2], ev[3], script)
         elif kind == "attack":
+            w.weave = 0
             _hero_attack(w, ev[1], ev[2], ev[3], script, rng)
         elif kind == "self":
             _self_act(w, ev[1], script, rng)
@@ -786,8 +873,29 @@ def resolve(w, actions, rng=None):
             script.append(res_walk(node, x, y, w.anim(m.creature, "walk")))
         elif kind == "mob_attack":
             m = w.mobs.get(ev[1])
-            if m:
+            if m and m.alive:
                 _mob_attack(w, m, script, rng)
+
+
+def resolve(w, actions, rng=None):
+    """Both plans were made blind. Play them as one list, earliest first.
+
+    The creature's plan is fixed from where everyone stood when the turn
+    was closed, then merged with the queue. Equal times keep the hero's
+    event first. A dead hero takes no further actions.
+    """
+    rng = rng or random
+    w.guard = 0
+    w.weave = 0
+    script = []
+    # The client re-sends its own coordinates on the end-turn message, which
+    # puts the hero back on the creature after begin_fight moved them off.
+    off = w.step_off_fighter()
+    if off:
+        script.append(res_walk(0, off[0], off[1], w.anim(0, "walk")))
+    events = hero_timeline(w, actions) + mob_timeline(w)
+    events.sort(key=lambda e: e[0])
+    _play(w, events, script, rng)
     return script
 
 
@@ -811,13 +919,15 @@ def finish(w, script):
         w.hero_hp = w.hero_max
         start = w.locations[0] if w.locations else w.location
         w.location = start
+        w.note_place(start)
         w.hero_x, w.hero_y = w.spawn_point(start)
         w.recall = (w.hero_x, w.hero_y)
         return 3, [chunk_int(25, w.location),
-                   chunk_int(26, w.hero_x), chunk_int(27, w.hero_y)]
+                   chunk_int(26, w.hero_x), chunk_int(27, w.hero_y)] + hud_chunks(w)
     if w.engaged is not None and not w.fighters():
         _regen(w, script)
         report = w.battle_report()
+        w.commit_practice()
         leveled = w.grant_xp(w.pending_xp)
         w.gold += w.pending_gold
         w.pending_gold = 0
@@ -839,8 +949,30 @@ def finish(w, script):
         return 2, offer + [
             chunk_raw(23, 0, w.node_states()),
             chunk_str(24, report),
-            chunk_raw(28, 0, dead)]
+            chunk_raw(28, 0, dead)] + hud_chunks(w)
     return 1, []
+
+
+def hud_chunks(w):
+    """The walk-around panel. b.java run() stores these on every reply:
+
+    tag 5  int 0..255   how full the bottom bar is
+    tag 6  string       left number, experience so far
+    tag 4  string       middle, the level
+    tag 7  string       right number, gold
+
+    Nothing was sending them, so the bar stayed black and the numbers blank.
+    The combat strip is separate: life is the red bar, time is the gold one,
+    and both of those are drawn by the phone from the fight itself.
+    """
+    need = max(1, w.xp_for_next())
+    filled = min(255, w.xp * 255 // need)
+    return [
+        chunk_int(5, filled),
+        chunk_str(6, str(w.xp)),
+        chunk_str(4, str(w.level)),
+        chunk_str(7, str(w.gold)),
+    ]
 
 
 def _log_world(w, status):
@@ -961,44 +1093,181 @@ def hero_sheet(req):
         chunk_str(23, title), chunk_str(20, body)])
 
 
+def choice_row(label, value, detail="", disabled=False):
+    """One list row the handset can select.
+
+    b.java run() type 4 builds an f. A plain string in the same list is only
+    drawn; choosing it is cast to f and the client shows its error dialog
+    (i.java case 16). label is what you see, value is what comes back in
+    tag 1 (f.b). The signed byte -1 means no item icon.
+
+    Choosing row 0 clears the parent line and does not write a name back
+    (i.java case 17). A disabled row (g bit 8, f.c()) ignores that press.
+    Any later row opens a dialog whose body is f.d(), the trailing bytes.
+    A missing body is a blank box.
+    """
+    def piece(text):
+        raw = enc_utf8(text)
+        return bytes([len(raw)]) + raw
+
+    extra = enc_utf8(detail) if detail else b""
+    payload = (piece(label) + piece(value) + bytes([0xFF, 8 if disabled else 0])
+               + piece("") + struct.pack(">H", len(extra)) + extra)
+    return chunk_raw(20, T_STRUCT, payload)
+
+
 @handler(21)
 def equipped(req):
-    """Opcode 21 — Equipped items. i.java case 21 makes a list from tag 20."""
+    """Opcode 21 — Equipped items. i.java case 21 makes a list from tag 20.
+
+    Each row opens opcode 22 with the slot name, which lists what you carry
+    for that slot. Gold stays on the hero sheet; a gold line here is not a
+    thing you can wear.
+    """
     w, _, _ = session_world(req)
     rows = []
     for slot in ("weapon", "armour"):
         it = w.item(w.equipped.get(slot))
-        rows.append(f"{slot.title()}: {it.label() if it else 'nothing'}")
-    rows.append(f"Gold: {w.gold}")
-    rows += [f"- {n}" for n in w.inventory
-             if n not in w.equipped.values()]
-    return build_response(status=1,
-                          chunks=[chunk_str(20, r) for r in rows])
+        shown = it.label() if it else "nothing"
+        rows.append(choice_row(f"{slot.title()}: {shown}", slot))
+    return build_response(status=1, chunks=rows)
+
+
+# How far below the hero's stat a piece may sit before the shelf drops it,
+# and how many pieces past that stat stay visible. Used only when the hero
+# is not standing at one of the five traders. 12 is the step from the
+# Bloody Blade (3) to the Longfang (15).
+SHOP_KEEP = 12
+SHOP_AHEAD = 3
+
+# The five traders, in the order you can walk to them from the Village.
+# Fire Cave is the side door in Dwarven Hall, so it comes before the Lair.
+TRADERS = (2, 3, 12, 5, 6)
+
+
+def _trader_tier(w):
+    """Which trader the hero is standing with, or None away from all five."""
+    loc = w.place() if hasattr(w, "place") else w.location
+    try:
+        return TRADERS.index(loc)
+    except ValueError:
+        return None
+
+
+def _trader_band(items, tier, tiers=5):
+    """One trader's slice of a shelf, slid toward the expensive end.
+
+    A long list shows ten pieces. A short one shows about a third, so the
+    bows still change from room to room. Neighbouring traders share the
+    join: the next shop keeps the top of the last one and adds what comes
+    after it.
+    """
+    ranked = sorted(items, key=lambda i: (i.requirement, i.rank, i.name))
+    n = len(ranked)
+    if n == 0:
+        return []
+    span = n if n <= 6 else min(10, max(5, (n + 1) // 3))
+    if span >= n or tiers <= 1:
+        return ranked
+    tier = 0 if tier < 0 else (tiers - 1 if tier >= tiers else tier)
+    start = round(tier * (n - span) / (tiers - 1))
+    return ranked[start:start + span]
+
+
+def _shop_window(items, stat):
+    """Gear he can wear, plus the next few he has not reached.
+
+    Sorted by requirement. Anything more than SHOP_KEEP below his stat has
+    left. The following SHOP_AHEAD pieces are shown even though he cannot
+    wear them yet.
+    """
+    ranked = sorted(items, key=lambda i: (i.requirement, i.rank, i.name))
+    floor = stat - SHOP_KEEP
+    worn = [i for i in ranked if floor <= i.requirement <= stat]
+    ahead = [i for i in ranked if i.requirement > stat][:SHOP_AHEAD]
+    window = worn + ahead
+    return window[-14:]
 
 
 def market_rows(w, which):
-    """One shelf. d.java b[] is Melee, Missile, Armours, Skills, Spells."""
+    """One shelf. d.java b[] is Melee, Missile, Armours, Skills, Spells.
+
+    Melee and armour follow Strength. Bows follow Dexterity. At one of the
+    five traders the shelf is that room's band instead: further from the
+    Village, higher requirements, with the previous shop's top end kept.
+    """
     kinds = ["weapon", "weapon", "armour", "skill", "spell"]
     kind = kinds[which] if 0 <= which < len(kinds) else "weapon"
     title = w.SHOP_CATEGORIES[which] if 0 <= which < 5 else "Market"
     items = [i for i in catalogue().get(kind)
-             if which != 1 or i.cls in ("bow", "bomb")]
+             if World.usable(i) and i.name not in World.BAR_SKILLS
+             and (which != 1 or i.cls == "bow")]
     if which == 0:
         items = [i for i in items if i.cls in ("sword", "axe", "hammer")]
-    rows = [i.label() for i in items[:14]] or ["Nothing in stock"]
-    return title, rows
+    if which in (0, 1, 2):
+        tier = _trader_tier(w)
+        if tier is None:
+            stat_name = "Dexterity" if which == 1 else "Strength"
+            items = _shop_window(items, w.stats.get(stat_name, 0))
+        else:
+            items = _trader_band(items, tier)
+    return title, items[:14]
+
+
+def shelf_chunks(items):
+    """Market rows the phone can open. Case 12 reads f.a and f.d()."""
+    if not items:
+        return [choice_row("Nothing in stock", "none", "Nothing in stock.")]
+    return [choice_row(it.label(), it.name, _plain(it.desc) or it.name)
+            for it in items]
+
+
+def carried(w, slot):
+    """Items in the pack that fit one worn slot, as selectable rows.
+
+    The top line is disabled. The phone treats row 0 as 'clear this slot'
+    and blanks the line above it.
+    """
+    rows = [choice_row("Choose an item below", slot, disabled=True)]
+    for name in w.inventory:
+        it = w.item(name)
+        if it is None:
+            continue
+        if slot == "armour" and it.kind != "armour":
+            continue
+        if slot == "weapon" and it.kind != "weapon":
+            continue
+        worn = " (worn)" if w.equipped.get(slot) == it.name else ""
+        detail = f"Wear {it.name}."
+        if worn:
+            detail = f"{it.name} is already worn."
+        rows.append(choice_row(it.name + worn, it.name, detail))
+    return rows
 
 
 @handler(22)
 def shop(req):
-    """Opcode 22 — a Market category. The client renders tag 20 as a list with
-    the title from tag 21 and the selected index from tag 22.
+    """Opcode 22 — what can go in the slot you just picked.
+
+    i.java case 16 sends f.b, which for the equipped list is "weapon" or
+    "armour". The reply is a list (tag 20) under tag 21, and choosing a row
+    sends that row's value to opcode 23. A numeric tag is the old market
+    shelf, kept so a category index still renders.
     """
     w, _, _ = session_world(req)
-    title, rows = market_rows(w, req.int_(1))
+    raw = req.get(1)
+    slot = raw.decode("utf-8", "replace") if raw in (b"weapon", b"armour") else ""
+    if slot:
+        title = "Weapon" if slot == "weapon" else "Armour"
+        rows = carried(w, slot) or [
+            choice_row("Nothing held", slot, "Nothing in this slot.",
+                       disabled=True)]
+        return build_response(status=1, chunks=[
+            chunk_str(21, title), chunk_int(22, 0)] + rows)
+    title, items = market_rows(w, req.int_(1))
     return build_response(status=1, chunks=[
         chunk_str(21, f"{title} ({w.gold}g)"), chunk_int(22, 0)] +
-        [chunk_str(20, r) for r in rows])
+        shelf_chunks(items))
 
 
 @handler(16)
@@ -1010,7 +1279,9 @@ def buy(req):
     wanted = " ".join(n for n in name if not n.endswith("g")
                       and not n.startswith(("E", "Ti"))).strip()
     looked = w.item(wanted)
-    if looked and not w.can_wield(looked):
+    if looked and not World.usable(looked):
+        msg = "That cannot be used."
+    elif looked and not w.can_wield(looked):
         msg = f"You need {looked.ability} {looked.requirement}."
     else:
         it = w.buy(wanted)
@@ -1018,7 +1289,7 @@ def buy(req):
                else "You cannot afford that.")
     if hero:
         saves().save(hero, w.game)
-    return build_response(status=1, chunks=[chunk_str(21, msg)])
+    return build_response(status=1, chunks=[chunk_str(21, msg)] + hud_chunks(w))
 
 
 @handler(23)
@@ -1047,6 +1318,10 @@ def fetch_resources(req):
     Everything it asks for is in the jar except types 1 and 9, which are ours.
     """
     w, _, _ = session_world(req)
+    # After the first map, this fetch carries the room the phone is loading
+    # (d.java d(b), tag 11). Remember it for the compendium. travel() is not
+    # called: that would also move the hero to the doorway square.
+    w.note_place(req.int_(11))
     raw = req.get(1)
     keys = [int.from_bytes(raw[i:i + 2], "big") for i in range(0, len(raw) - 1, 2)]
 
@@ -1082,12 +1357,41 @@ def interact(req):
     actually says something.
     """
     w, _, hero = session_world(req)
+    sync(req, w)
     state = req.int_(1)
     # Shirad's kind-3 rows are checkpoints. The phone already showed the
     # line and flipped the quest switch. The reply pays a stated gift, if
     # the line named one, and otherwise stays quiet. A second sentence
     # here would cover the jar's own text.
     if w.real1:
+        label = w.entity_label(state)
+        if (state in w.crate_payoffs()
+                or "crate" in label.lower() or "barrel" in label.lower()):
+            found, gold = w.loot_container(state)
+            if found or gold:
+                lines = ["You smash it open.", "", "Inside:"]
+                for it in found:
+                    if it.kind == "skill":
+                        lines.append(f"{it.name}, a {it.cls} skill")
+                    elif it.kind == "spell":
+                        lines.append(f"{it.name}, a spell")
+                    elif it.kind == "weapon":
+                        lines.append(f"{it.name}, a {it.cls}")
+                    elif it.kind == "armour":
+                        lines.append(f"{it.name}, armour")
+                    else:
+                        lines.append(f"{it.name}, a {it.kind}")
+                if gold:
+                    lines.append(f"{gold} gold")
+                body = "\n".join(lines)
+            else:
+                body = "Nothing left inside."
+            if hero:
+                saves().save(hero, w.game)
+            print(f"    \033[35mcrate {state}: "
+                  f"{[it.name for it in found] or 'empty'} +{gold}g\033[0m")
+            # Tag 2 is shown at once (b.java run(), tag 2). Tag 1 only queues.
+            return build_response(status=1, chunks=[chunk_str(2, body)] + hud_chunks(w))
         paid = w.claim_gift(state)
         if hero:
             saves().save(hero, w.game)
@@ -1202,9 +1506,11 @@ def save_game(req):
     we never heard about.
     """
     w, _, hero = session_world(req)
+    sync(req, w)
     if req.get(11):
         w.location = req.int_(11)
         w.hero_x, w.hero_y = req.int_(12), req.int_(13)
+        w.note_place(w.location)
     nodes = req.get(14)
     for m in w.mobs.values():
         if m.node < len(nodes):
@@ -1237,12 +1543,13 @@ def interest(req):
     """Opcode 15 — "Pick interest" (type 1 kind 10). The list the phone
     shows is d.b[], the five market shelves, and this reply is that shelf."""
     w, _, _ = session_world(req)
+    sync(req, w)
     which = req.int_(1)
     if not 0 <= which < 5:
         return build_response(status=1, chunks=[chunk_str(21, "Interest")])
-    title, rows = market_rows(w, which)
-    return build_response(status=1, chunks=[
-        chunk_str(21, title)] + [chunk_str(20, r) for r in rows])
+    title, items = market_rows(w, which)
+    return build_response(status=1, chunks=[chunk_str(21, title)] +
+                          shelf_chunks(items))
 
 
 @handler(17)
@@ -1295,20 +1602,40 @@ def delete_item(req):
     return build_response(status=1, chunks=[])
 
 
+def _plain(text, limit=180):
+    """Dialog bodies are drawn as text. Control characters are layout codes."""
+    cleaned = "".join(ch if ch >= " " else " " for ch in (text or ""))
+    cleaned = " ".join(cleaned.split())
+    return (cleaned[:limit] or " ").strip()
+
+
 @handler(25)
 def spellbook(req):
-    """Opcode 25 — Skills (tag 1 = 9) or Spells (tag 1 = 13), rendered as a
-    list under the tag 21 title. Both come out of the recovered catalogue."""
+    """Opcode 25 — Skills (tag 1 = 9) or Spells (tag 1 = 13).
+
+    The reply is screen 19. Choosing a row opens a box from f.a and f.d()
+    (i.java case 19). A plain string has neither, so the phone shows its
+    error dialog. The box body has to be the trailing bytes of the record.
+    """
     w, _, _ = session_world(req)
     spells = req.int_(1) == 13
     kind = "spell" if spells else "skill"
     title = "Spells" if spells else "Skills"
-    known = [w.item(n) for n in w.inventory]
-    rows = [i.label() for i in known if i and i.kind == kind]
-    if not rows:
-        rows = [f"None learned.", f"The Market sells {title.lower()}."]
+    bar = ("Zap", "Minor Cure") if spells else ("Move", "Hit", "Shoot", "Dodge")
+    rows = []
+    for name in bar:
+        rank = w.practice_rank(name)
+        title = World.TITLES[rank]
+        nxt = World.TITLES[rank + 1] if rank + 1 < len(World.TITLES) else None
+        _, pct = w.practice.get(name, (0, 0))
+        if nxt:
+            body = (f"{title}. {pct}% toward {nxt}. "
+                    "A landed use adds 5%. Each title hits harder and takes less of the turn.")
+        else:
+            body = f"{title}. This can go no higher."
+        rows.append(choice_row(f"{name}, {w.practice_label(name)}", name, body))
     return build_response(status=1, chunks=[
-        chunk_str(21, title)] + [chunk_str(20, r) for r in rows[:14]])
+        chunk_str(21, title)] + rows[:14])
 
 
 @handler(26)
@@ -1326,9 +1653,9 @@ def rankings(req):
     rows.sort(reverse=True)
     lines = [f"{n}. {name} - level {lvl}, {xp} XP ({game})"
              for n, (lvl, xp, name, game) in enumerate(rows[:12], 1)]
-    return build_response(status=1, chunks=[
-        chunk_str(21, "Rankings")] +
-        [chunk_str(20, l) for l in lines or ["No heroes yet."]])
+    lines = lines or ["No heroes yet."]
+    return build_response(status=1, chunks=[chunk_str(21, "Rankings")] + [
+        choice_row(l, l, l) for l in lines])
 
 
 HELP_TOPICS = [
@@ -1338,7 +1665,7 @@ HELP_TOPICS = [
     "A close attack needs you next to the creature, with a sword, axe or hammer.",
     "A bow needs a clear view, and cannot be used while you are next to the target.",
     "Red tiles marked with arrows lead to the next location.",
-    "Gold buys weapons, armour, skills and spells at the Market.",
+    "Gold buys weapons and armour at the Market.",
     "A level gives 2 ability points. After a win you can spend them or save them.",
     "Save & exit writes your hero. Start game picks up where you left off.",
 ]
@@ -1353,8 +1680,8 @@ def help_pages(req):
     navigation rows."""
     page = req.int_(1)
     if req.opcode == 27:
-        return build_response(status=1, chunks=[chunk_str(21, "Help")] +
-                              [chunk_str(20, t) for t in HELP_TOPICS])
+        return build_response(status=1, chunks=[chunk_str(21, "Help")] + [
+            choice_row(t, t, t) for t in HELP_TOPICS])
     icons = ["Sword - melee attack", "Bow - missile attack",
              "Shield - block, halves the next hit", "Flame - offensive spell",
              "Heart - healing spell", "Boot - move", "Hand - use or open",
@@ -1363,9 +1690,8 @@ def help_pages(req):
         icons = ["Green arrow - an exit to another location",
                  "Chest - a container you can open",
                  "Star - a quest entity", "Coin - gold on the ground"]
-    return build_response(status=1, chunks=[
-        chunk_str(21, "Icon overview")] +
-        [chunk_str(20, i) for i in icons])
+    return build_response(status=1, chunks=[chunk_str(21, "Icon overview")] + [
+        choice_row(i, i, i) for i in icons])
 
 
 
