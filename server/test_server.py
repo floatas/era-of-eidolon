@@ -905,6 +905,39 @@ def main():
           and quick.trained_time("Hit", 96) == tiers.speed_scaled(96, 33) < 90,
           f"{quick.trained_time('Move', 40)} {quick.trained_time('Hit', 96)}")
 
+    # Beating Shirard ends the chapter with words, not by closing the game
+    e = World("ShiradsForge")
+    last = [r for r in e.entity_table() if r[0] == World.ENDING["ShiradsForge"]]
+    check("the ending is served as a kind 3 that asks and shows, not a kind 11 "
+          "that quits", last and last[0][12] == 3, str(last and last[0][12]))
+    resp = handlers.interact(Req(11, chunks=[(1, codec.T_INT, b"\x00\xe2")]))
+    shown = b"".join(raw for tag, _, raw in chunks_of(resp) if tag == 2)
+    check("asking about it shows the thanks and the hero's tally",
+          b"Thank you, hero, for saving this land." in shown
+          and b"Level " in shown and b"creatures slain" in shown,
+          shown[:60])
+    check("and marks the chapter finished", get_world().finished)
+    kept = World("ShiradsForge")
+    kept.from_dict(get_world().to_dict())
+    check("a save remembers the chapter is finished", kept.finished)
+
+    # Dodge gives less each time in a turn; Minor Cure is slow
+    d = World("ShiradsForge")
+    gains, script = [], []
+    for _ in range(5):
+        before = d.guard
+        handlers._self_act(d, "Dodge", script, random.Random(1))
+        gains.append(d.guard - before)
+    check("each Dodge in a turn adds half the last: +10, +5, +2, +1, then nothing",
+          gains == [10, 5, 2, 1, 0] and said(script, "No more to dodge"), str(gains))
+    handlers.resolve(d, [], rng=random.Random(1))
+    before = d.guard
+    handlers._self_act(d, "Dodge", [], random.Random(1))
+    check("a new turn dodges in full again", d.guard - before == 10)
+    cure = dict((label, cost) for label, cost, _ in handlers.ACTIONS)["Minor Cure"]
+    check("Minor Cure takes 150 of the turn, not the Arena's 60",
+          cure == 150 and catalogue().find("Minor Cure").time == 150)
+
     a = World("ShiradsForge")
     a.stats["Dexterity"] = 30
     bow = catalogue().find("Long Bow")

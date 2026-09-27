@@ -1260,9 +1260,20 @@ def _self_act(w, name, script, rng):
     w.weave = 0
     # Defence chosen early still applies to blows later on this timeline.
     # A higher title dodges a little more and is counted as a landed use.
-    w.guard += (it.precision if it else 10) + w.practice_rank(name or "Dodge")
-    w.note_use(name or "Dodge")
-    _note(script, name or "Dodge", red=False)
+    # Each further defence in the same turn adds half what the last one did
+    # (+10, +5, +2, +1): five Dodges at 20 apiece used to buy +50, a creature
+    # hitting one time in five for a fifth of the turn, which made opening
+    # every turn with them the only sensible play.
+    base = (it.precision if it else 10) + w.practice_rank(name or "Dodge")
+    n = getattr(w, "defences", 0)
+    gain = base >> n
+    w.guard += gain
+    w.defences = n + 1
+    if gain:
+        w.note_use(name or "Dodge")
+        _note(script, name or "Dodge", red=False)
+    else:
+        _note(script, "No more to dodge", red=False)
 
 
 def _hero_move(w, name, x, y, script):
@@ -1353,6 +1364,7 @@ def resolve(w, actions, rng=None):
     """
     rng = rng or random
     w.guard = 0
+    w.defences = 0
     w.weave = 0
     for m in w.mobs.values():
         m.rest = False
@@ -1978,6 +1990,13 @@ def interact(req):
     # the line named one, and otherwise stays quiet. A second sentence
     # here would cover the jar's own text.
     if w.real1:
+        if state == w.ENDING.get(w.game):
+            w.finished = True
+            if hero:
+                saves().save(hero, w.game)
+            print(f"    \033[35mchapter complete: level {w.level}\033[0m")
+            return build_response(status=1, chunks=[chunk_str(2, w.ending_text())]
+                                  + hud_chunks(w))
         label = w.entity_label(state)
         if (state in w.crate_payoffs()
                 or "crate" in label.lower() or "barrel" in label.lower()):
@@ -2170,8 +2189,10 @@ def interest(req):
 @handler(17)
 def scripted(req):
     """Opcode 17 — a type 1 entity of kind 11, the one kind that asked the
-    server what should happen. Its script is lost; the client only needs a
-    valid frame, and shows screen 33 either way."""
+    server what should happen. Its script is lost, and whatever this answers
+    the phone then opens screen 33, which quits the game. Shirad's Forge's
+    only kind 11, the ending, is served as kind 3 (World.ENDING), so this
+    is only reached by a phone holding an older entity table."""
     print(f"    \033[35mscripted entity: tag1={req.int_(1)}\033[0m")
     return build_response(status=1, chunks=[])
 

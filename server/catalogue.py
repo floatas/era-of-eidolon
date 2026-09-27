@@ -197,6 +197,14 @@ class Catalogue:
             v.sort(key=lambda i: i.rank)
         self._apply_chapter()
 
+    # Fight-bar actions whose time the chapter sets. Minor Cure at the
+    # Arena's 60 could be queued a dozen times a turn and out-heal standing
+    # in any creature's shape; at 150, about a heavy swing, two casts to undo
+    # one turn in a shape cost 40% of the turn, so it is the emergency
+    # button. A hero who raises Willpower heals 30-40 a cast and pays for it
+    # in raise points, as a Toughness hero does.
+    CHAPTER_TIMES = {"Minor Cure": 150}
+
     def _apply_chapter(self):
         """Keep only what this chapter sells, at this chapter's requirements.
 
@@ -216,6 +224,10 @@ class Catalogue:
         The file is optional: without it the full Arena catalogue stands, as
         it did before.
         """
+        for kind in ("skill", "spell"):
+            for it in self.by_kind.get(kind, []):
+                if it.name in self.CHAPTER_TIMES:
+                    it.time = self.CHAPTER_TIMES[it.name]
         try:
             with open(CHAPTER_PATH) as fh:
                 rows = json.load(fh)

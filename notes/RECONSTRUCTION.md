@@ -166,6 +166,10 @@ Toughness and that Speed "affects how fast all actions are performed", and
 give no numbers. Here a point of Toughness above 3 is 5 life, and an action
 takes 120 / (117 + Speed) of its time.
 
+**The ending.** Beating Shirard fired a kind 11, which asked the server for a
+script and then closed the game. The epilogue that now shows instead, and
+the hero staying in the world afterwards, are ours.
+
 **Weapons and shells.** Chapter I weapons have their effect and price set so
 a sword, an axe or hammer, and a bow are each the right tool somewhere. The
 sword is for soft packs, the heavy line and the bow for armour. Beetles and
@@ -201,5 +205,5 @@ set aside.
 - Whether byte 11 of a creature row is hit points or a respawn countdown.
   The server reads it as both.
 - Any per-creature difficulty. Bytes 16–19 were the last hope for it.
-- Nineteen entities of kinds we have not decoded: six of kind 7, four of
-  kind 8, four of kind 9, five of kind 10.
+- Whatever watAgame's server said at the end. Every entity kind is decoded
+  now; the ending's script was the server's.

@@ -340,6 +340,7 @@ class World:
         self.gifts_paid = []
         self.opened = []          # crate state ids already looted
         self.crate_found = []     # what crates have handed out, in order
+        self.finished = False     # the chapter's ending has been shown
         self.progress = None      # the phone's quest switches, d.i, once saved
 
         # "Your hero starts with the most basic sword as a default" and the
@@ -353,7 +354,8 @@ class World:
         # One fight at a time. None means no fight is open; a list of node
         # ids is who opcode 12 was asked to engage (d.java a(byte[], boolean)).
         self.engaged = None
-        self.guard = 0            # avoidance added by a defence skill this turn
+        self.guard = 0
+        self.defences = 0            # avoidance added by a defence skill this turn
         self.pending_gold = 0
         self.pending_xp = 0
         # Title and percent for each skill, spell, and weapon class. A landed
@@ -1411,6 +1413,33 @@ class World:
     # the catalogue's floor of 3 — he owns every piece that asks for 3.
     CRATE_AHEAD = 6
 
+    # Shirad's Forge's last entity. Shirard's death (entity 132, "node 20
+    # died") arms it. As written it is kind 11: the phone asks the server
+    # (opcode 17) and then opens screen 33, whose only job is
+    # notifyDestroyed(), so beating Shirard closed the game. Whatever the
+    # original server said there is lost, and that reply path cannot show
+    # text anyway. entity_table serves it as kind 3 instead, like a crate:
+    # the phone asks, shows the answer, and the hero stays in the world.
+    ENDING = {"ShiradsForge": 226}
+
+    def ending_text(self):
+        """The chapter's close, and the hero's tally."""
+        slain = sum(1 for m in self.mobs.values()
+                    if not m.npc and not m.alive and not getattr(m, "dormant", False)
+                    and m.node != 47)
+        return (
+            "Shirard falls, and the Forge goes quiet.\n\n"
+            "The lava runs in its old streams again. The statue is gone, and "
+            "with it the dream Shirard meant to feed with the land's own "
+            "fire. Left to him, the flames would have swallowed every field "
+            "and village of Vulcor.\n\n"
+            "Word reaches the Village before you do. Hrom, Dreyfus, Milas, "
+            "Tillic and every soul you helped along the way owe you their "
+            "homes, and they know it.\n\n"
+            "Thank you, hero, for saving this land.\n\n"
+            f"Level {self.level}, {slain} creatures slain, {self.gold} gold.\n\n"
+            "Shirard's Forge is complete. The land is yours to wander.")
+
     def crate_location(self, state):
         """Which location a crate's payoff sits in. The silent crate the
         server arms itself (_arm_silent_crates) is not in the jar's table,
@@ -1727,6 +1756,7 @@ class World:
         self.step_off_fighter()
         self.fight_at = (self.hero_x, self.hero_y)
         self.guard = 0
+        self.defences = 0
         self.pending_gold = 0
         self.pending_xp = 0
         self.fight_gains = {}
@@ -1774,6 +1804,7 @@ class World:
                 m.x, m.y = home
         self.engaged = None
         self.guard = 0
+        self.defences = 0
         self.pending_gold = 0
         self.pending_xp = 0
         self.fight_gains = {}
@@ -1973,6 +2004,11 @@ class World:
             made = self._arm_silent_crates(rows)
             self._extra_crates = set(made)
             self._extra_crate_locs = made
+            # the chapter's end asks and shows, instead of asking and quitting
+            end = self.ENDING.get(self.game)
+            for r in rows:
+                if end is not None and r[0] == end and r[12] == 11:
+                    r[12] = 3
             for r in rows:
                 # A fight box (kind 2) stays live until something completes
                 # it. The client completes an entity whose trigger is "this
@@ -2380,6 +2416,7 @@ def _world_to_dict(self):
         "gifts_paid": list(self.gifts_paid),
         "opened": list(getattr(self, "opened", ())),
         "crate_found": list(getattr(self, "crate_found", ())),
+        "finished": bool(getattr(self, "finished", False)),
         "progress": (list(self.progress)
                      if getattr(self, "progress", None) else None),
         "layout": 1,
@@ -2434,6 +2471,7 @@ def _world_from_dict(self, d):
     self.gifts_paid = list(d.get("gifts_paid") or [])
     self.opened = list(d.get("opened") or [])
     self.crate_found = list(d.get("crate_found") or [])
+    self.finished = bool(d.get("finished"))
     raw = d.get("progress")
     self.progress = bytes(raw) if raw else None
     saved = d.get("mobs") or []

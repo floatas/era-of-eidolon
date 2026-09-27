@@ -920,6 +920,41 @@ and the formulas they feed — is recovered.
 
 ---
 
+# Type 1 entity kinds, all of them
+
+`d.a(Object)` (d.java:811) switches on `[12]`, the kind, with the payload at
+`[14]` for `[13]` bytes. Every kind then runs the trailing blocks below.
+Read from the client and checked against all 235 of Shirad's Forge's rows:
+
+    1   message      show text key [14][15]
+    2   fight        start a fight against the payload's node ids
+    3   ask          opcode 11 with the state id; the server's reply is shown
+                     (crates, checkpoints, gifts)
+    4   exit         to location [14] at ([15], [16])
+    5   wake         node ids in the payload go from dormant to live
+    6   patch        repaint a tilemap rectangle (only in its own location)
+    7   remove       node ids in the payload leave: c(n), and out of the
+                     visible list. Shirad's Forge uses it to move one
+                     townsperson along the route (nodes 11, 39, 41, 40, 113)
+                     and to dismiss the Crypt's ghost (112)
+    8   quest item   no action of its own. Its payload is an `f` record, and
+                     d.i() (d.java:1559) builds the Quest items menu from every
+                     kind 8 at state 3: the item's name is text key a (e.g.
+                     "6596"), its id b ("1".."4"). The three cogwheels and the
+                     Fire Devils' gem stone
+    9   use item     no action of its own. Payload is an item id; once it is
+                     state 3 the kind 8 with that id leaves the Quest items
+                     menu. The statue takes cogwheels 1-3, Tillic the gem (4)
+    10  trade        opens "Pick interest", the market. The five traders
+    11  script       opcode 17, and then screen 33 whatever the reply, whose
+                     c() is notifyDestroyed(): the game quits. Shirad's
+                     Forge's one kind 11 (state 226) fires when Shirard dies,
+                     so beating him closed the game. The server now serves
+                     it as kind 3 and answers with an ending (World.ENDING)
+
+Open: the quest item name keys (0x19c4-0x19c7) are in no location's text
+table we hold, so the Quest items menu may show them blank.
+
 # Type 1 records have FOUR trailing blocks, not one
 
 This one costs you an ArrayIndexOutOfBounds that looks nothing like its cause.

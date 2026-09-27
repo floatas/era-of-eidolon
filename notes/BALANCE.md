@@ -120,6 +120,13 @@ their tier, never to the hero playing (`server/tiers.py`):
   for 8–16% slower fights; Speed is 4–10% quicker and survives fewer. All
   targets met. At +2 a point Toughness bought less safety than the Dexterity
   it gave up, since half of Dexterity is dodging.
+- **Dodge and Minor Cure have a price.** Both could be queued as often as
+  the clock allowed. Five Dodges (100 of the turn) cut a creature's hit
+  chance from 69% to 19%; two or three Minor Cures undid a whole turn
+  standing in a shape. Now each further Dodge in a turn adds half the last
+  (+10, +5, +2, +1), and Minor Cure takes 150 (`Catalogue.CHAPTER_TIMES`),
+  so it is the emergency button unless the hero raises Willpower for it.
+  The simulator plays neither, so the targets above are unaffected.
 - **A creature's avoidance and spell resistance** follow its species'
   weight, not its tier-sized life. Reading life made tier III creatures
   dodge 40% of blows and ignore Zap. Zap ignores armour, so a hero with some

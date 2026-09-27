@@ -100,7 +100,7 @@ Willpower lowering prices and resisting spells.
 skill you buy is listed under Skills and cannot be used in a fight. Bombs,
 traps and charms have no effect, and a charm has nowhere to be worn. The bar
 has exactly six slots, so a bought skill would have to replace the starter
-of the same kind. That replacement rule has not been chosen. Minor Cure
+of the same kind. That replacement rule has not been chosen. Dodge gives less each time within a turn, and Minor Cure takes 150 of it. Minor Cure
 asks for Willpower 12 in the catalogue, but the bar does not check it.
 
 **Skill titles.** The battle report's Promotion percentages are ours (5% a
@@ -112,12 +112,19 @@ chosen by `tools/pick_items.py` and `tools/tune_gear.py`, not recovered. Which
 of the 305 catalogue entries this chapter really sold is not in the jar.
 
 **A few screens that are still ours.** The icon overview in Help is guessed.
-Kind 11, the one entity that asked the server to run a script, has no script.
 The twenty-five checkpoints may have carried an extra sentence on top of the
 jar's own line. Only the three gold sums were written down.
 
-**Undecoded entities.** Nineteen: six of kind 7, four of kind 8, four of
-kind 9, five of kind 10.
+**The ending is ours.** Every entity kind is now read (see
+`protocol/PROTOCOL.md`, "Type 1 entity kinds"). The last one, kind 11, asked
+the server for a script when Shirard died and then quit the game whatever
+the answer. That script is lost. The server now serves it as a kind 3 and
+answers with an epilogue and the hero's tally (`World.ending_text`), and the
+hero stays in the world.
+
+**Quest item names.** The cogwheels and the gem stone show in the Quest items
+menu (the phone builds it from kind 8 entities), but their name keys,
+0x19c4-0x19c7, are in no text table we hold. Worth checking on the phone.
 
 **The compendium.** The side panel reference exists, and
 `tools/compendium_card.py` draws one creature's page as a prototype. The

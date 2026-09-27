@@ -291,6 +291,7 @@ CSS = """
   --ground:#15120e; --panel:#1d1913; --panel2:#241f17; --rule:#5b4726;
   --ink:#efe3c4; --dim:#bdad86; --faint:#8a7c5b; --gold:#e8c85c;
   --hit:#b8522c; --safe:#3e5d3a; --void:#26201a; --me:#eadfc2;
+  --display:"Grenze Gotisch",Georgia,serif;
 }
 * { box-sizing:border-box }
 html { background:var(--ground) }
@@ -301,12 +302,13 @@ body { margin:0; background:var(--ground); color:var(--ink);
 .eyebrow, .kind small, th, .tag, .bring span, .crates span, .shop li span,
 nav a, figcaption b { font-family:Cinzel,Georgia,serif; letter-spacing:.12em }
 .eyebrow { font-size:11px; text-transform:uppercase; color:var(--faint); margin:0 0 4px }
-h1 { font-family:Cinzel,Georgia,serif; font-weight:800; font-size:34px; margin:0;
-  line-height:1.1; text-wrap:balance; text-shadow:0 2px 0 #000 }
+h1 { font-family:var(--display); font-weight:800; font-size:48px; margin:0;
+  line-height:1; letter-spacing:.005em; text-wrap:balance;
+  text-shadow:0 2px 0 #000, 0 0 24px rgba(232,200,92,.16) }
 .lede { color:var(--dim); margin:10px 0 0; max-width:60ch }
-h2 { font-family:Cinzel,Georgia,serif; font-size:13px; font-weight:600;
-  letter-spacing:.2em; text-transform:uppercase; color:var(--gold);
-  margin:36px 0 12px; padding-bottom:6px; border-bottom:1px solid var(--rule) }
+h2 { font-family:var(--display); font-size:30px; font-weight:700; line-height:1.1;
+  color:var(--gold); margin:40px 0 12px; padding-bottom:6px;
+  border-bottom:1px solid var(--rule); text-wrap:balance }
 nav { position:sticky; top:env(safe-area-inset-top, 0px); z-index:5;
   background:var(--ground); margin:18px -16px 0; padding:10px 16px;
   display:flex; gap:8px; overflow-x:auto; border-bottom:1px solid var(--rule);
@@ -326,8 +328,8 @@ nav a:focus-visible, a:focus-visible { outline:2px solid var(--gold); outline-of
 .card-head { display:flex; gap:12px; align-items:center }
 .portrait { width:60px; height:60px; object-fit:contain; image-rendering:pixelated;
   background:var(--panel2); border-radius:3px; flex:0 0 auto }
-h3 { font-family:Cinzel,Georgia,serif; font-size:21px; font-weight:800; margin:0;
-  text-wrap:balance; display:flex; flex-wrap:wrap; align-items:center; gap:8px }
+h3 { font-family:var(--display); font-size:27px; font-weight:700; line-height:1.1;
+  margin:0; text-wrap:balance; display:flex; flex-wrap:wrap; align-items:center; gap:8px }
 .kind { color:var(--dim); font-size:15px; margin:2px 0 0 }
 .tag { font-size:10px; text-transform:uppercase; font-weight:600; color:var(--ground);
   background:var(--gold); border-radius:999px; padding:2px 8px }
@@ -359,7 +361,7 @@ td.rooms { color:var(--dim) }
 .phase figcaption b { font-size:11px; text-transform:uppercase; color:var(--gold) }
 .phase p { margin:0 }
 .tier { margin:0 0 22px }
-.tier h3 { font-size:19px }
+.tier h3 { font-size:24px }
 .route { font-size:14px; color:var(--dim); margin:6px 0 10px }
 .shop { border-left:2px solid var(--rule); padding-left:12px; margin:0 0 10px }
 .shop h4 { font-family:Cinzel,Georgia,serif; font-size:13px; letter-spacing:.08em; margin:0 0 4px }
@@ -374,7 +376,7 @@ footer { margin-top:40px; font-size:13px; color:var(--faint) }
 CSS += """
 .layout { max-width:600px; margin:0 auto }
 .guide p { max-width:62ch }
-.guide h3 { font-size:19px; margin:22px 0 8px }
+.guide h3 { font-size:23px; margin:24px 0 8px }
 .guide ul { padding-left:20px; margin:0 0 12px }
 .guide li { margin:0 0 4px }
 .phone { font-family:"IBM Plex Mono",Menlo,monospace; font-size:14px;
@@ -382,7 +384,7 @@ CSS += """
   padding:10px 12px; display:grid; gap:6px; margin:0 0 12px; overflow-x:auto }
 .phone .worse { color:#ff7070 } .phone .better { color:#82d282 } .phone .locked { color:#9a9a9a }
 .room { border-left:2px solid var(--rule); padding:2px 0 2px 12px; margin:18px 0 12px }
-.room h4 { font-family:Cinzel,Georgia,serif; font-size:15px; letter-spacing:.06em; margin:0 }
+.room h4 { font-family:var(--display); font-size:21px; font-weight:600; margin:0 }
 .room p { margin:2px 0 0; font-size:15px; color:var(--dim) }
 .room a { color:var(--ink) }
 .badge { font-family:Cinzel,Georgia,serif; font-size:9px; letter-spacing:.12em;
@@ -390,7 +392,7 @@ CSS += """
   padding:1px 7px; margin-left:6px; color:var(--gold); vertical-align:2px }
 .tierhead { background:var(--panel2); border:1px solid var(--rule); border-radius:4px;
   padding:14px 16px; margin:28px 0 10px }
-.tierhead h3 { font-size:22px }
+.tierhead h3 { font-size:32px }
 nav .group { display:contents }
 @media (min-width: 920px) {
   .layout { display:grid; grid-template-columns:200px minmax(0, 600px); gap:36px;
@@ -457,9 +459,9 @@ def fight_section(w):
       <tr><th scope="row">Move</th><td class="num">{handlers.MOVE_COST} a step</td><td>Straight steps only.</td></tr>
       <tr><th scope="row">Hit</th><td class="num">the blade's Ti</td><td>A blow at a creature beside you.</td></tr>
       <tr><th scope="row">Shoot</th><td class="num">the bow's Ti</td><td>Needs a bow in hand, a clear line, and the target not beside you. The arrow takes the first creature on the line.</td></tr>
-      <tr><th scope="row">Dodge</th><td class="num">{dodge.time}</td><td>Adds {dodge.precision} to your chance to be missed for the rest of the turn.</td></tr>
+      <tr><th scope="row">Dodge</th><td class="num">{dodge.time}</td><td>Adds {dodge.precision} to your chance to be missed for the rest of the turn. Each further Dodge that turn adds half the last (+{dodge.precision}, +{dodge.precision // 2}, +{dodge.precision // 4}…), so one or two is plenty.</td></tr>
       <tr><th scope="row">Zap</th><td class="num">{zap.time}</td><td>A ray onto the exact square you name, anywhere in sight. Ignores armour and shells. Deals {zap.effect} + Intelligence, less the target's resistance.</td></tr>
-      <tr><th scope="row">Minor Cure</th><td class="num">{cure.time}</td><td>Heals {cure.effect} + Willpower. Works {cure.precision}% of the time.</td></tr>
+      <tr><th scope="row">Minor Cure</th><td class="num">{cure.time}</td><td>Heals {cure.effect} + Willpower. Works {cure.precision}% of the time. Slow on purpose: it is the emergency button, and a healer raises Willpower to make one cast count.</td></tr>
     </tbody>
   </table></div>
   <h3>Hitting and being hit</h3>
@@ -621,7 +623,7 @@ def build():
     page = f"""<title>Shirard's Forge Companion</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@600;700;800&family=Cinzel:wght@600;800&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono&display=swap">
 <style>{CSS}</style>
 <div class="layout">
   <nav aria-label="Contents">{nav}</nav>
