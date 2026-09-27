@@ -13,11 +13,13 @@ is running.
 """
 
 import importlib
+import json
 import os
 import re
 import struct
 import sys
 import time
+from urllib.parse import parse_qs
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -155,7 +157,51 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass  # we do our own
 
+    def _send(self, code, body, content_type, location=None):
+        raw = body.encode() if isinstance(body, str) else body
+        self.send_response(code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(raw)))
+        if location:
+            self.send_header("Location", location)
+        self.end_headers()
+        if raw:
+            self.wfile.write(raw)
+
+    def _balance_get(self):
+        importlib.reload(handlers)
+        self._send(200, handlers.balance_page(), "text/html; charset=utf-8")
+
+    def _balance_post(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        form = parse_qs(self.rfile.read(length).decode("utf-8", "replace"))
+
+        def num(name, default, lo, hi):
+            try:
+                value = int(form.get(name, [default])[0])
+            except (TypeError, ValueError):
+                value = default
+            return min(hi, max(lo, value))
+
+        path = os.path.join(HERE, "balance.json")
+        with open(path, "w") as fh:
+            json.dump({
+                "mistakes": num("mistakes", 3, 1, 8),
+                "boss_turns": num("boss_turns", 2, 1, 8),
+                "pay": num("pay", 100, 10, 300),
+            }, fh)
+        self._send(303, "", "text/plain", location="/balance")
+
+    def do_GET(self):
+        if self.path.split("?", 1)[0] == "/balance":
+            self._balance_get()
+            return
+        self.do_POST()
+
     def do_POST(self):
+        if self.path.split("?", 1)[0] == "/balance":
+            self._balance_post()
+            return
         global _seq
         length = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(length)
@@ -199,8 +245,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(resp)))
         self.end_headers()
         self.wfile.write(resp)
-
-    do_GET = do_POST
 
 
 if __name__ == "__main__":

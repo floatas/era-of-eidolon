@@ -56,6 +56,9 @@ def _parse(name):
 
 ARENA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          "..", "notes", "eoe-arena")
+# which slice of that catalogue this chapter sells (tools/pick_items.py)
+CHAPTER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "..", "notes", "chapter-items.json")
 
 # req[] indexes abilities in the Arena's order, which is not ours.
 ARENA_ABILITY = {1: "Strength", 2: "Dexterity",
@@ -122,6 +125,9 @@ class Item:
         self.price = max(5, int(self.effect * 12 + rank * 9)
                          if not self.measured
                          else self.weight * 14 + self.requirement * 6)
+        # which stretch of the route a chapter sells it on, from
+        # chapter-items.json; None for anything the chapter file does not tune
+        self.tier = None
 
     def _adopt_arena(self):
         """Replace the guesses with watAgame's numbers, where we have them."""
@@ -189,6 +195,59 @@ class Catalogue:
                     Item(kind, rank, name, cls, e["description"]))
         for v in self.by_kind.values():
             v.sort(key=lambda i: i.rank)
+        self._apply_chapter()
+
+    def _apply_chapter(self):
+        """Keep only what this chapter sells, at this chapter's requirements.
+
+        watAgame wrote one catalogue for the Arena, where a duellist levels
+        to 49 and requirements run to 78. A chapter hero clears 87 creatures,
+        reaches about level 19, and starts every ability at the catalogue's
+        own floor of 3. Against the Arena ladder that leaves almost the whole
+        list unwieldable — the shop shelf empties and crates have nothing to
+        drop.
+
+        notes/chapter-items.json is the split: a third of the melee keeping
+        swords, axes and hammers so speed stays a choice, half the bows, a
+        third of the armour, requirements respread over what a chapter hero
+        covers, and the rest tagged for the two sequels. Anything held back
+        is dropped here, so shops and crates never offer it.
+
+        The file is optional: without it the full Arena catalogue stands, as
+        it did before.
+        """
+        try:
+            with open(CHAPTER_PATH) as fh:
+                rows = json.load(fh)
+        except (OSError, ValueError):
+            return
+        want = {}
+        for group in rows.values():
+            for r in group:
+                want[r["name"].lower()] = r
+        for kind, items in self.by_kind.items():
+            if kind not in ("weapon", "armour"):
+                continue          # skills and spells are the bar, not stock
+            keep = []
+            for it in items:
+                r = want.get(it.name.lower())
+                if r is None:
+                    keep.append(it)      # not in the split at all: leave it
+                elif r.get("chapter") == 1:
+                    # requirement, effect and weapon price are retuned for
+                    # the chapter (tools/pick_items.py, tools/tune_gear.py);
+                    # time and class stay watAgame's.
+                    it.requirement = r["requirement"]
+                    if r.get("effect") is not None:
+                        it.effect = r["effect"]
+                    it.tier = r.get("tier")
+                    # tune_gear.py sets weapon prices so every line's top
+                    # piece in a tier costs the same; suits keep watAgame's
+                    if r.get("price"):
+                        it.price = r["price"]
+                    keep.append(it)
+                # chapter 2 and 3 are simply not stocked here
+            self.by_kind[kind] = keep
 
     def get(self, kind):
         return self.by_kind.get(kind, [])

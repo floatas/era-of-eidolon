@@ -371,7 +371,7 @@ lbl36:
                     c3.f().c = "Nothing equipped";
                     break;
                 }
-                this.a(e2, new h(18, f2.a, f2.d(), new String[]{"Back", "Equip", "Delete"}), false);
+                this.a(e2, new h(18, f2.a, f2.d(), new String[]{"Back", "Equip", "Recycle"}), false);
                 break;
             }
             case 18: 
@@ -380,8 +380,8 @@ lbl36:
                     c c4 = (c)this.c(e2);
                     b2 = new b(23, c4);
                     b2.a(1, c4.f().b);
-                } else if (object == "Delete") {
-                    this.a(e2, new h(21, "Confirmation", "Are you sure you want to delete this?\nAction can not be undone!", new String[]{"Cancel", "Delete"}), false);
+                } else if (object == "Recycle") {
+                    this.a(e2, new h(21, "Confirmation", "Recycle this?\nYou get 30% of its price back.", new String[]{"Cancel", "Recycle"}), false);
                     break;
                 }
                 e2 = this.b(e2);
@@ -426,7 +426,7 @@ lbl36:
                 break;
             }
             case 19: {
-                this.a(e2, new h(20, f2.a, f2.d(), new String[]{"Back", "Delete"}), false);
+                this.a(e2, new h(20, f2.a, f2.d(), new String[]{"Back", "Recycle"}), false);
                 break;
             }
             case 11: {

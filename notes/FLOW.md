@@ -1,5 +1,11 @@
 # The route, recovered from the dialogue
 
+> Written before the type 1 table was found. For Shirad's Forge the real
+> doorway table now answers all of this; see `recovered/README.md` and
+> `tools/route.py`, which agree with the order below. It still stands for
+> Sterling Lake and Mistral Grove. The "confident" creature placement it
+> ends on is superseded for Shirad's Forge by the real type 9 rows.
+
 Which doorway leads where was in the type 1 tables, and those are gone. But
 watAgame's writers put the route in the script, and the script ships in the
 jar. Shirad's Forge tells you the whole main chain, with compass directions,

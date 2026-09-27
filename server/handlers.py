@@ -17,13 +17,17 @@ Reserved response tags (b.java run(), tag switch):
     3 and anything else -> this.d hashtable, keyed by tag
 """
 
+import json
+import os
 import random
 import struct
+from collections import deque
 
 from codec import (build_response, chunk_int, chunk_str, chunk_raw,
                    enc_utf8, T_STRUCT)
 from catalogue import catalogue
-from world import get_world, saves, World
+from world import POTENCY_DIV, get_world, saves, World
+import tiers
 
 HANDLERS = {}
 
@@ -129,6 +133,29 @@ ACTIONS = _action_table()
 MOVE_COST = ACTIONS[0][1]
 ATTACK_COST = ACTIONS[1][1]
 
+# The client reads an action's cost as a u8, so nothing may exceed 255. Three
+# bows do (Fire Bow 297, Giant Bow 304, Striker is fine at 248).
+MAX_COST = 255
+
+
+def swing_cost(w, label="Hit"):
+    """What one blow of this weapon costs of the 720-unit turn.
+
+    watAgame recorded a time on every weapon and it trades against effect —
+    96 for the Bloody Blade against 211 for the Smasher, correlating at
+    +0.65 across the melee list. Swords swing twice for what an axe swings
+    once. Charging the flat skill time threw that whole axis away.
+
+    Only the hero pays this; creatures carry no weapon and keep the skill
+    cost.
+    """
+    if label not in ("Hit", "Shoot"):
+        return ATTACK_COST
+    it = w.weapon()
+    if it and getattr(it, "time", 0):
+        return min(MAX_COST, it.time)
+    return ATTACK_COST
+
 
 def byte_table(rows=()):
     """Encode a byte[][] the way g.b(DataInputStream) reads it."""
@@ -198,11 +225,11 @@ def res_walk(node, x, y, anim=None):
     return result(2, [node, x, y, ANIM_IDLE if anim is None else anim], dur=110)
 
 
-def res_attack(attacker, victims, anim=ANIM_IDLE, msg="", red=True):
+def res_attack(attacker, victims, anim=ANIM_IDLE, msg="", red=True, dur=220):
     p = [attacker, anim, len(victims)]
     for node, dmg in victims:
         p += [node, (dmg >> 8) & 0xFF, dmg & 0xFF]
-    return result(1, p, msg=msg, red=red, dur=220)
+    return result(1, p, msg=msg, red=red, dur=dur)
 
 
 def res_remove(nodes):
@@ -294,6 +321,13 @@ def select_hero(req):
     if name not in st.heroes(key, req.game):
         return build_response(status=2, chunks=[chunk_str(20, "No such hero.")])
     w = st.world(name)
+    # Where the panel thinks you are is remembered across a session, so a
+    # hero resumed into a different room than the last one left kept showing
+    # the old name until something else happened to carry a room id. The
+    # save knows where he is standing; say so.
+    w.note_place(w.location)
+    w.shop_view = None
+    w.shop_which = None
     print(f"    \033[35mresume: {name} in "
           f"{w.LOCATION_NAMES.get(w.location, w.location)} "
           f"({w.hero_x},{w.hero_y}) hp {w.hero_hp}/{w.hero_max}\033[0m")
@@ -436,6 +470,10 @@ def turn(req):
     # is "Auto fight": i.java then delivers THIS response to d.b, the result
     # handler, so it must be a finished fight and never status 1.
     w.begin_fight(list(req.get(1)), req.get(2))
+    for m in w.fighters():
+        m.phase = 1
+        m.rest = False
+    _tune_bosses(w)
     if req.int_(3) == 1:
         resp = auto_response(w, rng=random)
         if hero:
@@ -448,7 +486,8 @@ def turn(req):
     # menu arrives empty it inserts the *String* "Empty" itself, which then
     # throws ClassCastException. So: no empty slots, no plain strings.
     for tag, (label, cost, mode) in zip(range(30, 36), ACTIONS):
-        cost = w.trained_time(label, cost)
+        # the bar must show the same price the turn will charge
+        cost = w.trained_time(label, swing_cost(w, label) if label in ("Hit", "Shoot") else cost)
         chunks.append(chunk_f(tag, label, label, k=bytes([0, cost, mode])))
     return build_response(status=1, chunks=chunks)
 
@@ -523,7 +562,7 @@ def hero_timeline(w, actions):
             # Spread the walk across the time the client charged for it, so a
             # long route genuinely takes longer than a short one. Zig-Zag
             # costs more per step than Move, which is the whole of its price.
-            step = max(1, MOVE_COST)
+            step = max(1, w.trained_time("Move", MOVE_COST))
             if name == "Zig-Zag":
                 it = catalogue().find(name)
                 step = max(step, it.time if it else 118)
@@ -537,31 +576,402 @@ def hero_timeline(w, actions):
     return events
 
 
+# North, east, south, west. A shape is read off the way the creature faces.
+DIRS = ((0, -1), (1, 0), (0, 1), (-1, 0))
+# The walk anim's high bits are how the phone turns a sprite: mirror, away.
+FACE_BITS = (128, 64 | 128, 64, 0)
+
+PATTERNS = {
+    "Skeleton": "front1",
+    "Golem": "front3",
+    "Beetle": "sides",
+    "Fire Devil": "fire",
+    "Gorrak": "lunge",
+    "Fungusman": "spores",
+    "Ghost": "pierce",
+    "Beholder": "corners",
+    "Aldor": "fence",
+}
+# One line, drawn on the fight bar with no wrapping, so it has to fit
+# the 240-wide screen and still name the old weapon and the new one.
+BOSSES = {
+    "Mira": "Mira drops her bow and draws a blade",
+    "Shirard": "Shirard quits magic and draws a blade",
+    "Aldor": "Aldor roars and swings wide",
+    "Beholder": "The Eye glares down four lines",
+}
+# Each phase turns the safe squares around, so the second half of a boss
+# is a new fight to read, not the first one with a longer bar:
+#   Mira      shoots down her line; close in. Then a blade in front and at
+#             both sides; get behind her.
+#   Shirard   a burst two squares out; step in beside him. Then the blade.
+#   Aldor     his front and one shoulder. Then front, both front corners
+#             and both shoulders.
+#   Beholder  its four diagonals; stand square on. Then a gaze down the
+#             four straight lines; only the diagonals are safe.
+BOSS_SHAPES = {
+    "Mira": ("ray", "boss"),
+    "Shirard": ("burst", "boss"),
+    "Aldor": ("fence", "boss"),
+    "Beholder": ("corners", "gaze"),
+}
+
+# How hard the chapter is. The page at /balance writes this file.
+# mistakes:   turns standing in one creature's shape that empty the life a
+#             hero is expected to carry into that tier (tiers.REFERENCE).
+# boss_turns: turns one boss phase lasts with the tier's best weapon.
+# pay: gold and experience as a percent of what a kill is worth.
+BALANCE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "balance.json")
+DEFAULT_BALANCE = {"mistakes": 3, "boss_turns": 2, "pay": 100}
+
+
+def balance():
+    data = {}
+    try:
+        with open(BALANCE_PATH) as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        data = {}
+    out = dict(DEFAULT_BALANCE)
+    for key in out:
+        try:
+            out[key] = int(data.get(key, out[key]))
+        except (TypeError, ValueError):
+            pass
+    out["mistakes"] = min(8, max(1, out["mistakes"]))
+    out["boss_turns"] = min(8, max(1, out["boss_turns"]))
+    out["pay"] = min(300, max(10, out["pay"]))
+    return out
+
+
+def _hero_blow(w, weapon=None):
+    """A plain blow with this weapon, or the one in hand. No crit.
+
+    A blade is Hit plus Strength; a bow is Shoot plus Dexterity."""
+    weapon = weapon or w.weapon()
+    if weapon and weapon.cls == "bow":
+        it, stat = catalogue().find("Shoot"), "Dexterity"
+    else:
+        it, stat = catalogue().find("Hit"), "Strength"
+    effect = it.effect if it else 10
+    mod = weapon.effect if weapon and (weapon.cls in MELEE_CLS
+                                       or weapon.cls == "bow") else 0
+    return max(1, effect + mod + tiers.potency_bonus(w.stats.get(stat, 15),
+                                                     tiers.swing_of(weapon)))
+
+
+# How many of the eight squares round a creature each shape threatens. It
+# prices the blow: a shape you can step out of may hit hard, because there
+# are squares where it cannot touch you at all; one that covers you wherever
+# you stand has to be gentle.
+THREAT = {"front1": 1, "lunge": 1, "spores": 1, "ray": 1,
+          "fence": 2, "pierce": 2, "sides": 2,
+          "front3": 3, "fire": 3, "corners": 4, "gaze": 4, "burst": 4,
+          "boss": 5, "ring": 8}
+# A creature swinging this often is the reference the blow is pitched at.
+REFERENCE_SWINGS = 2
+
+
+def _pressure_blow(w, m=None):
+    """The effect to feed strike() so a normal hit, after armour, is one
+    mistake. Crits and precise hits still hurt more. Dodge still matters.
+
+    Given the creature, two things shape it further, and both keep the
+    damage a whole turn deals about level — what changes is how it arrives.
+
+    How often it swings. A light body swings four times a turn and a heavy
+    one twice (Mob.swing_time), so the quick ones land several small hits
+    where the slow ones land one or two large. Armour subtracts from every
+    blow, so it earns its price against the quick; stepping out of reach
+    avoids a whole blow, so it is worth more against the slow. That gives
+    the two defences different jobs instead of both being generally good.
+
+    How much it covers. A Skeleton threatens one of the eight squares round
+    it and may hit very hard, because seven squares are safe. A creature
+    covering all eight cannot, because there is nowhere to stand.
+    """
+    cfg = balance()
+    tier = getattr(m, "tier", None) if m is not None else None
+    if tier:
+        # Sized to the tier, never to the hero: see tiers.py. Levels, life
+        # and a better suit are what carry him through more mistakes.
+        return tiers.creature_blow(
+            tier, max(1, TURN_BUDGET // m.offence()["swing"]),
+            THREAT.get(pattern_of(w, m), 8), cfg["mistakes"])
+    through = max(1, (w.hero_max + cfg["mistakes"] - 1) // cfg["mistakes"])
+    if m is not None:
+        swings = max(1, TURN_BUDGET // m.offence()["swing"])
+        covered = THREAT.get(pattern_of(w, m), 8)
+        through = max(1, round(through * (8.0 / covered) ** 0.4
+                               * REFERENCE_SWINGS / swings))
+    # The blow is sized before armour, and strike() takes armour off after
+    # the precise and critical multipliers. Adding the suit back on here, as
+    # this once did, cancelled it on a plain hit and made every precise hit
+    # and crit worse by half the suit: the Spike Suit cost more life a blow
+    # than wearing nothing.
+    return through
+
+
+def _tune_bosses(w):
+    """Each phase lasts boss_turns turns of the tier's best weapon, so
+    better gear shortens a boss the way it shortens everything else, and a
+    hero behind on gear takes a turn or two longer. Both phases share the
+    size. A boss pays its phase pool once, when the second one ends."""
+    if getattr(w, "game", "") != "ShiradsForge":
+        return
+    for m in w.fighters():
+        if fighter_name(w, m) not in BOSSES:
+            continue
+        pool = tiers.boss_life(getattr(m, "tier", None) or "I",
+                               balance()["boss_turns"])
+        m.boss = True
+        m.max_hp = pool
+        m.hp = pool
+        m.fight_hp = pool
+
+
+def balance_page():
+    """The whole control. Three numbers, and what they come to in each tier."""
+    cfg = balance()
+    rows = []
+    for tier in tiers.ORDER:
+        ref = tiers.REFERENCE[tier]
+        suit = catalogue().find(ref["suit"])
+        per_blow = tiers.creature_blow(tier, 2, 4, cfg["mistakes"])
+        rows.append(
+            f"<tr><td>{tier}</td><td>{ref['level']}</td><td>{ref['life']}</td>"
+            f"<td>{ref['suit']} ({suit.effect if suit else 0})</td>"
+            f"<td>{per_blow}</td>"
+            f"<td>{tiers.creature_life(tier, tiers.BEETLE)}</td>"
+            f"<td>{tiers.best_round(tier)} / {tiers.entry_round(tier)}</td>"
+            f"<td>{tiers.boss_life(tier, cfg['boss_turns'])}</td></tr>")
+    table = "\n".join(rows)
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Balance</title>
+<style>
+  body {{ font: 20px/1.4 Georgia, serif; margin: 32px auto; max-width: 38em; color: #1a1a1a; padding: 0 16px; }}
+  label {{ display: block; margin: 18px 0; }}
+  input {{ font: inherit; width: 4em; }}
+  button {{ font: inherit; padding: 4px 16px; }}
+  p {{ color: #333; }}
+  table {{ border-collapse: collapse; font-size: 16px; }}
+  td, th {{ padding: 4px 10px; border-bottom: 1px solid #ddd; text-align: right; }}
+</style></head><body>
+<h1>How hard</h1>
+<form method="post" action="/balance">
+  <label>Standing in one creature's shape, you fall in
+    <input name="mistakes" type="number" min="1" max="8" value="{cfg['mistakes']}">
+    turns.</label>
+  <label>A boss phase lasts
+    <input name="boss_turns" type="number" min="1" max="8" value="{cfg['boss_turns']}">
+    turns with the tier's best weapon.</label>
+  <label>A kill pays
+    <input name="pay" type="number" min="10" max="300" value="{cfg['pay']}">
+    % of what it is worth, in gold and in experience.</label>
+  <button type="submit">Save</button>
+</form>
+<p>The chapter is three tiers of the route, each with its own traders. Creatures are sized to the tier, never to you. A Beetle-weight creature takes one turn with the tier's best weapon and about two with the weapon the tier opens with, so skipping an upgrade costs a turn or two a fight, not the fight.</p>
+<p>A turn in a shape costs the life the tier expects you to carry in, divided by the dial, after the tier's suit. More levels or a better suit mean you survive more mistakes. Out of every shape you take nothing.</p>
+<table>
+<tr><th>tier</th><th>level</th><th>life</th><th>suit</th><th>blow</th><th>Beetle</th><th>best / entry a turn</th><th>boss phase</th></tr>
+{table}
+</table>
+<p>Blow is a two-swing creature with a four-square shape; narrow shapes hit up to a third harder, wide ones a little softer. Levels come from weight, not life, so the hero does not outgrow the next tier. <code>tools/balance_sim.py</code> checks all of it.</p>
+</body></html>"""
+
+
+def fighter_name(w, m):
+    """The name a blow should use. Bosses share a sheet with other people,
+    so the node is what says Mira from a townsman."""
+    if getattr(w, "game", "") == "ShiradsForge":
+        named = {20: "Shirard", 46: "Mira", 48: "Aldor", 19: "Beholder"}
+        if m.node in named:
+            return named[m.node]
+    return w.creature_name(m.creature) or "It"
+
+
+def _bow_equipped(w):
+    """One weapon slot. The bow is in hand, or it is not."""
+    weapon = w.weapon()
+    return bool(weapon and weapon.cls == "bow")
+
+
+def pattern_of(w, m):
+    """Which cells this creature threatens.
+
+    A blade gives each creature its own shape. The bow gives every one of
+    them the eight neighbours: they walk toward the square you are standing
+    on and swing from there, so the arrow has a line to meet. Other chapters
+    keep that ring for both weapons.
+    """
+    if getattr(w, "game", "") != "ShiradsForge":
+        return "ring"
+    name = fighter_name(w, m)
+    # A boss keeps its shapes whatever the hero holds: reading them is the
+    # fight.
+    if name in BOSS_SHAPES:
+        return BOSS_SHAPES[name][0 if getattr(m, "phase", 1) < 2 else 1]
+    if _bow_equipped(w):
+        return "ring"
+    return PATTERNS.get(name, "ring")
+
+
+def _face_toward(x, y, hx, hy):
+    dx, dy = hx - x, hy - y
+    if dx == 0 and dy == 0:
+        return 2
+    if abs(dx) >= abs(dy):
+        return 1 if dx > 0 else 3
+    return 2 if dy > 0 else 0
+
+
+def _faced(anim, face):
+    return (anim & 63) | FACE_BITS[face & 3]
+
+
+def _cells(pattern, x, y, face):
+    dx, dy = DIRS[face]
+    lx, ly = -dy, dx
+    front = [(x + dx, y + dy),
+             (x + dx + lx, y + dy + ly),
+             (x + dx - lx, y + dy - ly)]
+    if pattern == "front1":
+        return front[:1]
+    if pattern == "front3":
+        return front
+    if pattern == "boss":
+        return front + [(x + lx, y + ly), (x - lx, y - ly)]
+    if pattern == "sides":
+        return [(x + lx, y + ly), (x - lx, y - ly)]
+    if pattern == "fire":
+        return front + [(cx + dx, cy + dy) for cx, cy in front]
+    if pattern == "lunge":
+        return [(x + dx, y + dy), (x + 2 * dx, y + 2 * dy)]
+    if pattern == "pierce":
+        return [(x + dx, y + dy), (x - dx, y - dy)]
+    if pattern == "fence":
+        return [(x + dx, y + dy), (x + lx, y + ly)]
+    if pattern == "spores":
+        return [(x + 2, y), (x - 2, y), (x, y + 2), (x, y - 2)]
+    if pattern == "corners":
+        return [(x + 1, y + 1), (x + 1, y - 1), (x - 1, y + 1), (x - 1, y - 1)]
+    if pattern == "ray":
+        return [(x + dx * d, y + dy * d) for d in range(2, 6)]
+    if pattern == "gaze":
+        return [(x + ax * d, y + ay * d) for ax, ay in DIRS for d in range(1, 5)]
+    if pattern == "burst":
+        return [(x + ax, y + ay) for ax in range(-2, 3) for ay in range(-2, 3)
+                if max(abs(ax), abs(ay)) == 2]
+    cells = []
+    for ay in (-1, 0, 1):
+        for ax in (-1, 0, 1):
+            if ax or ay:
+                cells.append((x + ax, y + ay))
+    return cells
+
+
+def _covers(w, pattern, x, y, face, hx, hy):
+    if (hx, hy) not in _cells(pattern, x, y, face):
+        return False
+    if max(abs(hx - x), abs(hy - y)) > 1 and not w.line_of_sight(x, y, hx, hy):
+        return False
+    return True
+
+
+def _best_stance(w, pattern, x, y, face0, hx, hy, blocked):
+    """The shortest walk that puts the hero in the shape, and the facing
+    that does it. Turning in place is cheaper than a step. None if nothing
+    within eight steps covers them."""
+    q = deque([(x, y, 0)])
+    seen = {(x, y)}
+    parent = {}
+    best = None
+    fixed = pattern in ("corners", "ring", "spores", "gaze", "burst")
+    while q:
+        cx, cy, dist = q.popleft()
+        for face in ((face0,) if fixed else range(4)):
+            if not _covers(w, pattern, cx, cy, face, hx, hy):
+                continue
+            score = dist * 10 + (0 if face == face0 else 1)
+            if best is None or score < best[0]:
+                best = (score, cx, cy, face)
+        if dist >= 8:
+            continue
+        for dx, dy in DIRS:
+            nx, ny = cx + dx, cy + dy
+            if (nx, ny) in seen or (nx, ny) in blocked or (nx, ny) == (hx, hy):
+                continue
+            if not w.can_stand(nx, ny):
+                continue
+            seen.add((nx, ny))
+            parent[(nx, ny)] = (cx, cy)
+            q.append((nx, ny, dist + 1))
+    if best is None:
+        return None
+    _, bx, by, face = best
+    path = []
+    cur = (bx, by)
+    while cur != (x, y):
+        path.append(cur)
+        cur = parent[cur]
+    path.reverse()
+    return path, face
+
+
 def mob_timeline(w):
     """The creature's plan, chosen blind from where everyone is standing now.
 
-    It is merged with the hero's queue and played in time order. A creature
-    does not know which way you will walk, and it does not wait for your
-    whole path to finish."""
+    It walks until its own shape covers the square you occupy, then swings.
+    It does not know which way you will step. A shoulder that is safe
+    against the facing it committed to stays safe for the rest of the turn.
+    """
     events = []
     reserved = {(w.hero_x, w.hero_y)} | _blocked(w)
+    hx, hy = w.hero_x, w.hero_y
     for m in w.fighters():
         t, x, y = 0, m.x, m.y
+        face = getattr(m, "face", None)
+        if face is None:
+            face = _face_toward(x, y, hx, hy)
         reserved.discard((x, y))
-        while True:
-            if w.contact(x, y, w.hero_x, w.hero_y):
-                if t + ATTACK_COST > TURN_BUDGET:
+        pattern = pattern_of(w, m)
+        stance = _best_stance(w, pattern, x, y, face, hx, hy, reserved)
+        if stance:
+            path, aim = stance
+            arrived = True
+            for nx, ny in path:
+                if t + MOVE_COST > TURN_BUDGET:
+                    arrived = False
                     break
-                t += ATTACK_COST
-                events.append((t, ("mob_attack", m.node)))
-            else:
-                nxt = _step_toward(w, x, y, w.hero_x, w.hero_y, reserved)
-                if nxt is None or t + MOVE_COST > TURN_BUDGET:
+                t += MOVE_COST
+                events.append((t, ("mob_move", m.node, nx, ny)))
+                face = _face_toward(x, y, nx, ny)
+                x, y = nx, ny
+                reserved.add((x, y))
+            # The last step may not be the facing that covers. Turning
+            # after they arrive is free, and the swing uses that facing.
+            if arrived:
+                face = aim
+        else:
+            while t + MOVE_COST <= TURN_BUDGET:
+                nxt = _step_toward(w, x, y, hx, hy, reserved)
+                if nxt is None:
                     break
                 t += MOVE_COST
                 events.append((t, ("mob_move", m.node, nxt[0], nxt[1])))
+                face = _face_toward(x, y, nxt[0], nxt[1])
                 x, y = nxt
                 reserved.add((x, y))
+                if _covers(w, pattern, x, y, face, hx, hy):
+                    break
+        # the creature's own swing, not a flat cost shared with the hero
+        blow_time = m.offence()["swing"]
+        while (t + blow_time <= TURN_BUDGET
+               and _covers(w, pattern, x, y, face, hx, hy)):
+            t += blow_time
+            events.append((t, ("mob_attack", m.node, face)))
         reserved.add((x, y))
     return events
 
@@ -579,6 +989,10 @@ def hero_plan(w):
     x, y = w.hero_x, w.hero_y
     t = 0
     actions, steps = [], []
+    # what the fight bar charges this hero: practice and Speed included
+    move = w.trained_time("Move", MOVE_COST)
+    shot = w.trained_time("Shoot", swing_cost(w, "Shoot"))
+    blow = w.trained_time("Hit", swing_cost(w, "Hit"))
 
     def flush(upto):
         if steps:
@@ -589,30 +1003,30 @@ def hero_plan(w):
         touching = w.contact(x, y, target.x, target.y)
         if bow and touching:
             nxt = _step_away(w, x, y, target.x, target.y, blocked)
-            if nxt is None or t + MOVE_COST > TURN_BUDGET:
+            if nxt is None or t + move > TURN_BUDGET:
                 break
-            t += MOVE_COST
+            t += move
             x, y = nxt
             steps.append((x, y))
             continue
         if bow and w.line_of_sight(x, y, target.x, target.y):
-            if t + ATTACK_COST > TURN_BUDGET:
+            if t + shot > TURN_BUDGET:
                 break
-            t += ATTACK_COST
-            flush(t - ATTACK_COST)
+            t += shot
+            flush(t - shot)
             actions.append(("Shoot", t, 2, [(target.x, target.y)]))
             continue
         if not bow and touching:
-            if t + ATTACK_COST > TURN_BUDGET:
+            if t + blow > TURN_BUDGET:
                 break
-            t += ATTACK_COST
-            flush(t - ATTACK_COST)
+            t += blow
+            flush(t - blow)
             actions.append(("Hit", t, 2, [(target.x, target.y)]))
             continue
         nxt = _step_toward(w, x, y, target.x, target.y, blocked)
-        if nxt is None or t + MOVE_COST > TURN_BUDGET:
+        if nxt is None or t + move > TURN_BUDGET:
             break
-        t += MOVE_COST
+        t += move
         x, y = nxt
         steps.append((x, y))
     flush(t)
@@ -625,12 +1039,28 @@ def _corpse_at(w, tx, ty):
 
 
 def _kill(w, target, script):
+    name = fighter_name(w, target)
+    # A boss (BOSSES) has a second pool in the same fight. The first
+    # time they drop, they stay on the board and change shape. The quest
+    # hears about the death only when the second pool is gone.
+    if name in BOSSES and getattr(target, "phase", 1) < 2:
+        target.phase = 2
+        target.hp = target.max_hp
+        target.rest = True
+        script.append(res_attack(
+            target.node, [(target.node, -target.max_hp)],
+            anim=_faced(w.anim(target.creature, "attack"),
+                        getattr(target, "face", 2)),
+            msg=BOSSES[name], red=False, dur=255))
+        return
     target.alive = False
     target.hp = 0
     gold, xp = target.spoil()
+    pay = balance()["pay"]
+    gold = max(1, gold * pay // 100)
+    xp = max(1, xp * pay // 100)
     w.pending_gold += gold
     w.pending_xp += xp
-    name = w.creature_name(target.creature) or "It"
     script.append(result(0, [1, target.node, w.anim(target.creature, "die")],
                          dur=240, msg=f"{name} dies  +{xp} XP", red=False))
     script.append(res_remove([target.node]))
@@ -649,7 +1079,7 @@ def _land_on_mob(w, attacker, target, outcome, dmg, anim, script):
     # The status line above the action bar is the one place the game tells
     # you what just happened, and it was saying "-7" with no idea what to.
     # Now that the chapters name their own creatures, use the name.
-    who = w.creature_name(target.creature) or "It"
+    who = fighter_name(w, target)
     msg = f"{label} {who} -{dmg}".strip()
     script.append(res_attack(attacker, [(target.node, dmg)], anim=anim, msg=msg))
     if target.hp <= 0:
@@ -699,6 +1129,19 @@ def _hero_attack(w, name, tx, ty, script, rng):
     # What the square holds is checked after that, at the moment the
     # action comes up on the timeline.
     if kind == "spell" or cls in ("bane", "spectral"):
+        # The three attacks differ in what they ask of you, not only in what
+        # they do. A blow needs you adjacent. An arrow is forgiving: it walks
+        # the line and takes the first fighter it meets, so aiming past a
+        # creature still hits it. A spell takes the named square and nothing
+        # else — miss the square and the cast is spent.
+        #
+        # All three need a clear line. The client's own cursor is capped to a
+        # 39-square diamond round the hero (d.java:1392, four right and down,
+        # three left and up), so a spell was never artillery: it is a short,
+        # exact, armour-ignoring strike. Aiming does skip the client's
+        # b(x, y) — but that reads the tilemap's walk mask, so it only lets
+        # the cursor rest on a wall or a crate, which says nothing about
+        # seeing the target.
         target = _aimed(w, tx, ty)
         if target is None:
             if not _corpse_at(w, tx, ty):
@@ -733,11 +1176,14 @@ def _hero_attack(w, name, tx, ty, script, rng):
             _note(script, "Too close")
             return
         off = target.offence()
+        # A bow draws on Dexterity for its force as well as its aim. With
+        # Strength behind it, an archer who raised the ability his bows ask
+        # for hit for 11 all chapter.
         outcome, dmg = w.strike(
             w.trained_effect(name, it.effect if it else 9),
             it.precision if it else 100,
-            w.stats["Strength"], off["avoid"], dex=w.stats["Dexterity"],
-            armour=off["armour"],
+            w.stats["Dexterity"], off["avoid"], dex=w.stats["Dexterity"],
+            armour=off["armour"], swing_time=swing_cost(w, "Shoot"),
             weapon_mod=weapon.effect + w.practice_rank("Bow"), rng=rng)
         _land_on_mob(w, 0, target, outcome, dmg, w.anim(0, "bow"), script)
         if outcome in ("hit", "precise", "crit"):
@@ -761,7 +1207,7 @@ def _hero_attack(w, name, tx, ty, script, rng):
         w.trained_effect(name, it.effect if it else 10),
         it.precision if it else 100,
         w.stats["Strength"], off["avoid"], dex=w.stats["Dexterity"],
-        armour=off["armour"],
+        armour=off["armour"], swing_time=swing_cost(w, "Hit"),
         weapon_mod=weapon.effect + w.practice_rank(weapon.cls.capitalize()),
         rng=rng)
     _land_on_mob(w, 0, target, outcome, dmg, w.anim(0, "attack"), script)
@@ -789,9 +1235,16 @@ def _heal(w, it, script, rng):
         _note(script, "Fizzle")
         return
     w.note_use(it.name if it else "Minor Cure")
+    # Healing alone takes the ability undivided. Every other use of potency is
+    # divided (POTENCY_DIV) because it rides on top of gear that already
+    # carries the scale; a heal has no gear behind it, so the ability is the
+    # whole of it. At //10 a cure returned 9 against blows landing for 30 and
+    # cost a full blow to cast — nobody would ever choose it. Undivided it
+    # restores 23 at Willpower 15 and 42 at 34: one blow spent to undo one
+    # blow taken, and a reason to raise Willpower at all.
     amount = max(0, w.trained_effect(it.name if it else "Minor Cure",
                                       it.effect if it else 8)
-                 + w.stats["Willpower"] // 10)
+                 + w.stats["Willpower"])
     amount = min(amount, w.hero_max - w.hero_hp)
     w.hero_hp += amount
     script.append(res_attack(0, [(0, -amount)], anim=w.anim(0, "cast"),
@@ -827,17 +1280,27 @@ def _hero_move(w, name, x, y, script):
     script.append(res_walk(0, x, y, w.anim(0, "walk")))
 
 
-def _mob_attack(w, m, script, rng):
-    if not m.alive or not w.contact(m.x, m.y, w.hero_x, w.hero_y):
+def _mob_attack(w, m, script, rng, face):
+    if not m.alive:
+        return
+    m.face = face
+    shape = pattern_of(w, m)
+    kind = "bow" if shape == "ray" else "cast" if shape == "burst" else "attack"
+    anim = _faced(w.anim(m.creature, kind), face)
+    # The swing was aimed at the square you held when the turn opened.
+    # Stepping off that shape is the whole of the dodge.
+    if not _covers(w, pattern_of(w, m), m.x, m.y, face, w.hero_x, w.hero_y):
+        _note(script, "Out of reach", red=False, anim=anim, node=m.node)
         return
     off = m.offence()
     armour = w.armour().effect if w.armour() else 0
-    # Zig-Zag adds its effect only while that step is the one you are on.
+    # Every creature hits this hard, on purpose. The map's own numbers made
+    # a beetle on the first island deadlier than Shirard. The shape is the
+    # difficulty now; the blow is sized to the life you have.
     outcome, dmg = w.strike(
-        off["effect"], off["precision"], 0,
+        _pressure_blow(w, m), off["precision"], 0,
         w.avoidance() + getattr(w, "weave", 0),
         armour=armour, rng=rng)
-    anim = w.anim(m.creature, "attack")
     if outcome == "miss" or dmg <= 0:
         # A creature missing is good news, so the line is green.
         _note(script, "Miss" if outcome == "miss" else "Blocked",
@@ -845,7 +1308,7 @@ def _mob_attack(w, m, script, rng):
         return
     w.hero_hp = max(0, w.hero_hp - dmg)
     label = {"crit": "CRIT", "precise": "Precise"}.get(outcome, "")
-    who = w.creature_name(m.creature) or "It"
+    who = fighter_name(w, m)
     script.append(res_attack(m.node, [(0, dmg)], anim=anim,
                              msg=f"{label} {who} hits -{dmg}".strip()))
 
@@ -865,16 +1328,20 @@ def _play(w, events, script, rng):
         elif kind == "mob_move":
             _, node, x, y = ev
             m = w.mobs.get(node)
-            if not m or not m.alive or w.occupied(x, y) or not w.can_stand(x, y):
+            if not m or not m.alive or getattr(m, "rest", False):
+                continue
+            if w.occupied(x, y) or not w.can_stand(x, y):
                 continue
             if abs(x - m.x) + abs(y - m.y) != 1:
                 continue
+            m.face = _face_toward(m.x, m.y, x, y)
             m.x, m.y = x, y
-            script.append(res_walk(node, x, y, w.anim(m.creature, "walk")))
+            script.append(res_walk(node, x, y,
+                                   _faced(w.anim(m.creature, "walk"), m.face)))
         elif kind == "mob_attack":
             m = w.mobs.get(ev[1])
-            if m and m.alive:
-                _mob_attack(w, m, script, rng)
+            if m and m.alive and not getattr(m, "rest", False):
+                _mob_attack(w, m, script, rng, ev[2])
 
 
 def resolve(w, actions, rng=None):
@@ -887,6 +1354,8 @@ def resolve(w, actions, rng=None):
     rng = rng or random
     w.guard = 0
     w.weave = 0
+    for m in w.mobs.values():
+        m.rest = False
     script = []
     # The client re-sends its own coordinates on the end-turn message, which
     # puts the hero back on the creature after begin_fight moved them off.
@@ -916,6 +1385,7 @@ def finish(w, script):
     """
     if w.hero_hp <= 0:
         w.revert_fight()
+        _calm_phases(w)
         w.hero_hp = w.hero_max
         start = w.locations[0] if w.locations else w.location
         w.location = start
@@ -982,9 +1452,17 @@ def _log_world(w, status):
           f"hp {w.hero_hp}/{w.hero_max}  {mobs}  -> status {status}\033[0m")
 
 
+def _calm_phases(w):
+    """A lost fight or a flee puts a boss back on their first pool."""
+    for m in w.mobs.values():
+        m.phase = 1
+        m.rest = False
+
+
 def _flee(w, script):
     healed = w.hero_max - w.hero_hp
     w.revert_fight()
+    _calm_phases(w)
     w.hero_x, w.hero_y = w.recall
     if healed > 0:
         # Show the recovery before the client's own "You flee" dialog.
@@ -1143,6 +1621,10 @@ SHOP_AHEAD = 3
 # The five traders, in the order you can walk to them from the Village.
 # Fire Cave is the side door in Dwarven Hall, so it comes before the Lair.
 TRADERS = (2, 3, 12, 5, 6)
+# The route tier each trader sells, as tools/tune_gear.py pitched the gear:
+# Lava Island opens the chapter, Dwarven Hall and Fire Cave share the middle,
+# The Lair and The Core share the end.
+TRADER_TIERS = ("I", "II", "II", "III", "III")
 
 
 def _trader_tier(w):
@@ -1174,6 +1656,34 @@ def _trader_band(items, tier, tiers=5):
     return ranked[start:start + span]
 
 
+def _trader_stock(items, trader):
+    """What one trader sells from this shelf, when the gear carries a tier.
+
+    Each tier's pieces, weakest first, are dealt out in runs to the traders
+    of that tier, so two shops in the same tier sell different things and
+    the one further along sells the stronger half. Each shop also keeps the
+    top piece of the shop before it, so skipping a side room such as Fire
+    Cave never loses a piece for good. None when the items carry no tier;
+    the caller falls back to the sliding band.
+    """
+    ranked = sorted(items, key=lambda i: (i.requirement, i.rank, i.name))
+    if not ranked or any(i.tier is None for i in ranked):
+        return None
+    runs = []
+    for tier in dict.fromkeys(TRADER_TIERS):
+        shops = TRADER_TIERS.count(tier)
+        pieces = [i for i in ranked if i.tier == tier]
+        size, extra = divmod(len(pieces), shops)
+        at = 0
+        for n in range(shops):
+            take = size + (1 if n < extra else 0)
+            runs.append(pieces[at:at + take])
+            at += take
+    trader = min(max(trader, 0), len(runs) - 1)
+    before = next((r[-1] for r in reversed(runs[:trader]) if r), None)
+    return ([before] if before else []) + runs[trader]
+
+
 def _shop_window(items, stat):
     """Gear he can wear, plus the next few he has not reached.
 
@@ -1187,6 +1697,26 @@ def _shop_window(items, stat):
     ahead = [i for i in ranked if i.requirement > stat][:SHOP_AHEAD]
     window = worn + ahead
     return window[-14:]
+
+
+def show_shop(w, which):
+    """The companion's shop page. A later map report clears it."""
+    title, items = market_rows(w, which)
+    seq = getattr(w, "shop_seq", 0) + 1
+    w.shop_seq = seq
+    w.shop_which = which
+    w.shop_view = {
+        "seq": seq,
+        "title": title,
+        "items": [{
+            "name": it.name,
+            "price": it.price,
+            "effect": it.effect,
+            "ability": it.ability,
+            "requirement": it.requirement,
+            "description": _plain(it.desc),
+        } for it in items],
+    }
 
 
 def market_rows(w, which):
@@ -1210,15 +1740,78 @@ def market_rows(w, which):
             stat_name = "Dexterity" if which == 1 else "Strength"
             items = _shop_window(items, w.stats.get(stat_name, 0))
         else:
-            items = _trader_band(items, tier)
+            stock = _trader_stock(items, tier)
+            items = stock if stock is not None else _trader_band(items, tier)
     return title, items[:14]
 
 
-def shelf_chunks(items):
+def _mark(r, g, b):
+    """c.java draws \\u0006 then three colour bytes, and skips them for width."""
+    return "\u0006" + chr(r) + chr(g) + chr(b)
+
+
+_WORSE = _mark(255, 112, 112)
+_BETTER = _mark(130, 210, 130)
+_LOCKED = _mark(154, 154, 154)
+_MELEE = ("sword", "axe", "hammer")
+
+
+def _same_role(it, held):
+    if it.kind == "armour" and held.kind == "armour":
+        return True
+    if it.cls in _MELEE and held.cls in _MELEE:
+        return True
+    return it.cls == held.cls
+
+
+def _gear_value(w, it):
+    """What a piece is worth in the role it fills, for better/worse marks.
+
+    Armour is its effect: it subtracts the same from every blow. A weapon
+    is what it deals in a turn, because effect alone stopped meaning
+    anything once a swing cost the weapon's own time: a Ghost Sword at +23
+    swings four times where a Doom Hammer at +70 swings twice, and at the
+    same price they deal a turn alike. Marking the hammer better for its
+    bigger number would be a lie.
+    """
+    if it.kind == "armour":
+        return it.effect
+    swings = max(1, (TURN_BUDGET - MOVE_COST * 4) // tiers.swing_of(it))
+    return swings * _hero_blow(w, it)
+
+
+def _gear_mark(w, it, shop=False):
+    """Grey when the required stat is still out of reach. Otherwise red when
+    it is worse than the piece worn in that role, and green when it is
+    better and a shop row is one the purse can pay."""
+    if it is None:
+        return ""
+    if it.kind in ("weapon", "armour", "skill", "spell") and not w.can_wield(it):
+        return _LOCKED
+    if it.kind not in ("weapon", "armour"):
+        return ""
+    slot = "armour" if it.kind == "armour" else "weapon"
+    held = w.item(w.equipped.get(slot))
+    if held is not None and not _same_role(it, held):
+        return ""
+    if held is not None and held.name == it.name:
+        return ""
+    if held is not None and _gear_value(w, it) < _gear_value(w, held):
+        return _WORSE
+    if ((held is None or _gear_value(w, it) > _gear_value(w, held))
+            and w.can_wield(it)):
+        if shop and it.price > w.gold:
+            return ""
+        return _BETTER
+    return ""
+
+
+def shelf_chunks(w, items):
     """Market rows the phone can open. Case 12 reads f.a and f.d()."""
     if not items:
         return [choice_row("Nothing in stock", "none", "Nothing in stock.")]
-    return [choice_row(it.label(), it.name, _plain(it.desc) or it.name)
+    return [choice_row(_gear_mark(w, it, shop=True) + it.label(), it.name,
+                       _plain(it.desc) or it.name)
             for it in items]
 
 
@@ -1241,7 +1834,7 @@ def carried(w, slot):
         detail = f"Wear {it.name}."
         if worn:
             detail = f"{it.name} is already worn."
-        rows.append(choice_row(it.name + worn, it.name, detail))
+        rows.append(choice_row(_gear_mark(w, it) + it.name + worn, it.name, detail))
     return rows
 
 
@@ -1264,10 +1857,12 @@ def shop(req):
                        disabled=True)]
         return build_response(status=1, chunks=[
             chunk_str(21, title), chunk_int(22, 0)] + rows)
-    title, items = market_rows(w, req.int_(1))
+    which = req.int_(1)
+    title, items = market_rows(w, which)
+    show_shop(w, which)
     return build_response(status=1, chunks=[
         chunk_str(21, f"{title} ({w.gold}g)"), chunk_int(22, 0)] +
-        shelf_chunks(items))
+        shelf_chunks(w, items))
 
 
 @handler(16)
@@ -1289,6 +1884,8 @@ def buy(req):
                else "You cannot afford that.")
     if hero:
         saves().save(hero, w.game)
+    if getattr(w, "shop_which", None) is not None:
+        show_shop(w, w.shop_which)
     return build_response(status=1, chunks=[chunk_str(21, msg)] + hud_chunks(w))
 
 
@@ -1344,6 +1941,23 @@ def fetch_resources(req):
           + (f", MISSING {' '.join(missing)}" if missing else "")
           + f"  ({sum(len(c) for c in chunks)}B)\033[0m")
     return build_response(status=1, chunks=chunks)
+
+
+@handler(31)
+def report_place(req):
+    """Opcode 31 — sent when a map finishes loading, even if no art was missing.
+
+    The phone builds it like a fight's location block (d.java d(b)), so
+    tag 11 is the room. It does not move the hero: travel() would put him
+    on the doorway square. A fresh room also leaves the shop page.
+    """
+    w, _, _ = session_world(req)
+    loc = req.int_(11)
+    if loc:
+        w.note_place(loc)
+        w.shop_view = None
+        w.shop_which = None
+    return build_response(status=1, chunks=[])
 
 
 @handler(11)
@@ -1548,8 +2162,9 @@ def interest(req):
     if not 0 <= which < 5:
         return build_response(status=1, chunks=[chunk_str(21, "Interest")])
     title, items = market_rows(w, which)
+    show_shop(w, which)
     return build_response(status=1, chunks=[chunk_str(21, title)] +
-                          shelf_chunks(items))
+                          shelf_chunks(w, items))
 
 
 @handler(17)
@@ -1580,26 +2195,41 @@ def accept_offer(req):
     return build_response(status=4, chunks=[])
 
 
+def salvage(w, wanted):
+    """Break a held piece. Returns its name and tiers.RECYCLE_PERCENT of its price, rounded
+    down. A new hero starts with no gold because this is what the kit is for."""
+    wanted = (wanted or "").split(":")[-1].split(" E")[0].strip(" -")
+    gone = None
+    for name in list(w.inventory):
+        if wanted and name.lower().startswith(wanted.lower()[:12]):
+            w.inventory.remove(name)
+            for slot, held in list(w.equipped.items()):
+                if held == name:
+                    w.equipped[slot] = None
+            gone = name
+            break
+    refund = 0
+    if gone:
+        it = w.item(gone)
+        if it:
+            refund = it.price * tiers.RECYCLE_PERCENT // 100
+            w.gold += refund
+    return gone, refund
+
+
 @handler(24)
 def delete_item(req):
     """Opcode 24 — drop an item (tag 1 = its name)."""
     w, _, hero = session_world(req)
     raw = req.get(1).decode("utf-8", "replace")
-    wanted = raw.split(":")[-1].split(" E")[0].strip(" -")
-    gone = w.drop(wanted) if hasattr(w, "drop") else None
-    if gone is None:
-        for name in list(w.inventory):
-            if name.lower().startswith(wanted.lower()[:12]):
-                w.inventory.remove(name)
-                for slot, held in list(w.equipped.items()):
-                    if held == name:
-                        w.equipped[slot] = None
-                gone = name
-                break
+    gone, refund = salvage(w, raw)
     if hero:
         saves().save(hero, w.game)
-    print(f"    \033[35mdelete item: {wanted!r} -> {gone}\033[0m")
-    return build_response(status=1, chunks=[])
+    print(f"    \033[35mdelete item: {raw!r} -> {gone} +{refund}g\033[0m")
+    # The phone removes the row itself and does not read this reply.
+    # The purse and the shop title are where the gold shows up.
+    return build_response(status=1, chunks=[chunk_str(21, f"+{refund}g")]
+                          + hud_chunks(w))
 
 
 def _plain(text, limit=180):

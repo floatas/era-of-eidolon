@@ -1,6 +1,24 @@
 # Shirad's Forge compendium
 
-A player book for this chapter: enemies, items, the map, quests. Not built yet.
+The player book is `tools/compendium_book.py`. It writes one page,
+`assets/compendium/book/index.html` with its pictures in `img/`, from the
+server's own numbers, in the order a player needs it:
+
+1. Your hero: start, levels, raise points, what each ability does
+2. The fight: the turn clock, the fight bar, hitting, shapes, practice
+3. Three kinds of weapon, how an ability scales with swing time, footwork
+4. Items and shops: reading a market line, the colours, Recycle, crates
+5. The route, tier by tier and room by room, with each creature's card
+   where it is first met and each boss where it stands
+
+It is published as a private artifact to keep open on a phone while playing:
+https://claude.ai/artifact/JDWufrjvErRDTHZEF9TGgg. Rerun the tool after a
+balance change and republish.
+
+`tools/compendium_card.py <creature>` was the first prototype, one creature
+at a time (Beholder, Fungusman, Golem and Skeleton, in `assets/compendium/`).
+Its numbers predate the tier model.
+
 What follows is the item behaviour worth keeping, and where the other parts
 already live.
 
@@ -34,23 +52,31 @@ armour does not stop it. Minor Cure heals and needs no target.
 
 Charms have no slot and no fight effect. Bombs, traps, and every other spell
 or skill do nothing here. The shop, the crates, and the Skills and Spells
-screens do not offer them. A crate gives one weapon or suit the hero can
-wear, plus gold.
+screens do not offer them. Every crate holds an item: a weapon or suit
+step in the hero's own line on the main path, a spare from that tier or
+below everywhere else. See `usable-items.md`.
 
 Away from a trader, melee and armour follow Strength and bows follow
 Dexterity. A shelf shows what he can wear, then the next three pieces above
 that stat. A piece leaves once his stat is more than 12 above what it asks
 for.
 
-The five traders do not share that shelf. Walking further from the Village
-opens a higher band, and each shop keeps the top of the one before it. In
-the order you can reach them: Lava Island, Dwarven Hall, Fire Cave (the side
-door in the Hall), The Lair, The Core. At Lava Island the melee shelf starts
-with the Bloody Blade. At The Core it does not.
+The five traders do not share that shelf. Each sells its own tier of the
+route: Lava Island tier I, Dwarven Hall and Fire Cave tier II, The Lair and
+The Core tier III. Two shops in a tier split it, weaker half first, and each
+shop keeps the top piece of the one before. So every shop sells something
+new, and Fire Cave (the side door in the Hall) is worth the detour without
+being required. The full list is in `usable-items.md`.
+
+A shelf row is coloured against what the hero wears in that role. Grey
+means the stat is out of reach. Red means it is worse. Green means it is
+better and the purse can pay. A weapon is compared by the damage it deals
+in a turn, not by its effect, because a fast sword can out-deal a slow axe.
 
 The catalogue itself is the Arena's, split by town. Orumant is Blissmor.
 Dagonar is Vulcor, this chapter's region. Ravarcil was never written. The
-shelf above is ours: usable gear, ordered by the stat it asks for.
+shelf above is ours: usable gear, ordered by the stat it asks for. Only the
+Chapter I slice is stocked (`chapter-items.json`).
 
 ## Battle report
 

@@ -107,36 +107,39 @@ Most of it the client reads, so the meaning is not a guess:
     [10]    reach radius      same loop: within this many tiles it joins the
                               "Choose action" list, so you can fight or talk
                               to it. 0 means never.
-    [11]    hit points        Skeleton 18, Ghost 20, Gorrak 24, Beetle 30,
-                              Golem 36-50, Fungusman 50. Per species.
+    [11]    hit points, or the respawn countdown. Unsettled.
+                              Constant per species: Skeleton 18, Ghost 20,
+                              Gorrak 24, Beetle 30, Golem 36-50, Fungusman
+                              50. But it is 0 on 28 of 90 rows, exactly the
+                              unique fights and packs that never return.
+                              The server reads it as both.
     [12]    sprite sheet
     [13]    animation
     [15]    moves             starts the walk animation on load
-    [16..19]                  only in the 20-byte rows, and the client never
-                              reads them at all
+    [16..19] patrol box       x0, y0, x1, y1. Only in the 20-byte rows, and
+                              the client never reads them.
 
 ## The four the client never reads
 
-They were the server's, which is why they survive only here. They are per
-creature rather than per species, and they climb with depth: a Beetle in Dune
-Burrow is 0, 0, 12, 6 and a Beetle in The Lair is 26, 27, 32, 33. That is a
-difficulty curve, written down.
+They were the server's, which is why they survive only here. For a while
+they were read as a difficulty curve, because they climb with depth: a
+Beetle in Dune Burrow is 0, 0, 12, 6 and a Beetle in The Lair is 26, 27,
+32, 33. That reading was wrong.
 
-The hero has a row too — 17, 13, 21, 17.
+They are a **patrol box**, x0, y0, x1, y1:
 
-What they are is **not settled**, and my first reading was wrong. I took them
-for Intelligence, Willpower, Strength and Dexterity, because exactly four
-abilities matter for combat once hit points are given separately. The rules
-kill that: *"Each Ability score has a starting value of 15"*, and the hero's
-own row reads 17, 13, 21, 17. Two of those are below 15, and 15 to 17 is a
-gain of two, which the raise curve cannot produce because it moves in threes
-(d.java:1255). So they are not abilities.
+- All 69 creatures that carry them stand inside their own box.
+- Every box fits its map.
+- The rows that carry them are exactly the 69 rows whose byte 15 says the
+  creature walks.
+- A median box is a tenth of its map, where a random tile would fall inside
+  one only 22% of the time.
 
-What they do is not in doubt. The first pair is zero for beasts and non-zero
-for things that cast; the second pair is never zero. And every one of them
-climbs with depth. So the server reads them as a magical pair and a physical
-pair and uses them as the difficulty curve they plainly are, without claiming
-which ability is which.
+The climb with depth was map size. Deeper rooms are bigger.
 
-Anyone who settles it should start with the hero's row, since a starting hero
-is the one creature whose real numbers the rules describe.
+The row once taken for the hero's reads 17, 13, 21, 17. Under this reading
+it is a box on the map too, not four abilities, which ends the old clash
+with Rules 1.5, where every ability starts at 15.
+
+So the jar holds no per-creature difficulty at all. What the server does
+instead is in `../BALANCE.md`.

@@ -145,6 +145,10 @@ public class MEHarness {
                     type(p[1]);
                 } else if ("shot".equals(p[0])) {
                     shot(out, step.split(":", 2)[1]);
+                } else if ("film".equals(p[0])) {
+                    film(out, p[1], p.length > 2 ? Integer.parseInt(p[2]) : 80);
+                } else if ("stopfilm".equals(p[0])) {
+                    stopFilm(out);
                 } else if ("dismiss".equals(p[0])) {
                     dismiss(out);
                 } else if ("tile".equals(p[0])) {
@@ -285,12 +289,65 @@ public class MEHarness {
      * wrong on screen: an empty health bar, townsfolk standing on a tile the
      * camera never showed.
      */
+    // Filming: a daemon thread that keeps painting the live canvas into
+    // numbered frames while the rest of the script plays. One shot at a time
+    // would only ever catch the pauses between steps, and the walk cycles and
+    // the turn clock are the parts worth seeing.
+    private static volatile boolean filming = false;
+    private static Thread camera = null;
+
+    private static void film(final PrintStream out, final String dir,
+                             final int everyMs) {
+        if (filming) {
+            return;
+        }
+        filming = true;
+        final File folder = new File(dir);
+        folder.mkdirs();
+        camera = new Thread(new Runnable() {
+            public void run() {
+                int n = 0;
+                while (filming) {
+                    try {
+                        capture(new File(folder,
+                                String.format("f%05d.png", n++)).getPath());
+                    } catch (Throwable t) {
+                        // a frame mid-repaint is not worth stopping for
+                    }
+                    try {
+                        Thread.sleep(everyMs);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                }
+            }
+        });
+        camera.setDaemon(true);
+        camera.start();
+        out.println("FILM started " + folder.getPath()
+                    + " every " + everyMs + "ms");
+    }
+
+    private static void stopFilm(PrintStream out) throws Exception {
+        filming = false;
+        if (camera != null) {
+            camera.join(2000);
+            camera = null;
+        }
+        out.println("FILM stopped");
+    }
+
     private static void shot(PrintStream out, String path) throws Exception {
+        String where = capture(path);
+        out.println(where == null ? "SHOT nothing to paint" : "SHOT " + where);
+    }
+
+    /** Paint the current canvas into a PNG. Returns where it landed. */
+    private static String capture(String path) throws Exception {
         DisplayAccess da = access();
         Object canvas = da == null ? null : da.getCurrent();
         if (canvas == null) {
-            out.println("SHOT nothing to paint");
-            return;
+            return null;
         }
         javax.microedition.lcdui.Image buffer =
             javax.microedition.lcdui.Image.createImage(WIDTH, HEIGHT);
@@ -316,7 +373,7 @@ public class MEHarness {
             file.getParentFile().mkdirs();
         }
         javax.imageio.ImageIO.write(png, "png", file);
-        out.println("SHOT " + file.getPath());
+        return file.getPath();
     }
 
     /**

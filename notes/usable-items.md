@@ -1,154 +1,112 @@
-# Items a new hero can use
+# Items in Chapter I
 
-Every stat is 15. **bar** means the fight button already is this skill, so the shop does not sell it and crates do not drop it. **shop** means it is one of the 14 lines on that Market shelf.
+What Shirad's Forge actually offers, as the server computes it on 27
+September 2026. The numbers come from `notes/chapter-items.json`, which
+`server/catalogue.py` reads. Every other chapter reads it too.
 
-You start with the Bloody Blade, the Short Bow, the Scrapsuit, and 50 gold.
+A new hero has every ability at **3** and **no gold**. He starts with the
+Bloody Blade, the Short Bow and the Scrapsuit. **Recycle** (the item
+screen's old "Delete") breaks a piece and returns 30% of its price. That is
+the only way to turn gear back into gold, since traders do not buy.
 
-A charm has no slot. A skill that is not the bar button is only a line under Skills until it replaces that button.
+## The fight bar
 
-## Skills (7)
+Always Move, Hit, Shoot, Dodge, Zap, Minor Cure. These are not items in the
+pack and are never sold or dropped. The bar does not check requirements, so
+Minor Cure works at Willpower 3 even though the catalogue asks for 12.
 
-| Name | Class | Time | Effect | Prec | Req | Price | |
-|---|---|---:|---:|---:|---|---:|---|
-| Move | move | 40 | 0 | 100 | 3 Dex | 18g | bar |
-| Wait | move | 75 | 0 | 100 | 12 Dex | 72g | shop |
-| Zig-Zag | move | 118 | 9 | 100 | 12 Str | 162g | shop |
-| Dodge | defence | 20 | 0 | 10 | 3 Dex | 18g | bar |
-| Deflect | defence | 20 | 0 | 15 | 15 Dex | 90g | shop |
-| Hit | close range | 60 | 10 | 100 | 3 Str | 18g | bar |
-| Shoot | long range | 60 | 9 | 100 | 3 Dex | 18g | bar |
+| Button | Time | Effect | Notes |
+|---|---:|---:|---|
+| Move | 40 | 0 | one straight step |
+| Hit | 60 | 10 | the weapon's own time replaces this when a melee weapon is held |
+| Shoot | 60 | 9 | the bow's own time replaces this; adds a third of Dexterity |
+| Dodge | 20 | 0 | lasts the turn |
+| Zap | 60 | 9 | a ray, any square in sight, ignores armour; adds the whole of Intelligence, less the target's resistance |
+| Minor Cure | 60 | 8 | heals effect + the whole of Willpower |
 
-## Spells (4)
+No other skill or spell has an effect in a fight, so the Skills and Spells
+shelves are empty and crates never drop one.
 
-| Name | Class | Time | Effect | Prec | Req | Price | |
-|---|---|---:|---:|---:|---|---:|---|
-| Zap | bane | 60 | 9 | 100 | 3 Int | 18g | bar |
-| Magic Coat | guardian | 40 | 5 | 75 | 3 Wil | 18g |  |
-| Blur Body | guardian | 60 | 8 | 75 | 15 Wil | 90g |  |
-| Minor Cure | spirit | 60 | 8 | 70 | 12 Wil | 72g | bar |
+## Gear
 
-## Weapons (3)
+22 pieces, a slice of the Arena catalogue chosen by `tools/pick_items.py`,
+with requirements respread from 3 to 34. `tools/tune_gear.py` then sets
+every weapon's effect and price: in each tier the top sword, the top axe or
+hammer and the top bow cost the same, and deal the same a turn at the
+tier's reference ability, the heavy line and the bow 15% more on paper to
+pay for their overkill. Cheaper pieces in a line reach 85% for 65% of the
+price. **Req** is the chapter's requirement, **Arena** watAgame's.
+Time and class are watAgame's. Suits keep watAgame's prices.
 
-| Name | Class | Time | Effect | Prec | Req | Price | |
-|---|---|---:|---:|---:|---|---:|---|
-| Bloody Blade | sword | 96 | -5 | 100 | 3 Str | 32g | shop |
-| Longfang | sword | 102 | 0 | 100 | 15 Str | 174g | shop |
-| Short Bow | bow | 255 | -5 | 100 | 3 Dex | 32g | shop |
+Effect on a weapon adds to every blow. A blow also adds a third of
+Strength (Dexterity for a bow), scaled by the swing's time against 120, so
+the ability adds the same over a turn to a sword and a hammer. Effect on a
+suit comes off every blow taken. **A turn** is damage a turn at the tier's
+reference ability (3 / 19 / 35).
 
-## Armour (2)
+| Name | Class | Tier | Req | Arena | Effect | Time | Price | A turn |
+|---|---|---|---|---:|---:|---:|---:|---:|
+| Bloody Blade | sword | I | 3 Str | 3 | -5 | 96 | 32g | 30 |
+| Corrupter | sword | I | 3 Str | 21 | -2 | 96 | 240g | 45 |
+| Spike Axe | axe | I | 3 Str | 18 | +14 | 195 | 240g | 52 |
+| Giant Sword | sword | II | 13 Str | 36 | +9 | 120 | 460g | 100 |
+| Razor Axe | axe | II | 17 Str | 27 | +28 | 202 | 299g | 98 |
+| Smasher | hammer | II | 20 Str | 27 | +36 | 211 | 460g | 114 |
+| Ghost Sword | sword | III | 24 Str | 44 | +23 | 126 | 760g | 180 |
+| Bone Crusher | hammer | III | 27 Str | 39 | +57 | 221 | 494g | 176 |
+| Beheader Axe | axe | III | 31 Str | 42 | +65 | 218 | 627g | 192 |
+| Doom Hammer | hammer | III | 34 Str | 56 | +70 | 240 | 760g | 206 |
+| Short Bow | bow | I | 3 Dex | 3 | +4 | 255 | 32g | 30 |
+| Medium Bow | bow | I | 3 Dex | 18 | +15 | 262 | 240g | 52 |
+| Long Bow | bow | II | 15 Dex | 27 | +27 | 269 | 299g | 98 |
+| Heavy Bow | bow | II | 22 Dex | 39 | +35 | 283 | 460g | 114 |
+| Bolt Bow | bow | III | 28 Dex | 42 | +54 | 290 | 494g | 176 |
+| Doombow | bow | III | 34 Dex | 74 | +69 | 255 | 760g | 206 |
+| Scrapsuit | — | I | 3 Str | 3 | +3 | — | 32g | — |
+| Snail Shell | — | I | 9 Str | 12 | +4 | — | 100g | — |
+| Iron Shell | — | II | 15 Str | 21 | +6 | — | 182g | — |
+| Doom Suit | — | II | 22 Str | 30 | +8 | — | 292g | — |
+| Trollskin | — | III | 28 Str | 36 | +10 | — | 356g | — |
+| Spike Suit | — | III | 34 Str | 39 | +13 | — | 388g | — |
 
-| Name | Class | Time | Effect | Prec | Req | Price | |
-|---|---|---:|---:|---:|---|---:|---|
-| Scrapsuit | — | 0 | 3 | 100 | 3 Str | 32g | shop |
-| Snail Shell | — | 0 | 6 | 100 | 12 Str | 100g | shop |
+Held back for the sequels, and never stocked or dropped here: 19 melee,
+6 bows, 11 armour. Bombs are not offered at all.
 
-## Charms (17)
+## Where it comes from
 
-| Name | Class | Time | Effect | Prec | Req | Price | |
-|---|---|---:|---:|---:|---|---:|---|
-| Force Stone | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Hunter Gem | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Mage Ring | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Jaguar Ring | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Minor Relic | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Ox Charm | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Luck Ring | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Mage Eye | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Harm Stone | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Life Pearl | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Archer Token | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Mage Claw | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Eagle Eye | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Air Boots | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Cleric Cross | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Ice Skin | — | 0 | 5 | 100 | 1 Str | 6g |  |
-| Time Orb | — | 0 | 5 | 100 | 1 Str | 6g |  |
+**Traders.** Five of them, in route order: Lava Island, Dwarven Hall, Fire
+Cave, The Lair, The Core. Each sells its route tier: Lava Island tier I,
+Dwarven Hall and Fire Cave tier II, The Lair and The Core tier III. Two shops
+in the same tier split it, and the one further along gets the stronger half.
+Each shop also keeps the top piece of the shop before it, so skipping Fire
+Cave loses nothing for good (`handlers._trader_stock`):
 
-## The five shelves
+    Lava Island    Bloody Blade, Corrupter, Spike Axe | Short, Medium Bow   | Scrapsuit, Snail Shell
+    Dwarven Hall   Spike Axe, Giant Sword, Razor Axe   | Medium, Long Bow    | Snail Shell, Iron Shell
+    Fire Cave      Razor Axe, Smasher                  | Long, Heavy Bow     | Iron Shell, Doom Suit
+    The Lair       Smasher, Ghost Sword, Bone Crusher  | Heavy, Bolt Bow     | Doom Suit, Trollskin
+    The Core       Bone Crusher, Beheader Axe, Doom Hammer | Bolt Bow, Doombow | Trollskin, Spike Suit
 
-A yes means a stat of 15 is enough to use it.
+Away from a trader, the shelf is what he can wear plus the next three above
+his stat, and a piece leaves once his stat is 12 above its requirement.
 
-### Melee weapons
+**Crates.** Every crate holds an item, planned with each tier's traders (`tiers.CRATES`):
 
-- yes — 32g, req 3 Strength — Bloody Blade (sword)
-- no — 238g, req 21 Strength — Corrupter (sword)
-- yes — 174g, req 15 Strength — Longfang (sword)
-- no — 730g, req 54 Strength — Heartcutter (sword)
-- no — 270g, req 24 Strength — Fell Blade (sword)
-- no — 848g, req 62 Strength — Duoblade (sword)
-- no — 390g, req 30 Strength — Lizard Sword (sword)
-- no — 968g, req 68 Strength — Slayer Blade (sword)
-- no — 580g, req 36 Strength — Giant Sword (sword)
-- no — 892g, req 60 Strength — Foul Basher (hammer)
-- no — 516g, req 44 Strength — Ghost Sword (sword)
-- no — 1084g, req 64 Strength — Skullhammer (hammer)
-- no — 442g, req 27 Strength — Smasher (hammer)
-- no — 1136g, req 68 Strength — Chaos Sledge (hammer)
+    tier I    Village 69 weapon step · Lava Island 240 suit step · 1 spare
+    tier II   Dwarven Hall 160 weapon step · Mira's Hideout 166 suit step · 12 spares
+    tier III  The Lair 172 weapon step · The Core 174 suit step · 9 spares
 
-### Missile weapons
+A step is the cheapest piece better than what the hero wears, from the line
+of the weapon in his hand or in suits, from the crate's tier or earlier. A
+spare is any other piece from the crate's tier or below that he does not
+carry, one he has not found in a crate before while there is one: to switch
+to, or to recycle. Never the free kit, and past tier I never the dearest
+piece of its line in the crate's own tier, which stays the trader's. A step
+he has already bought becomes a spare. Only with nothing left does a crate
+pay a purse. Tier I's first step in each line asks for 3, so the Village
+crate gives a new hero a weapon he can wear at once. Three crates that
+opened onto nothing (one on Lava Island, two in the Crypt) now hold items
+like the rest.
 
-- no — 548g, req 54 Dexterity — Haunter (bow)
-- no — 460g, req 58 Dexterity — Eyepiercer (bow)
-- no — 620g, req 66 Dexterity — Striker (bow)
-- yes — 32g, req 3 Dexterity — Short Bow (bow)
-- no — 696g, req 74 Dexterity — Doombow (bow)
-- no — 150g, req 18 Dexterity — Medium Bow (bow)
-- no — 404g, req 44 Dexterity — Spikebomb (bomb)
-- no — 232g, req 27 Dexterity — Long Bow (bow)
-- no — 520g, req 54 Dexterity — Darkfire (bomb)
-- no — 268g, req 33 Dexterity — Ghost Bow (bow)
-- no — 636g, req 64 Dexterity — Groundshaker (bomb)
-- no — 388g, req 39 Dexterity — Heavy Bow (bow)
-- no — 714g, req 70 Dexterity — Wallbuster (bomb)
-- no — 392g, req 42 Dexterity — Bolt Bow (bow)
-
-### Armours
-
-- yes — 32g, req 3 Strength — Scrapsuit (armour)
-- no — 356g, req 36 Strength — Trollskin (armour)
-- yes — 100g, req 12 Strength — Snail Shell (armour)
-- no — 418g, req 44 Strength — Ice Armour (armour)
-- no — 182g, req 21 Strength — Iron Shell (armour)
-- no — 536g, req 52 Strength — Lava Plate (armour)
-- no — 292g, req 30 Strength — Doom Suit (armour)
-- no — 626g, req 60 Strength — Black mail (armour)
-- no — 388g, req 39 Strength — Spike Suit (armour)
-- no — 622g, req 64 Strength — Paladin Suit (armour)
-- no — 498g, req 48 Strength — Blood Armour (armour)
-- no — 674g, req 68 Strength — Chaos Plate (armour)
-- no — 576g, req 54 Strength — Power Mail (armour)
-- no — 700g, req 70 Strength — Vulcor suit (armour)
-
-### Skills
-
-- no — 162g, req 27 Dexterity — Back Away (move)
-- yes — 72g, req 12 Dexterity — Wait (move)
-- no — 234g, req 39 Dexterity — Run (move)
-- no — 126g, req 21 Dexterity — Panic (move)
-- no — 288g, req 48 Dexterity — Tumble (move)
-- no — 180g, req 30 Dexterity — Tiptoe (move)
-- no — 348g, req 58 Dexterity — Arrowshield (defence)
-- no — 252g, req 42 Dexterity — Disarm Trap (move)
-- no — 384g, req 64 Dexterity — Meditate (defence)
-- yes — 162g, req 12 Strength — Zig-Zag (move)
-- no — 408g, req 68 Dexterity — Bomb Cover (defence)
-- no — 444g, req 74 Dexterity — Counterstrike (defence)
-- yes — 90g, req 15 Dexterity — Deflect (defence)
-- no — 198g, req 33 Strength — Impair (close range)
-
-### Spells
-
-- no — 126g, req 21 Intelligence — Blink (spectral)
-- no — 180g, req 30 Intelligence — Lower Will (spectral)
-- no — 288g, req 48 Intelligence — Shift (spectral)
-- no — 216g, req 36 Intelligence — Evil Eye (spectral)
-- no — 408g, req 68 Intelligence — Ghost Walk (spectral)
-- no — 252g, req 42 Intelligence — Plague (spectral)
-- no — 468g, req 78 Intelligence — Wraith Walk (spectral)
-- no — 264g, req 44 Intelligence — Dispel Magic (spectral)
-- no — 276g, req 46 Intelligence — Attraction (spectral)
-- no — 144g, req 24 Intelligence — Double Zap (bane)
-- no — 312g, req 52 Intelligence — Confusion (spectral)
-- no — 216g, req 36 Intelligence — Hand of Pain (bane)
-- no — 372g, req 62 Intelligence — Fear (spectral)
-- no — 264g, req 44 Intelligence — Big Zap (bane)
+**Charms.** The catalogue still holds 17 of them. None has a slot or
+any effect, and none is offered.

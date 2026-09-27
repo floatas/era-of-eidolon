@@ -153,15 +153,20 @@ def ring(side=9, radius=3):
     return path
 
 
-def walk_gif(w, creature, path_out, side=9, scale=2):
-    """A creature walking a circle, turning to face the way it is going."""
+def walk_gif(w, creature, path_out, side=9, scale=2, radius=3):
+    """A creature walking a circle, turning to face the way it is going.
+
+    `radius` is how wide the circle is in tiles. A smaller board with a
+    smaller circle leaves the creature filling more of the frame, which is
+    what a portrait wants; the default is the roomier one the sheets use.
+    """
     have = set(w.res.props(11, creature))
     move = 14 if 14 in have else (1 if 1 in have else None)
     if move is None:
         return False
 
     board, (ox, oy) = floor(w, side)
-    spots = ring(side)
+    spots = ring(side, radius)
 
     cycles = {}
     for (dx, dy), (away, mirror) in FACING.items():
@@ -185,11 +190,38 @@ def walk_gif(w, creature, path_out, side=9, scale=2):
         px = ox + int((fx - fy) * STEP_X)
         py = oy + int((fx + fy) * STEP_Y)
         frame.alpha_composite(img, (px + fox, py + foy))
+        out.append(frame)
+        durations.append(millis)
+
+    # The board is padded for obstacles taller than anything walking on it,
+    # so most of a frame is empty. Trim every frame to the same box — the one
+    # that holds the floor and the creature wherever it gets to — and scale
+    # after, or the blow-up mostly magnifies the padding.
+    # floor() paints an opaque ground, so getbbox() would never trim: compare
+    # against the colour in the corner instead of against transparency.
+    from PIL import ImageChops
+    bg = out[0].convert("RGB").getpixel((0, 0))
+    box = None
+    for frame in out:
+        flat = Image.new("RGB", frame.size, bg)
+        got = ImageChops.difference(frame.convert("RGB"), flat).getbbox()
+        if got:
+            box = got if box is None else (min(box[0], got[0]), min(box[1], got[1]),
+                                           max(box[2], got[2]), max(box[3], got[3]))
+    if box:
+        # a little air so nothing touches the edge
+        m = 6
+        box = (max(0, box[0] - m), max(0, box[1] - m),
+               min(out[0].width, box[2] + m), min(out[0].height, box[3] + m))
+    trimmed = []
+    for frame in out:
+        if box:
+            frame = frame.crop(box)
         if scale != 1:
             frame = frame.resize((frame.width * scale, frame.height * scale),
                                  Image.NEAREST)
-        out.append(frame.convert("P", palette=Image.ADAPTIVE))
-        durations.append(millis)
+        trimmed.append(frame.convert("P", palette=Image.ADAPTIVE))
+    out = trimmed
 
     os.makedirs(os.path.dirname(path_out), exist_ok=True)
     out[0].save(path_out, save_all=True, append_images=out[1:],

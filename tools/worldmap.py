@@ -27,7 +27,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "server"))
 sys.path.insert(0, HERE)
 
 from atlas import markers, sprite  # noqa: E402
-from render_map import STEP_X, STEP_Y, render  # noqa: E402
+from iso import STEP_X, STEP_Y  # noqa: E402
+from render_map import render  # noqa: E402
 from world import World  # noqa: E402
 
 PAD = 64
@@ -219,14 +220,63 @@ def font(size):
     return ImageFont.load_default()
 
 
+def turn_xy(x, y, width, height, turns):
+    """Same quarter-turns clockwise as render_map._Turned."""
+    w, h = width, height
+    for _ in range(turns % 4):
+        x, y = h - 1 - y, x
+        w, h = h, w
+    return x, y, w, h
+
+
+def proposed(w, at):
+    """Where the turned rooms sit. The grids themselves are already turned
+    by the time a World exists — see server/layout.py — so this only places
+    them. Turning again here would spin Fire Cave twice.
+    """
+    hall = at[3]
+    fc = (hall[0] + 40, hall[1] + 7)
+    at[12] = fc
+    at[14] = (fc[0] + 25, fc[1] + 10)
+    at[11] = (fc[0] + 12 - 16, fc[1] + 35)
+    return at, {}, {}
+
+
 def main():
     game = sys.argv[1] if len(sys.argv) > 1 else "ShiradsForge"
+    trial = "--proposed" in sys.argv
     w = World(game)
+    # Draw the world as it can ever be, not as it is on arrival: sixteen of
+    # the eighteen rooms have their ground rewritten during play, and the
+    # Crypt nearly triples. See World.reveal_all_patches.
+    painted = w.reveal_all_patches()
     at, portals = lay_out(w)
+    turns, doors = {}, {}
+    if trial:
+        at, turns, doors = proposed(w, at)
+        portals = [p for p in portals if p not in (11, 12, 14)]
+
+    def shown(loc, x, y, dest=None):
+        if dest is not None and (loc, dest) in doors:
+            return doors[(loc, dest)]
+        t = turns.get(loc, 0)
+        if not t:
+            return x, y
+        mp = w.map(loc)
+        x, y, _, _ = turn_xy(x, y, mp.w, mp.h, t)
+        return x, y
+
+    def footprint(loc):
+        mp = w.map(loc)
+        tw, th = mp.w, mp.h
+        for _ in range(turns.get(loc, 0)):
+            tw, th = th, tw
+        return tw, th
 
     imgs, trim = {}, {}
     for loc in w.locations:
-        img = render(w, loc, annotate=False, bg=(0, 0, 0, 0))
+        img = render(w, loc, annotate=False, bg=(0, 0, 0, 0),
+                     turns=turns.get(loc, 0))
         if not img:
             continue
         box = img.getbbox()
@@ -238,7 +288,8 @@ def main():
     def place(loc):
         """Where a location's image goes, in world pixels."""
         gx, gy = at[loc]
-        ox = w.map(loc).h * STEP_X + PAD
+        _, th = footprint(loc)
+        ox = th * STEP_X + PAD
         tx, ty = trim.get(loc, (0, 0))
         return ((gx - gy) * STEP_X - ox + tx, (gx + gy) * STEP_Y - PAD + ty)
 
@@ -272,11 +323,19 @@ def main():
     standing = []
     for loc in imgs:
         for (tx, ty), kind, creature in markers(w, loc):
+            if kind == "door":
+                dest = next((d for (sx, sy), d in w.EXITS.get(loc, [])
+                             if (sx, sy) == (tx, ty)), None)
+                # The dot is the old corner. A door this layout moved is
+                # already drawn as its own tile, so the dot would be left
+                # behind in the gap the bridge just vacated.
+                if dest is not None and (loc, dest) in doors:
+                    continue
+            tx, ty = shown(loc, tx, ty)
             gx, gy = at[loc]
             standing.append((gx + tx + gy + ty, loc, tx, ty, kind, creature))
     for _, loc, tx, ty, kind, creature in sorted(standing):
         cx, cy = px(loc, tx, ty)
-        cy += STEP_Y                       # stand on the tile, not above it
         if kind in ("crate", "barrel"):
             draw.rectangle([cx - 6, cy - 6, cx + 6, cy + 6],
                            outline=(205, 160, 90, 255), width=2)
@@ -288,7 +347,19 @@ def main():
         drawn = sprite(w, creature) if creature is not None else None
         if drawn:
             img2, (ox2, oy2) = drawn
-            sheet.alpha_composite(img2, (int(cx + ox2), int(cy + oy2)))
+            if kind == "waiting":
+                # faded, so you can see what it is and that it is not there yet
+                ghost = img2.copy()
+                alpha = ghost.getchannel("A").point(lambda v: v * 40 // 100)
+                ghost.putalpha(alpha)
+                sheet.alpha_composite(ghost, (int(cx + ox2), int(cy + oy2)))
+                draw.ellipse([cx - 7, cy - 4, cx + 7, cy + 4],
+                             outline=(150, 190, 235, 210), width=1)
+            else:
+                sheet.alpha_composite(img2, (int(cx + ox2), int(cy + oy2)))
+        elif kind == "waiting":
+            draw.ellipse([cx - 6, cy - 6, cx + 6, cy + 6],
+                         outline=(150, 190, 235, 210), width=2)
         else:
             draw.ellipse([cx - 6, cy - 6, cx + 6, cy + 6],
                          fill=(225, 80, 80, 255), outline=(0, 0, 0, 255))
@@ -298,23 +369,35 @@ def main():
     # ones are annotated here — on the map, not in the game.
     tile = marker_strip(w)
     for loc in imgs:
-        for (tx, ty), _dest in w.EXITS.get(loc, []):
+        for (ox, oy), dest in w.EXITS.get(loc, []):
+            tx, ty = shown(loc, ox, oy, dest)
             cx, cy = px(loc, tx, ty)
-            if is_arch(w, loc, tx, ty):
+            if is_arch(w, loc, ox, oy):
                 draw.ellipse([cx - 12, cy - 8, cx + 12, cy + 8],
                              outline=(205, 155, 255, 255), width=3)
-            elif (w.map(loc).tile(tx, ty) & 15) != w.marker and tile:
+            elif (w.map(loc).tile(ox, oy) & 15) != w.marker and tile:
                 sheet.alpha_composite(tile, (int(cx) - 16, int(cy) - 7))
 
     # A portal is drawn the way a road map shows a junction that leaves the
     # page: a ring where it stands and the number of the place it goes. A
     # line across the whole world only looked like a road.
     joined = flat_pairs(w, at)
+    if trial:
+        joined |= {(3, 12), (11, 12), (12, 14)}
+    jog = set()
     stub = font(22)
     for a, links in w.EXITS.items():
         for ta, b in links:
-            if (min(a, b), max(a, b)) in joined or a not in at or b not in at:
+            pair = (min(a, b), max(a, b))
+            if pair in joined or a not in at or b not in at:
                 continue
+            if pair in jog:
+                back = shown(b, *next(t for t, d in w.EXITS.get(b, []) if d == a), a)
+                ax, ay = px(a, *shown(a, *ta, b))
+                bx, by = px(b, *back)
+                draw.line([(ax, ay), (bx, by)], fill=(255, 210, 90, 220), width=3)
+                continue
+            ta = shown(a, *ta, b)
             cx, cy = px(a, *ta)
             draw.ellipse([cx - 13, cy - 9, cx + 13, cy + 9],
                          outline=(205, 155, 255, 255), width=3)
@@ -329,7 +412,8 @@ def main():
         # the middle of the GROUND, not of the rectangle: the Crypt fills
         # only the left third of its 20x10 map, so its geometric centre is
         # out in the void
-        drawn_tiles = [(x, y) for y in range(mp.h) for x in range(mp.w)
+        drawn_tiles = [shown(loc, x, y)
+                       for y in range(mp.h) for x in range(mp.w)
                        if mp.tile(x, y) & 15]
         if drawn_tiles:
             mx = sum(t[0] for t in drawn_tiles) // len(drawn_tiles)
@@ -343,12 +427,17 @@ def main():
         draw.text((tx, c[1]), text, font=label, fill=(255, 245, 190, 255))
 
     real = getattr(w, "real1", None)
-    head = f"{game} - one continuous world"
+    if trial:
+        head = f"{game} - trial layout"
+        sub = ("11, 12 and 14 turned clockwise. The stone bridge by the "
+               "Long Run arch now crosses the lava to Aldor's door.")
+    else:
+        head = f"{game} - one continuous world"
+        sub = (f"{len(joined)} shared borders laid out flat. A purple ring "
+               f"is a portal, labelled with the location it reaches. Faded red "
+               f"tiles are doorways watAgame left unmarked.")
     draw.text((margin + 2, 22), head, font=title, fill=(0, 0, 0, 255))
     draw.text((margin, 20), head, font=title, fill=(245, 245, 250, 255))
-    sub = (f"{len(joined)} shared borders laid out flat. A purple ring "
-           f"is a portal, labelled with the location it reaches. Faded red "
-           f"tiles are doorways watAgame left unmarked.")
     draw.text((margin, 78), sub, font=label, fill=(160, 160, 180, 255))
     draw.text((margin, 112),
               "creatures, townsfolk, crates and doorways are all watAgame's, "
@@ -357,7 +446,7 @@ def main():
                    "so this layout is a guess",
               font=label, fill=(160, 160, 180, 255))
 
-    path = os.path.join(OUT, f"{game}-world.png")
+    path = os.path.join(OUT, f"{game}-world{'-proposed' if trial else ''}.png")
     sheet.convert("RGB").save(path)
     print(f"{path}  {sheet.size[0]}x{sheet.size[1]}  "
           f"{len(imgs)} locations, {len(joined)} seams, "

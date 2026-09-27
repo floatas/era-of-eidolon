@@ -12,9 +12,20 @@ import random
 import re
 import struct
 import time
+
+# How much an ability adds to a blow or a spell: base = effect + potency//DIV.
+# The rules name every term and none of the coefficients. //10 was the first
+# reading and it made levelling decorative — Strength 15 to 34, the whole span
+# a chapter hero covers, moved damage by 2 against a gear range of ~35. //3
+# makes those nineteen levels worth 6, about a sixth of what gear gives: felt,
+# but not a replacement for finding a better axe.
+POTENCY_DIV = 3     # tiers.POTENCY_DIV; see tiers.potency_bonus
+
 import zipfile
 
 from catalogue import catalogue
+from layout import apply_forge_layout, migrate_save
+import tiers
 
 JARS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                     "jars")
@@ -177,45 +188,83 @@ class Mob:
         return r
 
     def offence(self):
-        """What this creature hits and resists with.
+        """What this creature hits and resists with, scaled from hit points.
 
-        The real table carries four numbers per creature and they are where
-        watAgame put the difficulty curve: the same Beetle reads 12 and 6 in
-        Dune Burrow and 32 and 33 in The Lair. Where we have them the fight
-        is theirs. Where we do not — Fungusmen carry hit points and none of
-        these — fall back to scaling from hit points, which is ours and
-        marked as such by `fitted`.
+        Bytes [16..19] of the type 9 row were read here as a difficulty curve
+        — the same Beetle being 12 and 6 in Dune Burrow and 32 and 33 in The
+        Lair looked like one. They are a patrol box: x0, y0, x1, y1, present
+        on exactly the 69 rows whose [15] says the creature walks, with all
+        69 creatures standing inside their own box and a median box a tenth
+        of its map. The depth correlation was map size, not difficulty.
+
+        So they are not combat numbers and never were, and a creature's blow,
+        accuracy, avoidance and spell resistance all come from hit points
+        instead. That is ours, not watAgame's, and `fitted` says so.
         """
-        p = getattr(self, "power", None)
-        if p:
-            hit, quick = p["body"]
-            _, resolve = p["magic"]
-            return {
-                # a creature carries no weapon, so its blow is its own
-                "effect": 6 + hit // 2,
-                "precision": min(95, 55 + quick // 2),
-                # the same halving the hero gets in avoidance()
-                "avoid": quick // 2,
-                "will": resolve,
-                "armour": 0,
-                "fitted": False,
-            }
         hp = self.max_hp or 10
+        # Avoidance and resistance follow the species, not the life it was
+        # given. Life is sized by tier now (tiers.py), and reading it here
+        # made tier III creatures dodge a blade 40% of the time and shrug off
+        # Zap entirely: a second difficulty curve nobody chose.
+        body = getattr(self, "weight", None) or hp
         return {
             # A 10-life fighter used to swing for 4, and a scrapsuit (3)
             # turned that into 1. The hero has 40 life, so the blow has to
             # come through the suit as a real hit or the fight is free.
             "effect": 6 + hp // 4,
+            # How long one of its blows takes, the way a weapon's time is
+            # what one of the hero's takes. A creature carries no weapon, so
+            # its body is the weapon and hit points are the only weight
+            # watAgame recorded: Skeleton 18 through Fungusman 50. Light
+            # bodies swing four times a turn, heavy ones twice, which lands
+            # between a sword (96) and a hammer (240) on the same time line.
+            "swing": self.swing_time(),
             "precision": 70,
-            "avoid": 10 + hp // 8,
-            "will": max(5, hp // 2),
-            "armour": 0,
+            "avoid": 10 + body // 8,
+            # Resistance is subtracted from a spell, so it is a matchup,
+            # not a wall: a quarter of hit points, capped so that a boss's
+            # long health bar cannot make it immune.
+            "will": min(30, max(2, body // 4)),
+            # a shell (tiers.SHELL), taken off every blow; weapons only
+            "armour": getattr(self, "shell", 0),
             "fitted": True,
         }
 
+    def swing_time(self):
+        """What one blow of this creature costs of the 720-unit turn.
+
+        Four swings for the lightest body we have (18), two for the
+        heaviest (50), straight-line between. The count only changes how
+        the damage arrives, never how much: the blow itself is divided by
+        the swings in handlers.pattern_blow, so a fast creature lands many
+        small hits and a slow one lands few large ones. That is what makes
+        armour worth wearing against the quick ones — it subtracts from
+        every blow — and worth stepping out of reach of the slow ones,
+        where dodging a single hit saves the lot.
+        """
+        lo, hi, fast, slow = 18, 50, 4.0, 2.0
+        # `weight` is the species health watAgame wrote in the type 9 row,
+        # kept apart from max_hp because max_hp gets rescaled for difficulty.
+        # Reading the scaled figure would push every creature past the heavy
+        # end once health climbs, and they would all swing twice.
+        hp = min(max(getattr(self, "weight", None) or self.max_hp or lo, lo), hi)
+        swings = fast - (fast - slow) * (hp - lo) / (hi - lo)
+        return max(1, round(720 / swings))
+
     def spoil(self):
-        """Gold and experience for winning against this creature. The rules
-        pay more for a harder fight; hit points are the only scale we have."""
+        """(gold, experience) for winning against this creature. The rules
+        pay more for a harder fight.
+
+        In a tiered chapter (tiers.py) the pay follows the species' weight
+        and the tier, not the life it was given: life is sized to the tier's
+        gear, and paying it out would make the hero outgrow the next tier.
+        A boss pays as tiers.BOSS_WEIGHT."""
+        tier = getattr(self, "tier", None)
+        if tier:
+            weight = (tiers.BOSS_WEIGHT if getattr(self, "boss", False)
+                      else getattr(self, "weight", None) or 10)
+            return (max(1, round(weight * tiers.GOLD_RATE[tier])),
+                    max(1, round(weight * tiers.XP_RATE[tier])))
         hp = self.max_hp or 10
         # Experience is the creature's life, so a clear of this chapter is
         # worth a run of levels and a few revisits of the wilds can reach 50.
@@ -241,6 +290,10 @@ class World:
         # the real tables, where an early build kept them locally
         self.real1 = recovered_rows(self.game, 1)
         self.real9 = recovered_rows(self.game, 9)
+        # The three detached rooms are turned, and Fire Cave's bridge is
+        # moved, before anything reads a coordinate out of them.
+        if self.game == "ShiradsForge":
+            apply_forge_layout(self.res, self.real1, self.real9)
         self._names = {}
         self.locations = sorted(
             int(n[1:], 16) for n in self.res.files
@@ -262,22 +315,31 @@ class World:
         # entered on. The client keeps the same thing in d.W, d.X.
         self.recall = (self.hero_x, self.hero_y)
 
-        # Rules 1.5, and they are explicit: "Each Ability score has a
-        # starting value of 15". The hero's own row in the recovered
-        # creature table reads 17, 13, 21, 17, which is NOT that — and 15
-        # to 17 is a gain of two, which the raise curve cannot produce
-        # because it moves in threes. So those four numbers are not
-        # abilities, whatever else they are. Life is "directly connected"
-        # to Toughness with no ratio given, so it stays a flat 40 until
-        # that ratio is known. d.java z[] is the stat order the raise
-        # screen uses.
-        self.stats = dict(zip(self.STATS, [15, 15, 15, 15, 15, 15]))
+        # Rules 1.5 are explicit that "Each Ability score has a starting
+        # value of 15", and that is the Arena's number: a duellist there
+        # levels to 49 against other duellists, and the item requirements
+        # run to 78 to match.
+        #
+        # A chapter is not that. Its hero clears 87 creatures and reaches
+        # about level 19, and the catalogue's own floor — the Bloody Blade,
+        # the Scrapsuit, Hit, Move, Dodge, Zap — asks for 3. Starting at 15
+        # put the hero two thirds of the way up every curve before the
+        # first fight and left levelling with nothing to do. Starting at
+        # the floor gives the raise screen the whole chapter to work in.
+        # This is ours, not watAgame's, and it is the one place the rules
+        # are knowingly set aside.
+        #
+        # Life is "directly connected" to Toughness with no ratio given, so
+        # it stays a flat 40 until that ratio is known. d.java z[] is the
+        # stat order the raise screen uses.
+        self.stats = dict(zip(self.STATS, [3, 3, 3, 3, 3, 3]))
         self.level = 0
         self.xp = 0
-        self.gold = 50
+        self.gold = 0
         self.raises = 0
         self.gifts_paid = []
         self.opened = []          # crate state ids already looted
+        self.crate_found = []     # what crates have handed out, in order
         self.progress = None      # the phone's quest switches, d.i, once saved
 
         # "Your hero starts with the most basic sword as a default" and the
@@ -484,6 +546,87 @@ class World:
         chain = self.locations[:end + 1]
         return list(zip(chain, chain[1:]))
 
+    def reveal_all_patches(self):
+        """Apply every kind 6 tilemap patch, whatever its trigger would be.
+
+        A location does not have one tilemap. Forty-two entities rewrite the
+        ground during play, across sixteen of the eighteen rooms. Most open a
+        single door or clear a smashed crate and move one or two tiles; the
+        Crypt goes from 53 floor tiles to 147, because its chambers are
+        painted in as each wave is summoned, which is why that room looks so
+        small when you draw only what you see on arrival.
+
+        The union does not need the state machine run. Ten pairs of patches
+        cover the same ground and every one of them differs only in
+        decoration — not one disagrees about which tiles are floor — so
+        applying them all in any order gives the same extent. Order would
+        only matter for which ground texture wins.
+
+        For drawing. It mutates the loaded maps, so a World that has done
+        this is no longer fit to play.
+        """
+        painted = 0
+        for r in self.real1 or ():
+            if len(r) <= 13 or r[12] != 6:
+                continue
+            p = list(r)[13:]
+            if len(p) < 6:
+                continue
+            loc, px, py, pw, ph = p[1], p[2], p[3], p[4], p[5]
+            mp = self.map(loc)
+            if not mp or pw <= 0 or ph <= 0:
+                continue
+            if not isinstance(mp.tiles, bytearray):
+                mp.tiles = bytearray(mp.tiles)
+            for i, t in enumerate(p[6:6 + pw * ph]):
+                x, y = px + i % pw, py + i // pw
+                # only ever add ground; a patch that blanks a tile is the
+                # crate it just removed, and the floor underneath is what
+                # a map should show
+                if 0 <= x < mp.w and 0 <= y < mp.h and (t & 15):
+                    mp.tiles[y * mp.w + x] = t
+                    painted += 1
+        return painted
+
+    def _activated_later(self):
+        """Creature nodes a type 1 entity turns on, rather than the map.
+
+        Kind 5 is "node activation": payload [12] is the kind, [13] how many
+        ids follow, [14:] the ids. Every one of the eleven sits behind an
+        entity that is itself dormant on a fresh start, so none of them
+        should be standing there when the chapter opens.
+        """
+        out = set()
+        armed = self.armed_later()
+        for r in recovered_rows(self.game, 1) or ():
+            if len(r) > 14 and r[12] == 5 and r[0] in armed:
+                for i in range(r[13]):
+                    if 14 + i < len(r):
+                        out.add(r[14 + i])
+        return out
+
+    def _size_by_tier(self):
+        """Give every creature its tier's life (tiers.py).
+
+        Weight is watAgame's byte 11, kept on the creature for its swing
+        speed and its pay. A row with 0 there borrows its species' median,
+        because 0 marks a fight that never returns, not a feather."""
+        if self.game != "ShiradsForge":
+            return
+        rows = [(m.creature, getattr(m, "weight", 0) if m.respawn else 0)
+                for m in self.mobs.values() if not m.npc]
+        typical = tiers.species_weights(rows)
+        for m in self.mobs.values():
+            tier = tiers.tier_of(m.location)
+            if m.npc or tier is None:
+                continue
+            m.tier = tier
+            if not m.respawn:
+                m.weight = typical.get(m.creature, 20)
+            species = self.creature_name(m.creature)
+            m.shell = tiers.shell(tier, species)
+            m.max_hp = m.hp = tiers.creature_life(tier, m.weight, species)
+
     def _adopt_real_creatures(self):
         """Build the live creature list from the recovered type 9 table.
 
@@ -500,16 +643,17 @@ class World:
             m = Mob(node, loc, r[3], r[4], r[12],
                     hp=r[11] or 10, anim=r[13],
                     npc=r[12] == self.npc_creature)
+            # what the species weighs, before difficulty rescales its health
+            m.weight = r[11] or 10
             m.text_key = int.from_bytes(r[7:9], "big") or None
-            # Bytes 16-19, only in the 20-byte rows. What they MEAN is not
-            # settled — see notes/recovered/README.md — but what they do is
-            # not in doubt: they climb with depth, so they are the
-            # difficulty curve. The first pair is zero for beasts and
-            # non-zero for things that cast, the second pair is never zero,
-            # so they are used here as a magical and a physical pair
-            # without claiming which ability is which.
+            # Bytes 16-19, only on the 20-byte rows, are a patrol box:
+            # x0, y0, x1, y1. Every one of the 69 creatures that carries them
+            # stands inside its own box, the box always fits its map, and the
+            # rows that carry them are exactly the rows whose [15] says the
+            # creature walks. A median box is a tenth of its map, where a
+            # random tile falls inside one 22% of the time.
             if len(r) >= 20:
-                m.power = {"magic": (r[16], r[17]), "body": (r[18], r[19])}
+                m.patrol = (r[16], r[17], r[18], r[19])
             m.respawn = r[11]
             # Five of Shirad's Forge's 111 creatures stand on void tiles,
             # all of them in the Crypt and all with the highest node ids in
@@ -521,6 +665,33 @@ class World:
             if mp and not (mp.tile(r[3], r[4]) & 15):
                 m.alive = False
             self.mobs[node] = m
+        # A creature that some entity switches on later is not there yet.
+        # Eleven nodes are named by a kind 5 "node activation": Shirard, the
+        # Crypt's second and third waves, and the twin standing on Mira's own
+        # square that wakes when she falls — her second phase, written as a
+        # separate creature rather than a flag. Six of them were alive from
+        # the first step, so Shirard waited in his room before anything had
+        # summoned him and Mira was two creatures on one tile. The Crypt five
+        # only looked right because they are parked on void.
+        for node in self._activated_later():
+            if node in self.mobs:
+                # Not dead — waiting. tag 25 state 3 means gone and cannot be
+                # brought back, so a creature some entity switches on later
+                # has to go out at 1: it exists and the phone can promote it
+                # to 2 when the kind 5 fires, but it is never drawn until
+                # then. Sending 3 here would have buried Shirard and the
+                # Crypt's waves for good.
+                self.mobs[node].alive = False
+                self.mobs[node].dormant = True
+        # Mira's twin, node 47, was watAgame's way of giving her a second
+        # phase: a separate creature on her square that a kind 5 wakes when
+        # she dies. The phases now happen on her own node (handlers._kill),
+        # so the twin would be a third fight. State 3 is gone for good, and
+        # the phone cannot promote it back when the kind 5 fires.
+        if self.game == "ShiradsForge" and 47 in self.mobs:
+            self.mobs[47].alive = False
+            self.mobs[47].dormant = False
+        self._size_by_tier()
         self.next_node = max(self.mobs, default=0) + 1
         self.node_count = max(getattr(self, "node_count", 0),
                               self.next_node + 8)
@@ -979,17 +1150,28 @@ class World:
         for i, stat in enumerate(self.STATS):
             for _ in range(counts[i]):
                 if self.raises <= 0:
-                    return
+                    break
                 self.stats[stat] = self.stats.get(stat, 0) + self.raise_cost(stat)
                 self.raises -= 1
+        self.refresh_life()
+
+    def refresh_life(self):
+        """Life follows level and Toughness (tiers.life_for). Life gained
+        by raising Toughness arrives at once; none is taken away."""
+        new = tiers.life_for(self.level, self.stats.get("Toughness", 3))
+        gain = new - self.hero_max
+        self.hero_max = new
+        self.hero_hp = min(new, self.hero_hp + max(0, gain))
 
     def xp_for_next(self):
         # The threshold is not in the rules. A flat 100 a level makes 50
         # unreachable on this map: one clear is about a thousand experience
         # and the climb to 50 would cost over a hundred thousand.
-        # 60 + 5 a level: the first clear is a dozen levels, and level 50
-        # is a few more tours of the creatures that come back.
-        return 60 + 5 * max(1, self.level)
+        # 60 + 5 a level made a full clear of Shirad's Forge worth 21 levels
+        # and Strength 90, past every piece of gear by the second trader.
+        # 60 + 20 a level ends it near 12, with Strength near the 34 the
+        # chapter's gear tops out at (tools/balance_sim.py checks it).
+        return 60 + 20 * self.level
 
     def grant_xp(self, amount):
         self.xp += amount
@@ -998,7 +1180,7 @@ class World:
             self.xp -= self.xp_for_next()
             self.level += 1
             self.raises += 2          # rules 1.5: 2 ability points a level
-            self.hero_max += 6
+            self.refresh_life()
             self.hero_hp = self.hero_max
             gained += 1
         return gained
@@ -1045,21 +1227,23 @@ class World:
         return True
 
     def strike(self, effect, precision, potency, avoid, dex=0, armour=0,
-               weapon_mod=0, rng=None, spell=False, resist=0):
+               weapon_mod=0, rng=None, spell=False, resist=0, swing_time=None):
         """One attack, rules 1.5.
 
-        Weapons: base = skill effect + weapon + potency//10, where potency
-        is Strength. The hit chance is the skill's precision plus half of
+        Weapons: base = skill effect + weapon + a third of potency, scaled
+        by the swing's time (tiers.potency_bonus), where potency is Strength
+        for a blade and Dexterity for a bow. The hit chance is the skill's precision plus half of
         Dexterity, minus the target's avoidance, clamped to 5..98. A roll
         of 1..100 above that misses. A roll in the bottom half of the
         chance is precise (x3/2); one in the bottom fifteenth is a critical
         (x2). Armour then subtracts, and never raises the result.
 
         Spells skip that to-hit. They fizzle when the roll exceeds the
-        spell's precision, and they are resisted unless the caster's
-        ability is strictly higher than the target's resistance. Armour
-        does not apply. Damage is effect + potency//10 (Intelligence for
-        Bane, Willpower for Spirit).
+        spell's precision, and the target's resistance is then subtracted,
+        never less than 1 getting through. Armour does not apply. Damage is
+        effect + potency (Intelligence for Bane, Willpower for Spirit) —
+        undivided, because a spell has no weapon under it carrying the
+        scale, where a blow does.
 
         The rules name every term and none of the coefficients. Half a
         point of the ability per point on the 1..100 roll is the reading
@@ -1070,14 +1254,24 @@ class World:
         if spell:
             if roll > max(1, precision):
                 return "fizzle", 0
-            if potency <= resist:
-                return "resist", 0
-            return "hit", max(0, effect + potency // 10)
+            # Resistance subtracts; it does not switch the spell off. As a
+            # gate, one point of the ability flipped a spell between useless
+            # and full power, and every creature sat on one side of that
+            # cliff — Zap simply stopped working around the middle of the
+            # chapter. Subtracting makes resistance a bad matchup instead of
+            # a wall. A cast that gets through at all still deals 1: you had
+            # to name the exact square to aim it.
+            dealt = effect + potency - resist
+            if dealt < 1:
+                return "resist", 1
+            return "hit", dealt
         chance = precision + dex // 2 - avoid
         chance = 5 if chance < 5 else (98 if chance > 98 else chance)
         if roll > chance:
             return "miss", 0
-        base = effect + weapon_mod + potency // 10
+        # swing_time scales the ability to the blow's length, so it adds the
+        # same over a turn whatever the weapon's speed (tiers.potency_bonus)
+        base = effect + weapon_mod + tiers.potency_bonus(potency, swing_time)
         if base < 0:
             base = 0
         if roll <= chance // 15:
@@ -1146,16 +1340,17 @@ class World:
                 ids.add(r[0])
         return ids
 
-    def _arm_silent_crate(self, rows):
+    def _arm_silent_crates(self, rows):
         """A Destroy Crate patch that arms nothing never asks what was inside.
 
-        Give it one kind-3 follow-up, box (0,0)-(0,0), so it fires the moment
-        it is armed, the same way the other crates do. Returns the new state
-        id, or 0 if every crate already has a follow-up.
+        Give each one a kind-3 follow-up, box (0,0)-(0,0), so it fires the
+        moment it is armed, the same way the other crates do. Shirad's Forge
+        has three: one on Lava Island and two in the Crypt. Only the first
+        used to get one, so the Lava Island crate and one in the Crypt
+        opened onto nothing. Returns {new state id: location}.
         """
-        by_state = {r[0]: r for r in rows}
-        silent = None
-        for r in rows:
+        made = {}
+        for r in list(rows):
             if r[12] != 6:
                 continue
             key = int.from_bytes(bytes(r[7:9]), "big")
@@ -1168,19 +1363,15 @@ class World:
             p = p + 1 + r[p]
             if p >= len(r) or r[p] != 0:
                 continue
-            silent = (r, p)
-            break
-        if silent is None:
-            return 0
-        row, at = silent
-        sid = max(by_state) + 1
-        if sid > 254:
-            return 0
-        row[at] = 1
-        row[at + 1:at + 1] = bytes([sid])
-        made = bytearray(entity(sid, row[1], kind=3, tail=b"", box=(0, 0, 0, 0)))
-        rows.append(made)
-        return sid
+            sid = max(x[0] for x in rows) + 1
+            if sid > 254:
+                break
+            r[p] = 1
+            r[p + 1:p + 1] = bytes([sid])
+            rows.append(bytearray(entity(sid, r[1], kind=3, tail=b"",
+                                         box=(0, 0, 0, 0))))
+            made[sid] = r[1]
+        return made
 
     def crate_payoffs(self):
         """Kind-3 states a smashed crate or barrel arms.
@@ -1213,35 +1404,130 @@ class World:
                     ids.add(sid)
         return ids
 
-    def loot_container(self, state):
-        """One thing the hero can already use, plus a little gold.
+    # A crate may hold a piece this far above what the hero can lift today.
+    # Three levels' worth at two points a level: something to grow into
+    # rather than something already outclassed. Holding crates to what he
+    # can wear right now emptied them completely once the hero started at
+    # the catalogue's floor of 3 — he owns every piece that asks for 3.
+    CRATE_AHEAD = 6
 
-        The roll is fixed by the crate's state id, so the same chest does
-        not hide a different prize every visit. A second smash returns
-        nothing.
+    def crate_location(self, state):
+        """Which location a crate's payoff sits in. The silent crate the
+        server arms itself (_arm_silent_crates) is not in the jar's table,
+        so it borrows the location of the crate that fires it."""
+        loc = next((r[1] for r in self.real1 or () if r[0] == state), None)
+        if loc is None:
+            loc = getattr(self, "_extra_crate_locs", {}).get(state)
+        return loc
+
+    def _gear_worth(self, it):
+        """How good a piece is in its own slot, for the hero as he stands:
+        a suit by what it stops, a weapon by what it deals a turn."""
+        if it.kind == "armour":
+            return it.effect
+        stat = self.stats.get("Dexterity" if it.cls == "bow" else "Strength", 0)
+        return tiers.weapon_round(it, stat)
+
+    def loot_container(self, state):
+        """What a smashed crate holds: the plan in tiers.CRATES.
+
+        Every crate holds an item. A spare crate holds any piece from its
+        tier or below that he does not carry (_crate_spare). A gear crate
+        holds the tier's next step for the hero as he stands:
+        the cheapest piece better than what he wears, from his own line of
+        weapon (the one in his hand) or in suits, from the crate's tier or an
+        earlier one. Something he can wear now comes first; failing that, a
+        piece up to CRATE_AHEAD above his ability, to grow into. Past tier I
+        the dearest piece of a line in the crate's own tier is never in a
+        crate (tiers.is_top): that is the trader's. With nothing left to
+        step up to, a gear crate holds a spare instead, and a crate is a
+        purse sized to the tier only when there is nothing left to give.
+
+        In a chapter without tiers, crates alternate weapon and suit by their
+        state id, and the tier limits do not apply.
+
+        What was in it is decided when it is smashed, and a second smash
+        returns nothing, so a reload does not reroll it.
         """
         if state in self.opened:
             return [], 0
-        rng = random.Random(state)
-        held = set(self.inventory)
+        tier = None
+        if self.game == "ShiradsForge":
+            tier = tiers.tier_of(self.crate_location(state))
+        role = (tiers.crate_role(state) if tier
+                else ("weapon", "suit")[state % 2])
         found = []
-        kinds = ("weapon", "armour")
-        order = kinds[state % len(kinds):] + kinds[:state % len(kinds)]
-        for kind in order:
-            pool = [i for i in catalogue().get(kind)
-                    if self.usable(i) and i.name not in held
-                    and i.name not in self.BAR_SKILLS
-                    and i.requirement <= self.stats.get(i.ability, 0)]
-            if not pool:
-                continue
-            found.append(rng.choice(pool))
-            break
-        for it in found:
+        it = None
+        if role in ("weapon", "suit"):
+            kind = "weapon" if role == "weapon" else "armour"
+            it = self._crate_step(kind, tier)
+        # a step he has already bought is still a crate worth opening
+        if it is None:
+            it = self._crate_spare(state, tier)
+        if it:
+            found.append(it)
             self.inventory.append(it.name)
-        gold = 8 + (state % 15)
+            self.crate_found.append(it.name)
+        if found:
+            gold = 0
+        elif tier:
+            gold = tiers.PURSE[tier] + (state % 10)
+        else:
+            gold = 8 + (state % 10)
         self.gold += gold
         self.opened.append(state)
         return found, gold
+
+    def _crate_spare(self, state, tier):
+        """Any piece from the crate's tier or below that he does not carry,
+        of any kind of weapon or a suit: one to switch to, or to recycle.
+        Past tier I never the dearest of its line in the crate's own tier.
+        The pick is seeded by the crate, so each crate has its own."""
+        allowed = tiers.ORDER[:tiers.ORDER.index(tier) + 1] if tier else None
+        carried = set(self.inventory)
+        pool = []
+        for it in catalogue().get("weapon") + catalogue().get("armour"):
+            if not self.usable(it) or it.name in carried or it.name in tiers.STARTERS:
+                continue
+            if allowed and getattr(it, "tier", None) not in allowed:
+                continue
+            if tier and tier != "I" and it.tier == tier and tiers.is_top(it):
+                continue
+            pool.append(it)
+        if not pool:
+            return None
+        # something he has not already pulled from a crate, while there is
+        # one: three Corrupters in a row is not a find
+        fresh = [i for i in pool if i.name not in self.crate_found]
+        pool = sorted(fresh or pool, key=lambda i: i.name)
+        return random.Random(state).choice(pool)
+
+    def _crate_step(self, kind, tier):
+        """The next piece up in this slot for the hero as he stands."""
+        allowed = tiers.ORDER[:tiers.ORDER.index(tier) + 1] if tier else None
+        weapon = self.weapon()
+        line = tiers.line_of(weapon) if weapon else "sword"
+        held = weapon if kind == "weapon" else self.armour()
+        carried = set(self.inventory)
+        best = None
+        for it in catalogue().get(kind):
+            if not self.usable(it) or it.name in carried:
+                continue
+            if kind == "weapon" and tiers.line_of(it) != line:
+                continue
+            if allowed and getattr(it, "tier", None) not in (None, *allowed):
+                continue
+            if tier and tier != "I" and it.tier == tier and tiers.is_top(it):
+                continue
+            if held is not None and self._gear_worth(it) <= self._gear_worth(held):
+                continue
+            reach = it.requirement - self.stats.get(it.ability, 0)
+            if reach > self.CRATE_AHEAD:
+                continue
+            key = (reach > 0, it.price, it.name)
+            if best is None or key < best[0]:
+                best = (key, it)
+        return best[1] if best else None
 
     def hero_sheet(self):
         w, a = self.weapon(), self.armour()
@@ -1515,8 +1801,11 @@ class World:
         return base + self.practice_rank(name)
 
     def trained_time(self, name, base):
-        """Each title takes 5% off the time, and the cost never reaches 0."""
-        return max(1, base * (100 - 5 * self.practice_rank(name)) // 100)
+        """Each title takes 5% off the time, and Speed takes its share off
+        what is left (tiers.speed_scaled). The cost never reaches 0. This is
+        the time the fight bar sends the phone, so both sides charge it."""
+        practised = max(1, base * (100 - 5 * self.practice_rank(name)) // 100)
+        return tiers.speed_scaled(practised, self.stats.get("Speed", 3))
 
     def note_use(self, name):
         """A successful use this fight. Kept only if the fight is won."""
@@ -1634,7 +1923,9 @@ class World:
         self.refresh_respawns()
         s = bytearray(self.node_count)
         for m in self.mobs.values():
-            s[m.node] = 2 if m.alive else 3
+            s[m.node] = (2 if m.alive
+                         else 1 if getattr(m, "dormant", False)
+                         else 3)
         return bytes(s)
 
     # -- type 1 entities ----------------------------------------------------
@@ -1679,8 +1970,9 @@ class World:
             for r in rows:
                 if len(r) > 13 and r[12] == 1 and r[0] in self._empty_crates():
                     r[12] = 3
-            extra = self._arm_silent_crate(rows)
-            self._extra_crates = {extra} if extra else set()
+            made = self._arm_silent_crates(rows)
+            self._extra_crates = set(made)
+            self._extra_crate_locs = made
             for r in rows:
                 # A fight box (kind 2) stays live until something completes
                 # it. The client completes an entity whose trigger is "this
@@ -2087,8 +2379,11 @@ def _world_to_dict(self):
         "practice": {k: list(v) for k, v in self.practice.items()},
         "gifts_paid": list(self.gifts_paid),
         "opened": list(getattr(self, "opened", ())),
+        "crate_found": list(getattr(self, "crate_found", ())),
         "progress": (list(self.progress)
                      if getattr(self, "progress", None) else None),
+        "layout": 1,
+        "tiers": 1,
         "mobs": [{"node": m.node, "location": m.location, "x": m.x, "y": m.y,
                   "creature": m.creature, "hp": m.hp, "max_hp": m.max_hp,
                   "alive": m.alive, "npc": m.npc,
@@ -2103,6 +2398,7 @@ def _world_to_dict(self):
 
 
 def _world_from_dict(self, d):
+    d = migrate_save(self, d)
     self.location = d.get("location", self.location)
     self.hero_x = d.get("hero_x", self.hero_x)
     self.hero_y = d.get("hero_y", self.hero_y)
@@ -2116,6 +2412,10 @@ def _world_from_dict(self, d):
     self.xp = d.get("xp", 0)
     self.gold = d.get("gold", 50)
     self.raises = d.get("raises", 0)
+    # life follows level and Toughness; a save keeps its current life
+    hp = self.hero_hp
+    self.refresh_life()
+    self.hero_hp = min(hp, self.hero_max)
     kept = []
     for name in d.get("inventory") or self.inventory:
         it = self.item(name)
@@ -2133,6 +2433,7 @@ def _world_from_dict(self, d):
     self.fight_gains = {}
     self.gifts_paid = list(d.get("gifts_paid") or [])
     self.opened = list(d.get("opened") or [])
+    self.crate_found = list(d.get("crate_found") or [])
     raw = d.get("progress")
     self.progress = bytes(raw) if raw else None
     saved = d.get("mobs") or []
@@ -2156,6 +2457,15 @@ def _world_from_dict(self, d):
             m.fight_hp = md.get("fight_hp", m.hp)
             m.respawn = md.get("respawn", m.respawn)
             m.dead_at = md.get("dead_at")
+            # Life is sized by tier now (tiers.py). A save from before that
+            # carries the old, much smaller figures; a living creature in it
+            # comes back whole at its tier's life.
+            if getattr(m, "tier", None):
+                if not d.get("tiers"):
+                    m.hp = m.fight_hp = m.max_hp
+                m.hp = min(m.hp, m.max_hp)
+        if self.game == "ShiradsForge" and 47 in self.mobs:
+            self.mobs[47].alive = False     # Mira's twin; see _adopt_real_creatures
         return self
     self.refresh_npcs()
     self.mobs = {}

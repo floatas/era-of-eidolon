@@ -1,0 +1,564 @@
+<title>Shirard's Forge Companion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  --ground:#15120e; --panel:#1d1913; --panel2:#241f17; --rule:#5b4726;
+  --ink:#efe3c4; --dim:#bdad86; --faint:#8a7c5b; --gold:#e8c85c;
+  --hit:#b8522c; --safe:#3e5d3a; --void:#26201a; --me:#eadfc2;
+}
+* { box-sizing:border-box }
+html { background:var(--ground) }
+body { margin:0; background:var(--ground); color:var(--ink);
+  font-family:"EB Garamond",Palatino,Georgia,serif; font-size:17px; line-height:1.5;
+  padding-inline:16px }
+.page { max-width:600px; margin:0 auto; padding-block:24px 64px }
+.eyebrow, .kind small, th, .tag, .bring span, .crates span, .shop li span,
+nav a, figcaption b { font-family:Cinzel,Georgia,serif; letter-spacing:.12em }
+.eyebrow { font-size:11px; text-transform:uppercase; color:var(--faint); margin:0 0 4px }
+h1 { font-family:Cinzel,Georgia,serif; font-weight:800; font-size:34px; margin:0;
+  line-height:1.1; text-wrap:balance; text-shadow:0 2px 0 #000 }
+.lede { color:var(--dim); margin:10px 0 0; max-width:60ch }
+h2 { font-family:Cinzel,Georgia,serif; font-size:13px; font-weight:600;
+  letter-spacing:.2em; text-transform:uppercase; color:var(--gold);
+  margin:36px 0 12px; padding-bottom:6px; border-bottom:1px solid var(--rule) }
+nav { position:sticky; top:env(safe-area-inset-top, 0px); z-index:5;
+  background:var(--ground); margin:18px -16px 0; padding:10px 16px;
+  display:flex; gap:8px; overflow-x:auto; border-bottom:1px solid var(--rule);
+  scrollbar-width:none }
+nav a { flex:0 0 auto; display:flex; align-items:center; gap:6px; color:var(--ink);
+  text-decoration:none; font-size:11px; text-transform:uppercase;
+  border:1px solid var(--rule); border-radius:999px; padding:4px 10px 4px 4px;
+  background:var(--panel) }
+nav a.plain { padding-left:10px }
+nav img { width:22px; height:22px; object-fit:contain; image-rendering:pixelated }
+nav a:focus-visible, a:focus-visible { outline:2px solid var(--gold); outline-offset:2px }
+.legend { display:flex; flex-wrap:wrap; gap:14px; font-size:14px; color:var(--dim); margin:14px 0 0 }
+.legend i { display:inline-block; width:12px; height:12px; border-radius:2px;
+  vertical-align:-1px; margin-right:6px }
+.card { background:var(--panel); border:1px solid var(--rule); border-radius:4px;
+  padding:16px; margin:0 0 16px; scroll-margin-top:64px }
+.card-head { display:flex; gap:12px; align-items:center }
+.portrait { width:60px; height:60px; object-fit:contain; image-rendering:pixelated;
+  background:var(--panel2); border-radius:3px; flex:0 0 auto }
+h3 { font-family:Cinzel,Georgia,serif; font-size:21px; font-weight:800; margin:0;
+  text-wrap:balance; display:flex; flex-wrap:wrap; align-items:center; gap:8px }
+.kind { color:var(--dim); font-size:15px; margin:2px 0 0 }
+.tag { font-size:10px; text-transform:uppercase; font-weight:600; color:var(--ground);
+  background:var(--gold); border-radius:999px; padding:2px 8px }
+.tag.shell { background:#8fa3ad }
+.body { display:flex; gap:14px; align-items:center; margin:14px 0 10px; flex-wrap:wrap }
+.shape { margin:0; display:flex; flex-direction:column; gap:6px }
+.grid { width:132px; height:auto; display:block }
+.shape figcaption, .small { font-size:14px; color:var(--dim) }
+.walk { image-rendering:pixelated; flex:1 1 160px; min-width:0; max-width:240px;
+  height:auto; border-left:1px solid var(--rule); padding-left:14px }
+.bring { margin:8px 0 2px; font-size:18px }
+.bring span, .crates span, .shop li span { font-size:10px; text-transform:uppercase;
+  color:var(--gold); margin-right:6px }
+.why { margin:0 0 12px; color:var(--ink) }
+.scroll { overflow-x:auto }
+table { border-collapse:collapse; width:100%; font-size:14px; font-variant-numeric:tabular-nums }
+th { font-size:10px; text-transform:uppercase; color:var(--faint); text-align:left;
+  font-weight:600; padding:4px 8px 4px 0; border-bottom:1px solid var(--rule) }
+td { padding:5px 8px 5px 0; border-bottom:1px solid #2c261c; vertical-align:top }
+tbody th { font-size:13px; color:var(--ink); border-bottom:1px solid #2c261c }
+td.num { white-space:nowrap }
+td.rooms { color:var(--dim) }
+.change { margin:12px 0; color:var(--dim) }
+.change q { color:var(--ink); font-style:italic }
+.phases { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px }
+.phase { margin:0; background:var(--panel2); border-radius:3px; padding:12px;
+  display:flex; flex-direction:column; gap:8px }
+.phase figcaption { font-size:14px; color:var(--dim) }
+.phase figcaption b { font-size:11px; text-transform:uppercase; color:var(--gold) }
+.phase p { margin:0 }
+.tier { margin:0 0 22px }
+.tier h3 { font-size:19px }
+.route { font-size:14px; color:var(--dim); margin:6px 0 10px }
+.shop { border-left:2px solid var(--rule); padding-left:12px; margin:0 0 10px }
+.shop h4 { font-family:Cinzel,Georgia,serif; font-size:13px; letter-spacing:.08em; margin:0 0 4px }
+.shop ul { list-style:none; margin:0; padding:0; display:grid; gap:4px; font-size:15px }
+.shop small { color:var(--faint); font-variant-numeric:tabular-nums }
+.crates { font-size:15px; color:var(--dim) }
+footer { margin-top:40px; font-size:13px; color:var(--faint) }
+@media (prefers-reduced-motion: reduce) { .walk { display:none } }
+
+.layout { max-width:600px; margin:0 auto }
+.guide p { max-width:62ch }
+.guide h3 { font-size:19px; margin:22px 0 8px }
+.guide ul { padding-left:20px; margin:0 0 12px }
+.guide li { margin:0 0 4px }
+.phone { font-family:"IBM Plex Mono",Menlo,monospace; font-size:14px;
+  background:#0d0b09; border:1px solid var(--rule); border-radius:3px;
+  padding:10px 12px; display:grid; gap:6px; margin:0 0 12px; overflow-x:auto }
+.phone .worse { color:#ff7070 } .phone .better { color:#82d282 } .phone .locked { color:#9a9a9a }
+.room { border-left:2px solid var(--rule); padding:2px 0 2px 12px; margin:18px 0 12px }
+.room h4 { font-family:Cinzel,Georgia,serif; font-size:15px; letter-spacing:.06em; margin:0 }
+.room p { margin:2px 0 0; font-size:15px; color:var(--dim) }
+.room a { color:var(--ink) }
+.badge { font-family:Cinzel,Georgia,serif; font-size:9px; letter-spacing:.12em;
+  text-transform:uppercase; border:1px solid var(--rule); border-radius:999px;
+  padding:1px 7px; margin-left:6px; color:var(--gold); vertical-align:2px }
+.tierhead { background:var(--panel2); border:1px solid var(--rule); border-radius:4px;
+  padding:14px 16px; margin:28px 0 10px }
+.tierhead h3 { font-size:22px }
+nav .group { display:contents }
+@media (min-width: 920px) {
+  .layout { display:grid; grid-template-columns:200px minmax(0, 600px); gap:36px;
+    max-width:880px }
+  nav { position:sticky; top:calc(env(safe-area-inset-top, 0px) + 16px); align-self:start;
+    flex-direction:column; margin:0; padding:0; border:0; overflow:visible;
+    max-height:calc(100vh - 32px); overflow-y:auto; gap:4px }
+  nav a { border:0; background:none; padding:2px 0; font-size:11px }
+  nav a.plain { padding-left:0 }
+  nav .group { display:flex; flex-direction:column; gap:2px; margin-top:10px }
+  nav a.tierlink { font-size:10px; letter-spacing:.2em; color:var(--gold) }
+  .page { padding-block:32px 64px }
+}
+</style>
+<div class="layout">
+  <nav aria-label="Contents"><div class="group"><a class="plain tierlink" href="#hero">Start here</a><a class="plain" href="#hero">Your hero</a><a class="plain" href="#fight">The fight</a><a class="plain" href="#weapons">Weapons</a><a class="plain" href="#items">Items &amp; shops</a></div><div class="group"><a class="plain tierlink" href="#tier-i">Tier I</a><a href="#gorrak"><img src="img/sheet-28.png" alt="">Gorrak</a><a href="#beetle"><img src="img/sheet-25.png" alt="">Beetle</a></div><div class="group"><a class="plain tierlink" href="#tier-ii">Tier II</a><a href="#skeleton"><img src="img/sheet-29.png" alt="">Skeleton</a><a href="#fungusman"><img src="img/sheet-32.png" alt="">Fungusman</a><a href="#fire-devil"><img src="img/sheet-42.png" alt="">Fire Devil</a><a href="#mira"><img src="img/sheet-0.png" alt="">Mira</a><a href="#aldor"><img src="img/sheet-0.png" alt="">Aldor</a></div><div class="group"><a class="plain tierlink" href="#tier-iii">Tier III</a><a href="#ghost"><img src="img/sheet-27.png" alt="">Ghost</a><a href="#beholder"><img src="img/sheet-35.png" alt="">The Beholder</a><a href="#golem"><img src="img/sheet-24.png" alt="">Golem</a><a href="#shirard"><img src="img/sheet-34.png" alt="">Shirard</a></div></nav>
+  <div class="page">
+    <p class="eyebrow">Era of Eidolon · Shirard's Forge</p>
+    <h1>Shirard's Forge Companion</h1>
+    <p class="lede">Everything the game does not tell you, in the order you need it: your hero, how a fight works, the three kinds of weapon, the shops, and then the route, room by room, with each creature where you first meet it.</p>
+    
+<section class="guide" id="hero">
+  <h2>Your hero</h2>
+  <p>You start at level 0 with 40 life, 0 gold and every ability at 3 (Strength 3, Intelligence 3, Dexterity 3, Toughness 3, Willpower 3, Speed 3). You carry the Bloody Blade and wear the Scrapsuit; the Short Bow is in your pack for when you want it.</p>
+  <h3>Levels</h3>
+  <p>A level costs 60, 80, 100, 120… experience, twenty more each time. A kill pays by the creature and its tier; a boss pays once, when it finally falls. Each level gives 6 more life (plus whatever Toughness adds), a full heal and <b>2 raise points</b>. One point adds 3 to an ability under 48, 2 under 78 and 1 above that. A full clear of the chapter lands you near level 12.</p>
+  <h3>What each ability does</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Ability</th><th>Does</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Strength</th><td>Adds to every blade blow (see Weapons). Blades and all suits ask for it.</td></tr>
+      <tr><th scope="row">Dexterity</th><td>Adds to every bow shot. Half of it is added to your chance to hit with anything, and half of it to your chance to be missed. Bows ask for it.</td></tr>
+      <tr><th scope="row">Intelligence</th><td>All of it goes into Zap's damage.</td></tr>
+      <tr><th scope="row">Willpower</th><td>All of it goes into Minor Cure's healing.</td></tr>
+      <tr><th scope="row">Toughness</th><td>Life. Every point above 3 adds 5, so one raise point (+3) is 15 life, about two levels' worth.</td></tr>
+      <tr><th scope="row">Speed</th><td>Every action is quicker: moving, swinging, shooting, dodging, casting. At Speed 27 an action takes 83% of its time; the fight bar shows the times you actually pay.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Where to put the third point</h3>
+  <p>Put two of every three points into your weapon's ability: Strength for a blade, Dexterity for a bow. The third point is a choice of style, and all three work:</p>
+  <ul>
+    <li><b>Dexterity</b> (Strength for an archer): you hit and dodge more often, or wear better suits. The all-rounder.</li>
+    <li><b>Toughness</b>: the tank. About twice the life by the end of the chapter and a third more mistakes survived, at the cost of fights running a little longer.</li>
+    <li><b>Speed</b>: the tempo fighter. Fights end sooner and bosses fall faster, and a sword's shorter swing fits between more enemy blows. Fewer mistakes are survivable.</li>
+  </ul>
+</section>
+<section class="guide" id="fight">
+  <h2>The fight</h2>
+  <p>A turn is 720 units. You plan yours, then both sides play out on the same clock: your blows and theirs land in time order. Walking into place usually takes a few steps first.</p>
+  <h3>The fight bar</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Action</th><th>Takes</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Move</th><td class="num">40 a step</td><td>Straight steps only.</td></tr>
+      <tr><th scope="row">Hit</th><td class="num">the blade's Ti</td><td>A blow at a creature beside you.</td></tr>
+      <tr><th scope="row">Shoot</th><td class="num">the bow's Ti</td><td>Needs a bow in hand, a clear line, and the target not beside you. The arrow takes the first creature on the line.</td></tr>
+      <tr><th scope="row">Dodge</th><td class="num">20</td><td>Adds 10 to your chance to be missed for the rest of the turn.</td></tr>
+      <tr><th scope="row">Zap</th><td class="num">60</td><td>A ray onto the exact square you name, anywhere in sight. Ignores armour and shells. Deals 9 + Intelligence, less the target's resistance.</td></tr>
+      <tr><th scope="row">Minor Cure</th><td class="num">60</td><td>Heals 8 + Willpower. Works 70% of the time.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Hitting and being hit</h3>
+  <p>Your blow lands 100 + half your Dexterity − the creature's avoidance (about 12 to 16) times in a hundred. Half of the blows that land are precise (×1.5) and one in fifteen is a critical (×2). A creature's blow lands 70 − your avoidance (half your Dexterity, plus Dodge). Your suit takes its E off every blow that lands.</p>
+  <h3>Shapes</h3>
+  <p>No creature strikes every square around it. Each one strikes its own shape, shown on its card, drawn facing right. It picks its facing before the turn plays and walks until its shape covers the square you started on. Step off that shape before its blow lands and the blow misses: <i>Out of reach</i>. One whole turn standing inside a shape costs about a third of the life you are expected to have in that tier. Hold a bow and every ordinary creature instead walks up and strikes all eight squares around it. Bosses keep their shapes.</p>
+  <h3>Practice</h3>
+  <p>Every action and every weapon line has a title: Fumbler, Beginner, Trained, Experienced, Master, Expert, Sensei. Each use that lands adds 5% towards the next one, kept only if you win the fight. Each title adds 1 to that action's effect and takes 5% off its time.</p>
+</section>
+<section class="guide" id="weapons">
+  <h2>Three kinds of weapon</h2>
+  <p>Every trader tier sells a sword, an axe or hammer, and a bow at each price, and the best of each deals the same damage over a turn. What separates them is the job.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Kind</th><th>Swing</th><th>Blows</th><th>Best against</th><th>The catch</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Sword</th><td class="num">96–126</td><td class="num">4–5</td><td>Soft packs: Gorraks, Skeletons, Ghosts, Fire Devils. Small blows waste little on each kill, and a short swing fits between a creature's blows.</td><td>A shell takes a big bite out of every small blow.</td></tr>
+      <tr><th scope="row">Axe, hammer</th><td class="num">195–240</td><td class="num">2</td><td>Shells (Beetles, Golems), big single creatures, bosses.</td><td>A long swing roots you in place, and quick creatures land a blow while you swing.</td></tr>
+      <tr><th scope="row">Bow</th><td class="num">255</td><td class="num">2</td><td>Shells, and creatures on their way to you: your first shot at each is free while it walks in.</td><td>Nothing beside you, a clear line needed, creatures strike all eight squares, and better suits need Strength.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>How your ability adds</h3>
+  <p>A blow adds a third of your Strength (Dexterity for a bow), scaled by how long the swing takes against 120. At Strength 35 the Ghost Sword (Ti126) adds 12 to each of its 4 blows a turn, about 48; the Doom Hammer (Ti240) adds 23 to each of its 2, about 46. Raising your ability helps every weapon about equally, so pick the weapon for the job and the ability for the weapon.</p>
+  <h3>The footwork rule</h3>
+  <p>A blow is safe from its target when stepping in, swinging and stepping out (80 + the swing) is shorter than the time between two of its blows. Each creature's card says which blades manage it.</p>
+</section>
+<section class="guide" id="items">
+  <h2>Items and shops</h2>
+  <h3>Reading a market line</h3>
+  <div class="phone" aria-label="Market lines as the phone shows them">
+    <span class="better">Corrupter E-2 Ti96 240g</span>
+    <span class="locked">Giant Sword E9 Ti120 460g</span>
+    <span>Snail Shell E4 100g</span>
+  </div>
+  <ul>
+    <li><b>E</b> on a weapon is added to every blow; it can be negative on a cheap weapon. On a suit it is taken off every blow you take.</li>
+    <li><b>Ti</b> is how much of the 720-unit turn one swing takes. Suits have none.</li>
+    <li>The price comes last. What a piece asks for is not on the line: buying one you cannot wear yet tells you, as in <i>You need Strength 13.</i></li>
+  </ul>
+  <h3>The colours</h3>
+  <ul>
+    <li><span class="phone-inline better">Green</span>: better than what you wear in that slot, and you can pay for it.</li>
+    <li><span class="phone-inline worse">Red</span>: worse than what you wear.</li>
+    <li><span class="phone-inline locked">Grey</span>: your ability is still too low to wear it.</li>
+    <li>No colour: a different kind of weapon from yours, or better but beyond your purse.</li>
+  </ul>
+  <p>A weapon is compared by the damage it deals over a turn, not by its E, so a fast sword with a small E can be green next to a hammer with a big one.</p>
+  <h3>Selling</h3>
+  <p>Traders do not buy. <b>Recycle</b> on an item breaks it and gives you 30% of its price. It is the only way to turn gear back into gold, and every crate holds something worth keeping or breaking.</p>
+  <h3>Traders and crates</h3>
+  <p>Five traders, one plan per tier. Each trader sells its own tier; where a tier has two, the nearer one sells the cheaper half and the further one the better half, and each keeps the best piece of the shop before it. Every crate holds an item. A few on the main path hold the next step up for you: a better weapon of the kind in your hand, or a better suit. Every other crate holds a spare from that tier or below that you do not carry yet: switch to it, or recycle it for gold. Past tier I no crate holds the best piece of its tier, which is the trader's. The first crate in the Village gives a new hero a better weapon he can wear at once.</p>
+  <p class="small">Charms, bombs and the other skills and spells in the catalogue do nothing in this chapter and are not sold.</p>
+</section>
+    <h2 id="route">The route</h2>
+    <p class="small">Rooms in the order the chapter is meant to be walked. A creature's card appears where you first meet it. On each card, red squares are where it strikes, green are safe squares beside it, and the pale circle is the creature itself, facing right.</p>
+    
+<section id="tier-i">
+  <div class="tierhead">
+    <h3>Tier I</h3>
+    <p class="kind">Arrive around level 0 with 40 life, main ability 3 and a Scrapsuit.</p>
+  </div>
+  <div class="shop"><h4>Lava Island</h4><ul><li><span>Melee</span> Bloody Blade <small>32g · Str 3</small>, Corrupter <small>240g · Str 3</small>, Spike Axe <small>240g · Str 3</small></li><li><span>Bows</span> Short Bow <small>32g · Dex 3</small>, Medium Bow <small>240g · Dex 3</small></li><li><span>Suits</span> Scrapsuit <small>32g · Str 3</small>, Snail Shell <small>100g · Str 9</small></li></ul></div>
+  <div class="room" id="room-1">
+    <h4>Village</h4>
+    <p><a href="#gorrak">Gorrak</a> · Gear crate: weapon step</p>
+  </div>
+<article class="card" id="gorrak">
+  <header class="card-head">
+    <img class="portrait" src="img/sheet-28.png" alt="" width="60" height="60">
+    <div>
+      <h3>Gorrak </h3>
+      <p class="kind">3 blows a turn · strikes two squares straight ahead</p>
+    </div>
+  </header>
+  <div class="body">
+    <figure class="shape">
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Gorrak strikes two squares straight ahead"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <figcaption>Safe on 7 of the 8 squares beside it</figcaption>
+    </figure>
+    <img class="walk" src="img/sheet-28-walk.gif" alt="Gorrak walking" loading="lazy">
+  </div>
+  <p class="bring"><span>Bring</span> Sword</p>
+  <p class="why">No shell, so small blows lose nothing and waste little on the kill. It swings every 199: a blow that fits between two swings, stepping in and out, lets you hit it untouched. That is Bloody Blade, Corrupter.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Tier</th><th>Life</th><th>Shell</th><th>A turn in reach</th><th>Pays</th><th>Where</th></tr></thead>
+    <tbody><tr><th scope="row">I</th><td class="num">38</td><td class="num">–</td><td class="num">43%</td><td class="num">24g&nbsp;·&nbsp;24xp</td><td class="rooms">Village&nbsp;1, Lava Island&nbsp;5, The Long Run&nbsp;3</td></tr><tr><th scope="row">II</th><td class="num">85</td><td class="num">–</td><td class="num">40%</td><td class="num">7g&nbsp;·&nbsp;14xp</td><td class="rooms">Aldor&#x27;s Outpost&nbsp;5</td></tr><tr><th scope="row">III</th><td class="num">152</td><td class="num">–</td><td class="num">40%</td><td class="num">2g&nbsp;·&nbsp;24xp</td><td class="rooms">The Lair&nbsp;4</td></tr></tbody>
+  </table></div>
+</article>
+  <div class="room" id="room-15">
+    <h4>Dune Burrow</h4>
+    <p><a href="#beetle">Beetle</a> ×2</p>
+  </div>
+<article class="card" id="beetle">
+  <header class="card-head">
+    <img class="portrait" src="img/sheet-25.png" alt="" width="60" height="60">
+    <div>
+      <h3>Beetle <span class="tag shell">Shelled</span></h3>
+      <p class="kind">3 blows a turn · strikes both shoulders, left and right</p>
+    </div>
+  </header>
+  <div class="body">
+    <figure class="shape">
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Beetle strikes both shoulders, left and right"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <figcaption>Safe on 6 of the 8 squares beside it</figcaption>
+    </figure>
+    <img class="walk" src="img/sheet-25-walk.gif" alt="Beetle walking" loading="lazy">
+  </div>
+  <p class="bring"><span>Bring</span> Heavy weapon or bow</p>
+  <p class="why">Its shell takes 3 off every blow: about 33% of a Corrupter&#x27;s, 12% of a Spike Axe&#x27;s. Big blows lose least. Zap ignores the shell.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Tier</th><th>Life</th><th>Shell</th><th>A turn in reach</th><th>Pays</th><th>Where</th></tr></thead>
+    <tbody><tr><th scope="row">I</th><td class="num">35</td><td class="num">3</td><td class="num">37%</td><td class="num">30g&nbsp;·&nbsp;30xp</td><td class="rooms">Dune Burrow&nbsp;2, Lava Island&nbsp;4</td></tr><tr><th scope="row">II</th><td class="num">78</td><td class="num">8</td><td class="num">37%</td><td class="num">9g&nbsp;·&nbsp;18xp</td><td class="rooms">Fire Cave&nbsp;2</td></tr><tr><th scope="row">III</th><td class="num">140</td><td class="num">14</td><td class="num">36%</td><td class="num">3g&nbsp;·&nbsp;30xp</td><td class="rooms">The Lair&nbsp;5, Lava Pit&nbsp;2</td></tr></tbody>
+  </table></div>
+</article>
+  <div class="room" id="room-2">
+    <h4>Lava Island<span class="badge">Trader</span></h4>
+    <p><a href="#beetle">Beetle</a> ×4, <a href="#gorrak">Gorrak</a> ×5 · Gear crate: suit step</p>
+  </div>
+  <div class="room" id="room-9">
+    <h4>The Long Run</h4>
+    <p><a href="#gorrak">Gorrak</a> ×3 · 1 crate with a spare</p>
+  </div></section>
+<section id="tier-ii">
+  <div class="tierhead">
+    <h3>Tier II</h3>
+    <p class="kind">Arrive around level 4 with 64 life, main ability 19 and a Snail Shell.</p>
+  </div>
+  <div class="shop"><h4>Dwarven Hall</h4><ul><li><span>Melee</span> Spike Axe <small>240g · Str 3</small>, Giant Sword <small>460g · Str 13</small>, Razor Axe <small>299g · Str 17</small></li><li><span>Bows</span> Medium Bow <small>240g · Dex 3</small>, Long Bow <small>299g · Dex 15</small></li><li><span>Suits</span> Snail Shell <small>100g · Str 9</small>, Iron Shell <small>182g · Str 15</small></li></ul></div><div class="shop"><h4>Fire Cave</h4><ul><li><span>Melee</span> Razor Axe <small>299g · Str 17</small>, Smasher <small>460g · Str 20</small></li><li><span>Bows</span> Long Bow <small>299g · Dex 15</small>, Heavy Bow <small>460g · Dex 22</small></li><li><span>Suits</span> Iron Shell <small>182g · Str 15</small>, Doom Suit <small>292g · Str 22</small></li></ul></div>
+  <div class="room" id="room-3">
+    <h4>Dwarven Hall<span class="badge">Trader</span></h4>
+    <p><a href="#skeleton">Skeleton</a> ×9 · Gear crate: weapon step · 2 crates with a spare</p>
+  </div>
+<article class="card" id="skeleton">
+  <header class="card-head">
+    <img class="portrait" src="img/sheet-29.png" alt="" width="60" height="60">
+    <div>
+      <h3>Skeleton </h3>
+      <p class="kind">4 blows a turn · strikes the one square in front</p>
+    </div>
+  </header>
+  <div class="body">
+    <figure class="shape">
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Skeleton strikes the one square in front"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <figcaption>Safe on 7 of the 8 squares beside it</figcaption>
+    </figure>
+    <img class="walk" src="img/sheet-29-walk.gif" alt="Skeleton walking" loading="lazy">
+  </div>
+  <p class="bring"><span>Bring</span> Sword</p>
+  <p class="why">No shell, so small blows lose nothing and waste little on the kill. It swings every 180: a blow that fits between two swings, stepping in and out, lets you hit it untouched. That is Bloody Blade, Corrupter.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Tier</th><th>Life</th><th>Shell</th><th>A turn in reach</th><th>Pays</th><th>Where</th></tr></thead>
+    <tbody><tr><th scope="row">II</th><td class="num">68</td><td class="num">–</td><td class="num">42%</td><td class="num">5g&nbsp;·&nbsp;11xp</td><td class="rooms">Dwarven Hall&nbsp;9, Old Shrine&nbsp;15, Ilrik&#x27;s Tomb&nbsp;4</td></tr></tbody>
+  </table></div>
+</article>
+  <div class="room" id="room-8">
+    <h4>Old Shrine</h4>
+    <p><a href="#skeleton">Skeleton</a> ×15 · 4 crates with a spare</p>
+  </div>
+  <div class="room" id="room-10">
+    <h4>Cave of Doom</h4>
+    <p><a href="#fungusman">Fungusman</a> ×2 · 2 crates with a spare</p>
+  </div>
+<article class="card" id="fungusman">
+  <header class="card-head">
+    <img class="portrait" src="img/sheet-32.png" alt="" width="60" height="60">
+    <div>
+      <h3>Fungusman </h3>
+      <p class="kind">2 blows a turn · strikes four squares two away, straight out</p>
+    </div>
+  </header>
+  <div class="body">
+    <figure class="shape">
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Fungusman strikes four squares two away, straight out"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <figcaption>Safe on 8 of the 8 squares beside it</figcaption>
+    </figure>
+    <img class="walk" src="img/sheet-32-walk.gif" alt="Fungusman walking" loading="lazy">
+  </div>
+  <p class="bring"><span>Bring</span> Anything</p>
+  <p class="why">No shell, and it swings only every 360: even a heavy blow fits between two of its swings if you step in and out.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Tier</th><th>Life</th><th>Shell</th><th>A turn in reach</th><th>Pays</th><th>Where</th></tr></thead>
+    <tbody><tr><th scope="row">II</th><td class="num">147</td><td class="num">–</td><td class="num">41%</td><td class="num">15g&nbsp;·&nbsp;30xp</td><td class="rooms">Cave of Doom&nbsp;2, Mira&#x27;s Hideout&nbsp;5</td></tr><tr><th scope="row">III</th><td class="num">264</td><td class="num">–</td><td class="num">40%</td><td class="num">5g&nbsp;·&nbsp;50xp</td><td class="rooms">Golem Secret&nbsp;4</td></tr></tbody>
+  </table></div>
+</article>
+  <div class="room" id="room-12">
+    <h4>Fire Cave<span class="badge">Trader</span></h4>
+    <p><a href="#fire-devil">Fire Devil</a> ×2, <a href="#beetle">Beetle</a> ×2</p>
+  </div>
+<article class="card" id="fire-devil">
+  <header class="card-head">
+    <img class="portrait" src="img/sheet-42.png" alt="" width="60" height="60">
+    <div>
+      <h3>Fire Devil </h3>
+      <p class="kind">3 blows a turn · strikes two rows of three in front</p>
+    </div>
+  </header>
+  <div class="body">
+    <figure class="shape">
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Fire Devil strikes two rows of three in front"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <figcaption>Safe on 5 of the 8 squares beside it</figcaption>
+    </figure>
+    <img class="walk" src="img/sheet-42-walk.gif" alt="Fire Devil walking" loading="lazy">
+  </div>
+  <p class="bring"><span>Bring</span> Sword</p>
+  <p class="why">No shell, so small blows lose nothing and waste little on the kill. It swings every 186: a blow that fits between two swings, stepping in and out, lets you hit it untouched. That is Bloody Blade, Corrupter.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Tier</th><th>Life</th><th>Shell</th><th>A turn in reach</th><th>Pays</th><th>Where</th></tr></thead>
+    <tbody><tr><th scope="row">II</th><td class="num">74</td><td class="num">–</td><td class="num">37%</td><td class="num">6g&nbsp;·&nbsp;12xp</td><td class="rooms">Fire Cave&nbsp;2</td></tr><tr><th scope="row">III</th><td class="num">133</td><td class="num">–</td><td class="num">36%</td><td class="num">2g&nbsp;·&nbsp;20xp</td><td class="rooms">Crypt&nbsp;4</td></tr></tbody>
+  </table></div>
+</article>
+  <div class="room" id="room-14">
+    <h4>Ilrik&#x27;s Tomb</h4>
+    <p><a href="#skeleton">Skeleton</a> ×4</p>
+  </div>
+  <div class="room" id="room-4">
+    <h4>Mira&#x27;s Hideout</h4>
+    <p><a href="#mira">Mira</a>, <a href="#fungusman">Fungusman</a> ×5 · Gear crate: suit step · 1 crate with a spare</p>
+  </div>
+<article class="card boss" id="mira">
+  <header class="card-head">
+    <img class="portrait" src="img/sheet-0.png" alt="" width="60" height="60">
+    <div>
+      <h3>Mira <span class="tag">Boss · tier II</span></h3>
+      <p class="kind">Mira&#x27;s Hideout · 3 blows a turn · two phases of 200 life</p>
+    </div>
+  </header>
+  <p class="change">When the first bar empties: <q>Mira drops her bow and draws a blade</q>. The bar refills and the safe squares change.</p>
+  <div class="phases">
+    <figure class="phase">
+      <figcaption><b>Phase 1</b> · a line two to five squares ahead</figcaption>
+      <svg class="grid" viewBox="0 0 262 262" role="img" aria-label="Mira, phase 1: a line two to five squares ahead"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="120" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="216" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="240" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="120" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="216" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="240" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="120" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="216" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="240" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="120" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="216" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="240" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="120" y="96" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="144" y="96" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="168" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="216" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="240" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="120" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="120" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="120" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="120" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="120" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="120" y="120" width="22" height="22" rx="11" fill="var(--me)"/><path d="M127.0 125.0 L138.0 131.0 L127.0 137.0 Z" fill="var(--ground)"/><rect x="144" y="120" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="168" y="120" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="192" y="120" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="216" y="120" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="240" y="120" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="0" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="144" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="120" y="144" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="144" y="144" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="168" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="216" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="240" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="120" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="216" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="240" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="120" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="216" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="240" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="216" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="216" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="216" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="216" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="216" width="22" height="22" rx="3" fill="var(--void)"/><rect x="120" y="216" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="216" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="216" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="216" width="22" height="22" rx="3" fill="var(--void)"/><rect x="216" y="216" width="22" height="22" rx="3" fill="var(--void)"/><rect x="240" y="216" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="240" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="240" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="240" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="240" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="240" width="22" height="22" rx="3" fill="var(--void)"/><rect x="120" y="240" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="240" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="240" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="240" width="22" height="22" rx="3" fill="var(--void)"/><rect x="216" y="240" width="22" height="22" rx="3" fill="var(--void)"/><rect x="240" y="240" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <p>She shoots down the line she faces, two to five squares out. Close in: nothing beside her is hit.</p>
+      <p class="small">A turn in reach costs about 40% of a tier II hero's life.</p>
+    </figure>
+    <figure class="phase">
+      <figcaption><b>Phase 2</b> · front, both front corners and both shoulders</figcaption>
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Mira, phase 2: front, both front corners and both shoulders"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <p>Blade in hand, she covers the three squares in front and both shoulders. Get behind her.</p>
+      <p class="small">A turn in reach costs about 37% of a tier II hero's life.</p>
+    </figure></div>
+  <p class="small">Pays 18g and 36xp once, when the second bar empties. Fleeing resets it to phase 1.</p>
+</article>
+  <div class="room" id="room-11">
+    <h4>Aldor&#x27;s Outpost</h4>
+    <p><a href="#aldor">Aldor</a>, <a href="#gorrak">Gorrak</a> ×5 · 3 crates with a spare</p>
+  </div>
+<article class="card boss" id="aldor">
+  <header class="card-head">
+    <img class="portrait" src="img/sheet-0.png" alt="" width="60" height="60">
+    <div>
+      <h3>Aldor <span class="tag">Boss · tier II</span></h3>
+      <p class="kind">Aldor&#x27;s Outpost · 3 blows a turn · two phases of 200 life</p>
+    </div>
+  </header>
+  <p class="change">When the first bar empties: <q>Aldor roars and swings wide</q>. The bar refills and the safe squares change.</p>
+  <div class="phases">
+    <figure class="phase">
+      <figcaption><b>Phase 1</b> · the front and one shoulder</figcaption>
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Aldor, phase 1: the front and one shoulder"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <p>He guards his front and one shoulder. Take the other shoulder or his back.</p>
+      <p class="small">A turn in reach costs about 37% of a tier II hero's life.</p>
+    </figure>
+    <figure class="phase">
+      <figcaption><b>Phase 2</b> · front, both front corners and both shoulders</figcaption>
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Aldor, phase 2: front, both front corners and both shoulders"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <p>He swings wide: front, both front corners and both shoulders. Only the three squares behind him are safe.</p>
+      <p class="small">A turn in reach costs about 37% of a tier II hero's life.</p>
+    </figure></div>
+  <p class="small">Pays 18g and 36xp once, when the second bar empties. Fleeing resets it to phase 1.</p>
+</article></section>
+<section id="tier-iii">
+  <div class="tierhead">
+    <h3>Tier III</h3>
+    <p class="kind">Arrive around level 8 with 88 life, main ability 35 and a Iron Shell.</p>
+  </div>
+  <div class="shop"><h4>The Lair</h4><ul><li><span>Melee</span> Smasher <small>460g · Str 20</small>, Ghost Sword <small>760g · Str 24</small>, Bone Crusher <small>494g · Str 27</small></li><li><span>Bows</span> Heavy Bow <small>460g · Dex 22</small>, Bolt Bow <small>494g · Dex 28</small></li><li><span>Suits</span> Doom Suit <small>292g · Str 22</small>, Trollskin <small>356g · Str 28</small></li></ul></div><div class="shop"><h4>The Core</h4><ul><li><span>Melee</span> Bone Crusher <small>494g · Str 27</small>, Beheader Axe <small>627g · Str 31</small>, Doom Hammer <small>760g · Str 34</small></li><li><span>Bows</span> Bolt Bow <small>494g · Dex 28</small>, Doombow <small>760g · Dex 34</small></li><li><span>Suits</span> Trollskin <small>356g · Str 28</small>, Spike Suit <small>388g · Str 34</small></li></ul></div>
+  <div class="room" id="room-5">
+    <h4>The Lair<span class="badge">Trader</span></h4>
+    <p><a href="#beetle">Beetle</a> ×5, <a href="#gorrak">Gorrak</a> ×4 · Gear crate: weapon step</p>
+  </div>
+  <div class="room" id="room-16">
+    <h4>Crypt</h4>
+    <p><a href="#ghost">Ghost</a> ×3, <a href="#fire-devil">Fire Devil</a> ×4 · 2 crates with a spare</p>
+  </div>
+<article class="card" id="ghost">
+  <header class="card-head">
+    <img class="portrait" src="img/sheet-27.png" alt="" width="60" height="60">
+    <div>
+      <h3>Ghost </h3>
+      <p class="kind">3 blows a turn · strikes the square in front and the one behind</p>
+    </div>
+  </header>
+  <div class="body">
+    <figure class="shape">
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Ghost strikes the square in front and the one behind"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <figcaption>Safe on 6 of the 8 squares beside it</figcaption>
+    </figure>
+    <img class="walk" src="img/sheet-27-walk.gif" alt="Ghost walking" loading="lazy">
+  </div>
+  <p class="bring"><span>Bring</span> Sword</p>
+  <p class="why">No shell, so small blows lose nothing and waste little on the kill. It swings every 186: a blow that fits between two swings, stepping in and out, lets you hit it untouched. That is Bloody Blade, Corrupter.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Tier</th><th>Life</th><th>Shell</th><th>A turn in reach</th><th>Pays</th><th>Where</th></tr></thead>
+    <tbody><tr><th scope="row">III</th><td class="num">133</td><td class="num">–</td><td class="num">36%</td><td class="num">2g&nbsp;·&nbsp;20xp</td><td class="rooms">Crypt&nbsp;3</td></tr></tbody>
+  </table></div>
+</article>
+  <div class="room" id="room-13">
+    <h4>The Evil Eye</h4>
+    <p><a href="#beholder">The Beholder</a> · 2 crates with a spare</p>
+  </div>
+<article class="card boss" id="beholder">
+  <header class="card-head">
+    <img class="portrait" src="img/sheet-35.png" alt="" width="60" height="60">
+    <div>
+      <h3>The Beholder <span class="tag">Boss · tier III</span></h3>
+      <p class="kind">The Evil Eye · 3 blows a turn · two phases of 360 life</p>
+    </div>
+  </header>
+  <p class="change">When the first bar empties: <q>The Eye glares down four lines</q>. The bar refills and the safe squares change.</p>
+  <div class="phases">
+    <figure class="phase">
+      <figcaption><b>Phase 1</b> · the four diagonals</figcaption>
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Beholder, phase 1: the four diagonals"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <p>It strikes the four diagonals. Stand square on, beside it, and it cannot touch you.</p>
+      <p class="small">A turn in reach costs about 34% of a tier III hero's life.</p>
+    </figure>
+    <figure class="phase">
+      <figcaption><b>Phase 2</b> · four straight lines, one to four squares out</figcaption>
+      <svg class="grid" viewBox="0 0 214 214" role="img" aria-label="Beholder, phase 2: four straight lines, one to four squares out"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="120" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="120" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="120" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="120" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="144" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="96" width="22" height="22" rx="11" fill="var(--me)"/><path d="M103.0 101.0 L114.0 107.0 L103.0 113.0 Z" fill="var(--ground)"/><rect x="120" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="144" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="168" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="192" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="0" y="120" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="120" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="120" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="120" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="120" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="120" y="120" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="144" y="120" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="120" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="120" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="144" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="120" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="144" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="168" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="120" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="168" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="192" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="120" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="144" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="168" y="192" width="22" height="22" rx="3" fill="var(--void)"/><rect x="192" y="192" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <p>It glares down the four straight lines, up to four squares. Now only the diagonals are safe.</p>
+      <p class="small">A turn in reach costs about 34% of a tier III hero's life.</p>
+    </figure></div>
+  <p class="small">Pays 6g and 60xp once, when the second bar empties. Fleeing resets it to phase 1.</p>
+</article>
+  <div class="room" id="room-6">
+    <h4>The Core<span class="badge">Trader</span></h4>
+    <p><a href="#golem">Golem</a> ×6 · Gear crate: suit step · 2 crates with a spare</p>
+  </div>
+<article class="card" id="golem">
+  <header class="card-head">
+    <img class="portrait" src="img/sheet-24.png" alt="" width="60" height="60">
+    <div>
+      <h3>Golem <span class="tag shell">Shelled</span></h3>
+      <p class="kind">2 blows a turn · strikes the three squares in front</p>
+    </div>
+  </header>
+  <div class="body">
+    <figure class="shape">
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Golem strikes the three squares in front"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <figcaption>Safe on 5 of the 8 squares beside it</figcaption>
+    </figure>
+    <img class="walk" src="img/sheet-24-walk.gif" alt="Golem walking" loading="lazy">
+  </div>
+  <p class="bring"><span>Bring</span> Heavy weapon or bow</p>
+  <p class="why">Its shell takes 22 off every blow: about 49% of a Ghost Sword&#x27;s, 21% of a Doom Hammer&#x27;s. Big blows lose least. Zap ignores the shell.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Tier</th><th>Life</th><th>Shell</th><th>A turn in reach</th><th>Pays</th><th>Where</th></tr></thead>
+    <tbody><tr><th scope="row">III</th><td class="num">129–165</td><td class="num">22</td><td class="num">35%</td><td class="num">5g&nbsp;·&nbsp;50xp</td><td class="rooms">The Core&nbsp;6, Golem Secret&nbsp;1</td></tr></tbody>
+  </table></div>
+</article>
+  <div class="room" id="room-17">
+    <h4>Lava Pit</h4>
+    <p><a href="#beetle">Beetle</a> ×2 · 1 crate with a spare</p>
+  </div>
+  <div class="room" id="room-18">
+    <h4>Golem Secret</h4>
+    <p><a href="#golem">Golem</a>, <a href="#fungusman">Fungusman</a> ×4 · 1 crate with a spare</p>
+  </div>
+  <div class="room" id="room-7">
+    <h4>The Forge</h4>
+    <p><a href="#shirard">Shirard</a></p>
+  </div>
+<article class="card boss" id="shirard">
+  <header class="card-head">
+    <img class="portrait" src="img/sheet-34.png" alt="" width="60" height="60">
+    <div>
+      <h3>Shirard <span class="tag">Boss · tier III</span></h3>
+      <p class="kind">The Forge · 3 blows a turn · two phases of 360 life</p>
+    </div>
+  </header>
+  <p class="change">When the first bar empties: <q>Shirard quits magic and draws a blade</q>. The bar refills and the safe squares change.</p>
+  <div class="phases">
+    <figure class="phase">
+      <figcaption><b>Phase 1</b> · the ring two squares out</figcaption>
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Shirard, phase 1: the ring two squares out"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--hit)"/></svg>
+      <p>A burst lands on the ring two squares out. Step in beside him and it passes over you.</p>
+      <p class="small">A turn in reach costs about 34% of a tier III hero's life.</p>
+    </figure>
+    <figure class="phase">
+      <figcaption><b>Phase 2</b> · front, both front corners and both shoulders</figcaption>
+      <svg class="grid" viewBox="0 0 118 118" role="img" aria-label="Shirard, phase 2: front, both front corners and both shoulders"><rect x="0" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="0" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="24" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="24" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="24" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="48" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="48" width="22" height="22" rx="11" fill="var(--me)"/><path d="M55.0 53.0 L66.0 59.0 L55.0 65.0 Z" fill="var(--ground)"/><rect x="72" y="48" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="48" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="72" width="22" height="22" rx="3" fill="var(--safe)"/><rect x="48" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="72" y="72" width="22" height="22" rx="3" fill="var(--hit)"/><rect x="96" y="72" width="22" height="22" rx="3" fill="var(--void)"/><rect x="0" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="24" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="48" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="72" y="96" width="22" height="22" rx="3" fill="var(--void)"/><rect x="96" y="96" width="22" height="22" rx="3" fill="var(--void)"/></svg>
+      <p>He draws a blade: front, both front corners and both shoulders. Get behind him.</p>
+      <p class="small">A turn in reach costs about 34% of a tier III hero's life.</p>
+    </figure></div>
+  <p class="small">Pays 6g and 60xp once, when the second bar empties. Fleeing resets it to phase 1.</p>
+</article></section>
+    <footer>Built from the reconstruction server's own numbers by tools/compendium_book.py. Rerun it after a balance change.</footer>
+  </div>
+</div>

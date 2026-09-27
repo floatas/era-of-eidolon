@@ -23,8 +23,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import codec
 import handlers
+import tiers
 from catalogue import catalogue
-from world import Saves, World, get_world
+from world import POTENCY_DIV, Saves, World, get_world
 
 FAILED = []
 
@@ -297,9 +298,13 @@ def main():
               top < len(w.node_states()), f"max node {top}")
 
     print("\nhandlers")
+    # 1..28 are the gen-2 opcodes proper; 31 is the map-loaded report the
+    # phone sends on top of them (handlers.report_place).
     check("every opcode the client can send has a handler",
-          set(handlers.HANDLERS) == set(range(1, 29)),
-          f"missing {sorted(set(range(1, 29)) - set(handlers.HANDLERS))}")
+          set(range(1, 29)) <= set(handlers.HANDLERS)
+          and set(handlers.HANDLERS) <= set(range(1, 29)) | {31},
+          f"missing {sorted(set(range(1, 29)) - set(handlers.HANDLERS))}, "
+          f"extra {sorted(set(handlers.HANDLERS) - set(range(1, 29)))}")
     for op in range(1, 29):
         resp = handlers.dispatch(Req(op))
         magic, status, count = frame(resp)
@@ -345,7 +350,10 @@ def main():
     c = catalogue()
     measured = [i for k in ("weapon", "armour", "charm", "skill", "spell")
                 for i in c.get(k) if i.measured]
-    check("watAgame's own numbers are loaded", len(measured) > 190,
+    # The Arena list is 203 entries; a chapter stocks a slice of the gear
+    # (notes/chapter-items.json) and all of the skills and spells, so the
+    # measured count drops without any number being lost.
+    check("watAgame's own numbers are loaded", len(measured) > 150,
           f"only {len(measured)} entries carry measured values")
 
     # the action bar must cost what the recovered table says, not a guess
@@ -355,8 +363,10 @@ def main():
              and known[n.lower()].time != t]
     check("action bar Time costs come from the catalogue", not drift,
           str(drift))
-    check("weapons loaded", len(c.get("weapon")) > 50)
-    check("armour loaded", len(c.get("armour")) > 10)
+    check("weapons loaded", len(c.get("weapon")) > 20,
+          str(len(c.get("weapon"))))
+    check("this chapter stocks a slice of the armour, not all of it",
+          4 <= len(c.get("armour")) <= 10, str(len(c.get("armour"))))
     check("starting kit resolves", len(c.starting_kit()) >= 2)
 
     print("\ncombat")
@@ -432,7 +442,7 @@ def main():
             w.pending_gold, w.pending_xp = mob.spoil()
         status, extra = handlers.finish(w, script)
         check("winning a fight refills life and pays for it",
-              status == 2 and w.hero_hp == w.hero_max and w.gold > 50
+              status == 2 and w.hero_hp == w.hero_max and w.gold > 0
               and not mob.alive,
               f"status {status} hp {w.hero_hp} gold {w.gold}")
         check("the win carries node states and the battle report",
@@ -564,10 +574,17 @@ def main():
     w = World("ShiradsForge")
     kind, dmg = w.strike(9, 100, 20, 0, spell=True, resist=0, armour=100,
                          rng=random.Random(1))
-    check("a spell ignores armour", kind == "hit" and dmg == 11, f"{kind} {dmg}")
+    # the point is the armour, not the coefficient, so read the divisor rather
+    # than pinning a number that moves whenever levelling is retuned
+    # a spell takes the ability undivided — no weapon under it carrying scale
+    check("a spell ignores armour",
+          kind == "hit" and dmg == 9 + 20, f"{kind} {dmg}")
     kind, dmg = w.strike(9, 100, 5, 0, spell=True, resist=5, rng=random.Random(1))
-    check("a spell is resisted unless the caster's ability is higher",
-          kind == "resist" and dmg == 0, f"{kind} {dmg}")
+    check("resistance is subtracted from a spell, not a gate on it",
+          kind == "hit" and dmg == 9 + 5 - 5, f"{kind} {dmg}")
+    kind, dmg = w.strike(9, 100, 5, 0, spell=True, resist=50, rng=random.Random(1))
+    check("a spell that is out-resisted still tells, because it was aimed",
+          kind == "resist" and dmg == 1, f"{kind} {dmg}")
 
     bare = w.strike(10, 100, 30, 0, dex=25, armour=0, weapon_mod=-5,
                     rng=random.Random(4))
@@ -622,14 +639,307 @@ def main():
     check("Zig-Zag is harder to hit while that step is the one you are on",
           w.weave == 9, str(w.weave))
 
-    small = next(m for m in w.mobs.values() if not m.npc and m.max_hp <= 10)
-    check("a small creature's blow still hurts through a scrapsuit",
-          small.offence()["effect"] - 3 >= 5, str(small.offence()))
-    ten = next(m for m in w.mobs.values() if not m.npc and m.max_hp == 10)
-    fat = next(m for m in w.mobs.values() if not m.npc and m.max_hp == 50)
-    check("a kill pays the creature's life in gold",
-          ten.spoil()[0] == ten.max_hp and fat.spoil()[0] == fat.max_hp,
-          f"{ten.max_hp}->{ten.spoil()[0]} {fat.max_hp}->{fat.spoil()[0]}")
+    check("a boss swing is five cells and the back is open",
+          set(handlers._cells("boss", 4, 1, 2))
+          == {(3, 1), (5, 1), (3, 2), (4, 2), (5, 2)}
+          and (4, 0) not in handlers._cells("boss", 4, 1, 2))
+    check("a beetle leaves its face and its back open",
+          handlers._cells("sides", 5, 5, 2) == [(4, 5), (6, 5)])
+    check("fire covers two ranks and a gorrak lunges two deep",
+          len(handlers._cells("fire", 5, 5, 2)) == 6
+          and handlers._cells("lunge", 5, 5, 2) == [(5, 6), (5, 7)])
+    check("a fungusman is safe to hug and a ghost hits along its line",
+          (5, 6) not in handlers._cells("spores", 5, 5, 0)
+          and (5, 7) in handlers._cells("spores", 5, 5, 0)
+          and handlers._cells("pierce", 5, 5, 2) == [(5, 6), (5, 4)])
+    check("Aldor guards his front and his left, not his right",
+          handlers._cells("fence", 5, 5, 2) == [(5, 6), (4, 5)])
+
+    w = World("ShiradsForge")
+    sk = next(m for m in w.mobs.values()
+              if w.creature_name(m.creature) == "Skeleton")
+    w.location = sk.location
+    w.equipped["weapon"] = "Bloody Blade"
+    check("a blade gives a skeleton his one forward cell",
+          handlers.pattern_of(w, sk) == "front1")
+    mira = w.mobs[46]
+    mira.phase = 2
+    check("a blade gives Mira her five-cell swing",
+          handlers.pattern_of(w, mira) == "boss")
+    w.equipped["weapon"] = "Short Bow"
+    check("the bow makes a creature step into the eight neighbours, "
+          "but a boss keeps its shapes",
+          handlers.pattern_of(w, sk) == "ring"
+          and handlers.pattern_of(w, mira) == "boss")
+    fun = spot = None
+    w.equipped["weapon"] = "Bloody Blade"
+    for cand in w.mobs.values():
+        if w.creature_name(cand.creature) != "Fungusman":
+            continue
+        w.location = cand.location
+        for dx, dy in ((0, 1), (1, 0), (0, -1), (-1, 0)):
+            p = (cand.x + dx, cand.y + dy)
+            if not (w.can_stand(*p) and w.mob_at(*p) is None):
+                continue
+            w.hero_x, w.hero_y = p
+            w.engaged = [cand.node]
+            plan = handlers.mob_timeline(w)
+            if plan and plan[0][1][0] == "mob_move":
+                fun, spot = cand, p
+                break
+        if fun:
+            break
+    check("a fungusman can step off a neighbour", fun is not None)
+    if fun:
+        w.location = fun.location
+        w.hero_x, w.hero_y = spot
+        w.engaged = [fun.node]
+        w.equipped["weapon"] = "Short Bow"
+        bow = handlers.mob_timeline(w)
+        check("with the bow he swings from where he already stands",
+              bow and bow[0][1][0] == "mob_attack")
+        w.equipped["weapon"] = "Bloody Blade"
+        blade = handlers.mob_timeline(w)
+        check("with the blade the fungusman steps out before the cloud hits",
+              blade and blade[0][1][0] == "mob_move")
+
+    w = World("ShiradsForge")
+    sk = None
+    for cand in w.mobs.values():
+        if w.creature_name(cand.creature) != "Skeleton":
+            continue
+        w.location = cand.location
+        front = (cand.x, cand.y + 1)
+        flank = (cand.x - 1, cand.y + 1)
+        if (w.can_stand(*front) and w.can_stand(*flank)
+                and w.mob_at(*front) is None and w.mob_at(*flank) is None):
+            sk = cand
+            break
+    check("a skeleton has a front cell and a shoulder to step to", sk is not None)
+    if sk:
+        w.hero_x, w.hero_y = sk.x, sk.y + 1
+        w.begin_fight([sk.node])
+        sk.face = 2
+        script = handlers.resolve(w, [], rng=random.Random(1))
+        check("standing in a skeleton's front cell is inside the swing",
+              not said(script, "Out of reach")
+              and (said(script, "hits") or said(script, "Miss")
+                   or said(script, "Blocked")))
+        sk.x, sk.y = sk.home
+        sk.alive, sk.hp = True, sk.max_hp
+        w.hero_hp = w.hero_max
+        w.hero_x, w.hero_y = sk.x, sk.y + 1
+        sk.face = 2
+        script = handlers.resolve(
+            w, [("Move", 40, 1, [(sk.x - 1, sk.y + 1)])],
+            rng=random.Random(1))
+        check("stepping off that cell is out of the skeleton's reach",
+              said(script, "Out of reach") and w.hero_hp == w.hero_max,
+              " ".join(rec[5:5 + rec[4]].decode() for rec in script))
+
+    w = World("ShiradsForge")
+    mira = w.mobs[46]
+    other = w.mobs.get(47)
+    if other:
+        other.alive = False
+    w.location = mira.location
+    w.hero_x, w.hero_y = mira.x, mira.y + 1
+    w.begin_fight([46])
+    gold = w.pending_gold
+    script = []
+    handlers._land_on_mob(w, 0, mira, "hit", mira.hp, 1, script)
+    check("Mira's first pool drops the bow and keeps her in the fight",
+          mira.alive and mira.phase == 2 and mira.hp == mira.max_hp
+          and w.pending_gold == gold
+          and said(script, "Mira drops her bow and draws a blade")
+          and handlers.pattern_of(w, mira) == "boss")
+    script = []
+    handlers._land_on_mob(w, 0, mira, "hit", mira.hp, 1, script)
+    check("Mira's second pool is the one that ends her",
+          not mira.alive and said(script, "Mira dies")
+          and w.pending_gold == gold + max(
+              1, mira.spoil()[0] * handlers.balance()["pay"] // 100),
+          f"{w.pending_gold} vs {gold} + {mira.spoil()}")
+    shirard = w.mobs[20]
+    # He starts asleep now: entity 24 arms 109, and 109 is the kind 5 that
+    # summons him. Wake him by hand rather than walk the whole chain.
+    shirard.alive = True
+    w.location = shirard.location
+    script = []
+    handlers._land_on_mob(w, 0, shirard, "hit", shirard.hp, 1, script)
+    check("Shirard quits magic and draws a blade for the second pool",
+          shirard.alive and shirard.phase == 2 and shirard.hp == shirard.max_hp
+          and said(script, "Shirard quits magic and draws a blade")
+          and handlers.pattern_of(w, shirard) == "boss")
+    handlers._flee(w, [])
+    check("fleeing puts a boss back on the first pool", shirard.phase == 1)
+
+    fresh = World("ShiradsForge")
+    cfg = handlers.balance()
+    through = (fresh.hero_max + cfg["mistakes"] - 1) // cfg["mistakes"]
+    check("a normal blow is one mistake against your current life",
+          handlers._pressure_blow(fresh) == through,
+          f"blow {handlers._pressure_blow(fresh)}")
+
+    def taken(world, suit):
+        world.equipped["armour"] = suit
+        foe = next(m for m in world.mobs.values() if not m.npc)
+        worn = world.armour().effect if world.armour() else 0
+        roll = random.Random(5)
+        return sum(world.strike(handlers._pressure_blow(world, foe),
+                                foe.offence()["precision"], 0,
+                                world.avoidance(), armour=worn, rng=roll)[1]
+                   for _ in range(4000))
+    suited = World("ShiradsForge")
+    suited.inventory.append("Spike Suit")
+    bare, scrap, spike = (taken(suited, None), taken(suited, "Scrapsuit"),
+                          taken(suited, "Spike Suit"))
+    check("a heavier suit means less damage taken, never more",
+          bare > scrap > spike, f"{bare} > {scrap} > {spike}")
+
+    # The tier, not the hero, sizes a creature (tiers.py).
+    t = World("ShiradsForge")
+    beetles = [m for m in t.mobs.values()
+               if t.creature_name(m.creature) == "Beetle"]
+    one = next(m for m in beetles if m.tier == "I")
+    three = next(m for m in beetles if m.tier == "III")
+    check("a Beetle has its tier's life, less what its shell is worth, "
+          "and more life deeper in",
+          one.max_hp == tiers.creature_life("I", 30, "Beetle")
+          < tiers.best_round("I") and three.max_hp > 3 * one.max_hp
+          and one.offence()["armour"] > 0,
+          f"{one.max_hp} / {three.max_hp}")
+    before = handlers._pressure_blow(t, one)
+    t.grant_xp(5000)
+    check("a creature does not hit harder because the hero levelled",
+          t.level > 5 and handlers._pressure_blow(t, one) == before,
+          f"level {t.level} blow {handlers._pressure_blow(t, one)} vs {before}")
+    check("a creature's blow is sized per tier",
+          handlers._pressure_blow(t, three) > before)
+
+    # Four bosses, two shapes each, the safe squares turning around.
+    b = World("ShiradsForge")
+    b.equipped["weapon"] = "Bloody Blade"
+    names = {n: b.mobs[n] for n in (19, 20, 46, 48)}
+    shapes = {}
+    for node, m in names.items():
+        m.phase = 1
+        first = handlers.pattern_of(b, m)
+        m.phase = 2
+        shapes[handlers.fighter_name(b, m)] = (first, handlers.pattern_of(b, m))
+        m.phase = 1
+    check("Mira, Shirard, Aldor and the Beholder each change shape",
+          shapes == {"Beholder": ("corners", "gaze"), "Shirard": ("burst", "boss"),
+                     "Mira": ("ray", "boss"), "Aldor": ("fence", "boss")},
+          str(shapes))
+    gaze = handlers._cells("gaze", 5, 5, 0)
+    corners = handlers._cells("corners", 5, 5, 0)
+    check("the Eye's gaze runs four lines and leaves its corners safe",
+          len(gaze) == 16 and (5, 1) in gaze and (9, 5) in gaze
+          and not set(gaze) & set(corners))
+    burst = handlers._cells("burst", 5, 5, 0)
+    check("Shirard's burst lands two out and never beside him",
+          len(burst) == 16 and (7, 7) in burst and (6, 5) not in burst)
+    aldor = names[48]
+    b.location = aldor.location
+    b.hero_x, b.hero_y = aldor.x, aldor.y + 1
+    b.begin_fight([48])
+    handlers._tune_bosses(b)
+    script = []
+    handlers._land_on_mob(b, 0, aldor, "hit", aldor.hp, 1, script)
+    check("Aldor's first pool changes his shape instead of ending him",
+          aldor.alive and aldor.phase == 2 and said(script, "Aldor roars"))
+
+    twin = World("ShiradsForge")
+    check("Mira's twin is gone for good, not waiting to be woken",
+          not twin.mobs[47].alive and twin.node_states()[47] == 3)
+    again = World("ShiradsForge")
+    saved = twin.to_dict()
+    for md in saved["mobs"]:
+        if md["node"] == 47:
+            md["alive"] = True
+    again.from_dict(saved)
+    check("a save cannot bring the twin back", not again.mobs[47].alive)
+    old = World("ShiradsForge")
+    stale = old.to_dict()
+    stale.pop("tiers", None)
+    for md in stale["mobs"]:
+        md["hp"] = 10
+    old.from_dict(stale)
+    first = next(m for m in old.mobs.values() if getattr(m, "tier", None)
+                 and m.alive)
+    check("a save from before the tiers brings creatures back at tier life",
+          first.hp == first.max_hp and first.max_hp > 10, f"{first.hp}")
+
+    # Crates hand out their own tier's gear, never the next one's.
+    c = World("ShiradsForge")
+    c.stats["Strength"] = c.stats["Dexterity"] = 60
+    early = [r[0] for r in c.real1 if len(r) > 12 and r[12] == 3
+             and tiers.tier_of(r[1]) == "I"]
+    got = [it for st in early for it in c.loot_container(st)[0]]
+    check("a tier I crate never holds tier II or III gear",
+          got and all(getattr(it, "tier", None) in (None, "I") for it in got),
+          str([(it.name, it.tier) for it in got]))
+
+    # Toughness is life, Speed is time (rules 0.9, numbers ours: tiers.py)
+    t = World("ShiradsForge")
+    t.raises = 2
+    t.spend_raises(bytes([0, 0, 0, 2, 0, 0]))       # both points to Toughness
+    check("a Toughness raise adds its life at once",
+          t.stats["Toughness"] == 9 and t.hero_max == 40 + 6 * tiers.TOUGH_LIFE
+          and t.hero_hp == t.hero_max, f"{t.hero_max} / {t.hero_hp}")
+    t.grant_xp(t.xp_for_next())
+    check("a level on top of Toughness adds its 6 and keeps the rest",
+          t.hero_max == 40 + 6 + 6 * tiers.TOUGH_LIFE, str(t.hero_max))
+    back = World("ShiradsForge")
+    back.from_dict(t.to_dict())
+    check("a save keeps life and Toughness together",
+          back.hero_max == t.hero_max and back.stats["Toughness"] == 9)
+    quick = World("ShiradsForge")
+    slow_move = quick.trained_time("Move", 40)
+    slow_hit = quick.trained_time("Hit", 96)
+    quick.stats["Speed"] = 33
+    check("Speed 3 changes nothing and Speed 33 is quicker by its share",
+          slow_move == 40 and slow_hit == 96
+          and quick.trained_time("Move", 40) == tiers.speed_scaled(40, 33) < 40
+          and quick.trained_time("Hit", 96) == tiers.speed_scaled(96, 33) < 90,
+          f"{quick.trained_time('Move', 40)} {quick.trained_time('Hit', 96)}")
+
+    a = World("ShiradsForge")
+    a.stats["Dexterity"] = 30
+    bow = catalogue().find("Long Bow")
+    check("a bow's blow follows Dexterity, not Strength",
+          handlers._hero_blow(a, bow)
+          == catalogue().find("Shoot").effect + bow.effect
+          + tiers.potency_bonus(30, tiers.swing_of(bow)))
+    fast, slow = catalogue().find("Corrupter"), catalogue().find("Smasher")
+    per_turn = [((720 - 160) // tiers.swing_of(it))
+                * tiers.potency_bonus(40, tiers.swing_of(it)) for it in (fast, slow)]
+    check("an ability adds about the same over a turn to a sword and a hammer",
+          abs(per_turn[0] - per_turn[1]) <= 0.25 * max(per_turn), str(per_turn))
+    boss = fresh.mobs[46]
+    fresh.location = boss.location
+    fresh.begin_fight([46])
+    handlers._tune_bosses(fresh)
+    check("a boss phase lasts the chosen turns of its tier's best weapon",
+          boss.max_hp == tiers.boss_life(boss.tier, cfg["boss_turns"])
+          and boss.hp == boss.max_hp, f"{boss.max_hp}")
+
+    through = [handlers._pressure_blow(w, m)
+               - catalogue().find(tiers.REFERENCE[m.tier]["suit"]).effect
+               for m in w.mobs.values() if not m.npc and getattr(m, "tier", None)]
+    check("every creature's blow still hurts through its tier's suit",
+          through and min(through) >= 3, f"weakest gets {min(through)} through")
+    beetles = [m for m in w.mobs.values()
+               if w.creature_name(m.creature) == "Beetle"]
+    low = next(m for m in beetles if m.tier == "I")
+    high = next(m for m in beetles if m.tier == "III")
+    check("a kill pays its weight at its tier's rates, not the life it was given",
+          low.spoil() == (30, 30)
+          and high.spoil() == (round(30 * tiers.GOLD_RATE["III"]),
+                               round(30 * tiers.XP_RATE["III"]))
+          and high.max_hp > 3 * high.spoil()[1],
+          f"{low.spoil()} {high.spoil()} life {high.max_hp}")
 
     w = World("ShiradsForge")
     total = sum(m.spoil()[1] for m in w.mobs.values() if not m.npc)
@@ -647,8 +957,8 @@ def main():
     for level in range(1, 50):
         hero.level = level
         need += hero.xp_for_next()
-    check("one clear is a run of levels, and 50 is a few revisits",
-          lvl >= 10 and wild and need <= wild * 8,
+    check("one clear is about a dozen levels, not twenty",
+          10 <= lvl <= 16 and wild,
           f"clear reaches {lvl}, need {need}, wild {wild}")
 
     w = World("ShiradsForge")
@@ -746,20 +1056,37 @@ def main():
 
     print("\ndetails the client already specified")
     w = World("ShiradsForge")
-    check("a new hero is level 0 and every ability starts at 15",
-          w.level == 0 and set(w.stats.values()) == {15},
+    # Rules 1.5 say 15, which is the Arena's number for a hero who levels to
+    # 49. A chapter hero reaches about 19 and the item ladder's floor is 3,
+    # so the chapter opens him there. See World.__init__.
+    check("a new hero is level 0 and every ability starts at the ladder's floor",
+          w.level == 0 and set(w.stats.values()) == {3},
           str(w.stats))
     kit = catalogue().starting_kit()
     check("the free sword and bow are the basic ones",
           kit["sword"].requirement <= 3 and kit["bow"].requirement <= 3
           and kit["bow"].name != "Haunter",
           f"{kit['sword'].name}, {kit['bow'].name}")
+    check("a new hero starts with no gold", w.gold == 0)
+    bow_back = kit["bow"].price * tiers.RECYCLE_PERCENT // 100
+    blade_back = kit["sword"].price * tiers.RECYCLE_PERCENT // 100
+    gone, refund = handlers.salvage(w, kit["bow"].name)
+    check("breaking the bow returns the recycle share and leaves the pack",
+          gone == kit["bow"].name and refund == bow_back
+          and w.gold == bow_back and kit["bow"].name not in w.inventory,
+          f"+{refund}")
+    gone, refund = handlers.salvage(w, kit["sword"].name)
+    check("breaking the worn sword pays and clears the slot",
+          gone == kit["sword"].name and refund == blade_back
+          and w.gold == bow_back + blade_back
+          and w.equipped.get("weapon") is None)
     w.grant_xp(100)
     check("level 0 can become level 1", w.level == 1 and w.raises == 2)
 
     w.spend_raises(bytes([1, 0, 0, 0, 0, 0]))
     check("one raise adds 3 to Strength and keeps the spare point",
-          w.stats["Strength"] == 18 and w.raises == 1)
+          w.stats["Strength"] == 6 and w.raises == 1,
+          f"{w.stats['Strength']} str, {w.raises} left")
     status, extra = handlers.finish.__wrapped__ if False else (None, None)
     w.engaged = []
     # finish needs fighters() empty and hero alive. engaged [] means no
@@ -787,14 +1114,25 @@ def main():
           str(sorted(payoffs)))
     first, gold = w.loot_container(69)
     again, nothing = w.loot_container(69)
-    check("smashing a crate names one usable thing and pays gold",
-          len(first) == 1 and gold > 0 and nothing == 0
+    check("smashing a crate names one usable thing, and a second smash nothing",
+          len(first) == 1 and gold == 0 and nothing == 0
           and first[0].name in w.inventory
           and first[0].requirement <= 15,
           str([i.name for i in first]))
-    other, _ = w.loot_container(118)
-    check("two crates do not hide the same prize",
-          other and other[0].name != first[0].name)
+    w.stats["Strength"] = 9
+    suit, _ = w.loot_container(240)
+    purse, paid = w.loot_container(118)
+    check("the plan holds: Village a weapon, Lava Island a suit, "
+          "The Long Run a spare",
+          first[0].kind == "weapon" and suit and suit[0].kind == "armour"
+          and len(purse) == 1 and purse[0].tier == "I"
+          and purse[0].name not in (first[0].name, suit[0].name),
+          f"{[i.name for i in first]} {[i.name for i in suit]} "
+          f"{[i.name for i in purse]}")
+    main = {1, 2, 3, 4, 5, 6, 7}
+    check("every gear crate stands on the main path",
+          all(w.crate_location(st) in main for st, role in tiers.CRATES.items()
+              if role != "gold"))
 
     hero = World("ShiradsForge")
     fresh = bytearray(hero.entity_states())
@@ -828,34 +1166,61 @@ def main():
           str(sorted(shown & World.BAR_SKILLS)))
     fresh = World("ShiradsForge")
     _, melee = handlers.market_rows(fresh, 0)
+    # tier I's first steps ask for 3 (tune_gear.py), so a new hero can
+    # wear three pieces and sees the next three above them
     check("a new hero's melee shelf is what he can wear, plus three ahead",
           [i.name for i in melee] == [
-              "Bloody Blade", "Longfang", "Spike Axe", "Corrupter", "Fell Blade"],
+              "Bloody Blade", "Corrupter", "Spike Axe",
+              "Giant Sword", "Razor Axe", "Smasher"],
           str([i.name for i in melee]))
+    first = World("ShiradsForge")
+    found, _ = first.loot_container(69)
+    check("the first crate holds a better weapon a new hero can wear at once",
+          found and found[0].kind == "weapon" and first.can_wield(found[0])
+          and first._gear_worth(found[0]) > first._gear_worth(first.weapon()),
+          str([(i.name, i.requirement) for i in found]))
+    late = World("ShiradsForge")
+    late.stats["Strength"] = 60
+    late.entity_table()
+    gifts, tops = [], []
+    for st in sorted(late.crate_payoffs()):
+        own = tiers.tier_of(late.crate_location(st))
+        for it in late.loot_container(st)[0]:
+            gifts.append(it)
+            if own != "I" and it.tier == own and tiers.is_top(it):
+                tops.append(it.name)
+    check("every crate holds an item, never the top of its own tier past tier I",
+          not tops and len(gifts) >= 14, f"{[i.name for i in gifts]}")
     fresh.stats["Strength"] = 27
     _, grown = handlers.market_rows(fresh, 0)
     names = [i.name for i in grown]
     check("raising Strength drops the Bloody Blade and opens the Smasher",
           "Bloody Blade" not in names and "Smasher" in names
-          and names[-3:] == ["Lizard Sword", "Cleaverhead", "Giant Sword"],
+          and names[-3:] == ["Bone Crusher", "Beheader Axe", "Doom Hammer"],
           str(names))
 
-    # The five traders, nearest the Village first. Each band starts higher
-    # and keeps the top of the shop before it.
+    # The five traders, nearest the Village first. Each sells its own run of
+    # its route tier and keeps only the top piece of the shop before it.
     rooms = (2, 3, 12, 5, 6)
-    bands = []
-    for loc in rooms:
-        fresh.location = loc
-        _, melee = handlers.market_rows(fresh, 0)
-        bands.append([i.name for i in melee])
+    shelves = {}
+    for which in (0, 1, 2):
+        shelves[which] = []
+        for loc in rooms:
+            fresh.location = loc
+            _, got = handlers.market_rows(fresh, which)
+            shelves[which].append([i.name for i in got])
+    bands = shelves[0]
     check("Lava Island still sells the Bloody Blade",
           bands[0][0] == "Bloody Blade" and "Bloody Blade" not in bands[-1],
           str(bands[0]))
-    check("each next trader starts higher and keeps some of the last shop",
-          all(bands[i][-1] not in bands[i - 1] and
-              len(set(bands[i]) & set(bands[i - 1])) >= 2
-              for i in range(1, len(bands))),
-          " | ".join(", ".join(b[:2]) + "…" + b[-1] for b in bands))
+    check("each next trader keeps the last shop's top piece and adds new ones",
+          all(b[i][0] == b[i - 1][-1] and len(b[i]) >= 2
+              and not set(b[i][1:]) & {n for s in b[:i] for n in s}
+              for b in shelves.values() for i in range(1, len(b))),
+          " | ".join(", ".join(b) for b in bands))
+    check("melee, bows and armour all differ from trader to trader",
+          all(len({tuple(s) for s in b}) == len(rooms)
+              for b in shelves.values()))
     fresh.stats["Strength"] = 60
     fresh.location = 2
     _, still = handlers.market_rows(fresh, 0)
@@ -887,6 +1252,48 @@ def main():
     offered = b"".join(handlers.carried(w, "weapon"))
     check("the weapon slot offers the bow you already carry",
           b"Short Bow" in offered and b"Bloody Blade" in offered)
+    blade = catalogue().find("Bloody Blade")
+    # Longfang is held for a sequel; Corrupter is this chapter's tier I sword
+    fang = catalogue().find("Corrupter")
+    shell = catalogue().find("Snail Shell")
+    check("the worn sword is not painted, and a bow is not compared to it",
+          handlers._gear_mark(w, blade) == ""
+          and handlers._gear_mark(w, catalogue().find("Short Bow")) == "")
+    # the hero opens at 3, and this chapter's next sword asks 6
+    w.stats["Strength"] = max(w.stats["Strength"], fang.requirement)
+    w.gold = fang.price
+    check("a stronger sword you can pay for is green in the shop",
+          handlers._gear_mark(w, fang, shop=True) == handlers._BETTER)
+    w.gold = fang.price - 1
+    check("the same sword stays plain when the purse is short",
+          handlers._gear_mark(w, fang, shop=True) == "")
+    w.inventory.append(fang.name)
+    w.equip(fang.name)
+    check("the sword you outgrew is red in the pack",
+          handlers._gear_mark(w, blade) == handlers._WORSE)
+    w.stats["Strength"] = max(w.stats["Strength"], shell.requirement)
+    w.gold = shell.price
+    check("a thicker suit you can pay for is green",
+          handlers._gear_mark(w, shell, shop=True) == handlers._BETTER)
+    locked = next(i for i in catalogue().get("weapon")
+                  if i.cls in ("sword", "axe", "hammer")
+                  and i.requirement > w.stats.get(i.ability, 0))
+    w.gold = locked.price
+    ghost = catalogue().find("Ghost Sword")
+    # Retuned for the chapter (tools/tune_gear.py): each line's top piece in
+    # a tier deals the same a turn at that tier's reference Strength, so a
+    # sword and a hammer are a choice of job, not of strength.
+    spike = catalogue().find("Spike Axe")
+    doom = catalogue().find("Doom Hammer")
+    ref = tiers.REFERENCE["III"]["stat"]
+    turn = [tiers.weapon_round(it, ref) for it in (ghost, doom)]
+    check("Ghost Sword and Doom Hammer are tier III's top pieces, one price",
+          turn[0] <= turn[1] <= 1.25 * turn[0] and ghost.price == doom.price
+          and handlers._gear_value(w, ghost) > handlers._gear_value(w, spike),
+          f"a turn {turn}")
+    check("a weapon the stat cannot wear yet is grey",
+          handlers._gear_mark(w, locked, shop=True) == handlers._LOCKED,
+          f"{locked.name} needs {locked.ability} {locked.requirement}")
     w = World("ShiradsForge")
     check("wearing the bow takes the sword's slot",
           w.equip("Short Bow") is not None and w.weapon().cls == "bow")
@@ -981,16 +1388,100 @@ def main():
     check("a reported room is the one the compendium shows",
           World.place(box) == 2)
 
-    import tempfile
+    # The panel is a reference the player browses, not a follower. It used to
+    # name the room they were in, which meant knowing where they were — and
+    # the client's map-loaded ping never reaches the server under CheerpJ.
     import webserve
-    empty = Saves(os.path.join(tempfile.mkdtemp(), "game.json"))
-    check("the compendium waits until a hero is playing",
-          webserve.compendium_view(empty)["title"] is None)
-    empty.live["ShiradsForge:Ana"] = box
-    empty.touch("Ana")
-    view = webserve.compendium_view(empty)
-    check("the compendium names the area the phone last reported",
-          view == {"id": 2, "title": "Lava Island"}, str(view))
+    ref = webserve.compendium_view()
+    names = [s["name"] for s in ref["sections"]]
+    check("the compendium carries every section",
+          names == ["How it works", "Areas", "Creatures", "Gear"], str(names))
+    by = {s["name"]: s["entries"] for s in ref["sections"]}
+    check("one entry an area", len(by["Areas"]) == 18, str(len(by["Areas"])))
+    check("every entry has a title and something to say",
+          all(e["title"] and e["lines"]
+              for s in ref["sections"] for e in s["entries"]))
+    check("entry ids are unique, so a link can point at one",
+          len({e["id"] for s in ref["sections"] for e in s["entries"]})
+          == sum(len(s["entries"]) for s in ref["sections"]))
+    beast = [e for e in by["Creatures"] if e["title"] == "Golem"]
+    check("a creature entry says what it threatens and how often it swings",
+          beast and any("squares around it" in l for l in beast[0]["lines"])
+          and any("a turn" in l for l in beast[0]["lines"]),
+          str(beast[0]["lines"] if beast else "no Golem"))
+    check("the panel needs no hero, so it is right whatever the game is doing",
+          webserve.compendium_view() == ref)
+
+    forge = World("ShiradsForge")
+    cave, aldor, tomb = forge.map(12), forge.map(11), forge.map(14)
+    check("Fire Cave, Aldor and Ilrik are turned clockwise",
+          (cave.w, cave.h) == (25, 35)
+          and (aldor.w, aldor.h) == (30, 30)
+          and (tomb.w, tomb.h) == (20, 10))
+    door = {(x, 34) for x in (11, 12)}
+    check("the lava bridge ends on Aldor's doorway",
+          all((cave.tile(x, 34) & 15) == 12 and cave.walkable(x, 34)
+              for x in (11, 12))
+          and cave.walkable(12, 33) and (cave.tile(12, 33) & 15) == 7
+          and not (cave.tile(0, 32) & 15))
+    exits = {dest: box for box, dest in (
+        ((r[2], r[3], r[4], r[5]), r[14])
+        for r in forge.real1 if len(r) > 16 and r[12] == 4 and r[1] == 12)}
+    check("Fire Cave's south door is the way to Aldor",
+          exits.get(11) == (11, 34, 13, 35))
+    back = next(r for r in forge.real1
+                if len(r) > 16 and r[12] == 4 and r[1] == 11 and r[14] == 12)
+    check("Aldor sends you back onto the bridge, not into the gap",
+          (back[15], back[16]) == (12, 33) and cave.walkable(12, 33)
+          and (12, 33) not in door)
+    hall = next(r for r in forge.real1
+                if len(r) > 16 and r[12] == 4 and r[1] == 3 and r[14] == 12)
+    start = (hall[15], hall[16])
+
+    def walkable_path(mp, a, b):
+        seen, stack = {a}, [a]
+        while stack:
+            x, y = stack.pop()
+            if (x, y) == b:
+                return True
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                n = (x + dx, y + dy)
+                if n in seen or not mp.walkable(*n):
+                    continue
+                seen.add(n)
+                stack.append(n)
+        return False
+
+    check("you can walk from the Hall's door across the bridge to Aldor",
+          cave.walkable(*start) and start not in door
+          and walkable_path(cave, start, (12, 34)),
+          f"arrive {start}")
+    inside = aldor.walkable(16, 1) and (back[2], back[3]) == (15, 0)
+    check("Aldor's north door is where the bridge meets it",
+          inside and aldor.walkable(16, 0))
+    stray = [m.node for m in forge.mobs.values()
+             if m.location in (11, 12, 14)
+             and not (0 <= m.x < forge.map(m.location).w
+                      and 0 <= m.y < forge.map(m.location).h
+                      and forge.map(m.location).tile(m.x, m.y) & 15)]
+    check("turned rooms keep every creature on ground", not stray, str(stray))
+    import zipfile
+    from layout import TYPE2, TURNS, rewrite_type2
+    raw = zipfile.ZipFile(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "jars", "EoE-ShiradsForge.jar"))
+    same = True
+    for loc, name in TYPE2.items():
+        turned, _ = rewrite_type2(raw.read(name), TURNS[loc], bridge=(loc == 12))
+        same = same and turned[13:] == bytes(forge.map(loc).tiles)
+    check("the run jar is turned the same way the server is", same)
+    parked = forge.spawn_point(12)
+    forge.from_dict({"location": 12, "hero_x": 32, "hero_y": 24, "layout": 0,
+                     "mobs": []})
+    check("a save standing on the old corner is not left in the gap",
+          forge.can_stand(forge.hero_x, forge.hero_y)
+          and (forge.hero_x, forge.hero_y) != (0, 32),
+          f"{(forge.hero_x, forge.hero_y)} spawn {parked}")
 
     print()
     if FAILED:

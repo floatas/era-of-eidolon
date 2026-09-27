@@ -37,17 +37,15 @@ TYPES = {
 
 
 def compendium_view(store=None):
-    """What the side panel shows: the area title for the hero now playing.
+    """The panel's contents. Nothing session-dependent.
 
-    Empty until a request has named that hero. The id is the location the
-    phone last reported, which is what a later hint page would key on.
+    It used to name the room the player was in, which meant knowing where
+    they were — and under CheerpJ the client's map-loaded ping never reaches
+    the server, so the panel sat on a stale room. It is a reference now: the
+    player opens what they want, and it is right whatever the game is doing.
     """
-    from world import saves
-    w = (store or saves()).playing()
-    if w is None:
-        return {"title": None}
-    loc = w.place()
-    return {"id": loc, "title": w.name(loc)}
+    from compendium import reference
+    return reference()
 
 
 class Handler(relay.Handler):

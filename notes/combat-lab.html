@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shirad's Forge — combat lab</title>
+<style>
+  :root {
+    --bg: #16120e;
+    --panel: #241c16;
+    --line: #3c3128;
+    --ink: #f4ead8;
+    --dim: #b5a48e;
+    --threat: #d4532c;
+    --soon: #e2a84a;
+    --hero: #7eb6c6;
+    --axe: #3d6d78;
+    --good: #8fbf7a;
+    --bad: #e07a68;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 "Iowan Old Style", Palatino, Georgia, serif;
+  }
+  header, main { max-width: 1080px; margin: 0 auto; padding: 20px 18px 8px; }
+  h1 { font-weight: 500; font-size: 28px; margin: 0 0 6px; }
+  h2 { font-weight: 500; font-size: 20px; margin: 0 0 8px; }
+  p { margin: 0 0 10px; }
+  .dim { color: var(--dim); }
+  nav { display: flex; gap: 8px; margin: 14px 0 18px; }
+  nav button, .row button, .tools button, .face button {
+    font: inherit; color: var(--ink); background: #322820;
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer;
+  }
+  nav button.on { background: #5a3a28; border-color: #a86a42; }
+  section { display: none; }
+  section.on { display: block; }
+  .split { display: grid; grid-template-columns: 340px 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 800px) { .split { grid-template-columns: 1fr; } }
+  .board {
+    display: grid; gap: 3px; background: #100e0c; padding: 8px; border-radius: 8px;
+    width: max-content;
+  }
+  .board button {
+    width: 28px; height: 28px; padding: 0; border-radius: 3px;
+    border: 1px solid #2a241e; background: #2c241c; color: var(--ink);
+    font: 13px/1 sans-serif; cursor: pointer;
+  }
+  .board button.threat { background: var(--threat); border-color: #f0a090; }
+  .board button.soon { background: #6a4a22; box-shadow: inset 0 0 0 2px var(--soon); }
+  .board button.axe { background: var(--axe); }
+  .board button.hero { background: var(--hero); color: #102026; font-weight: 700; }
+  .board button.enemy { background: #f4ead8; color: #1a120c; font-weight: 700; }
+  .board button.both { background: var(--threat); color: #fff; font-weight: 700; }
+  .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+  label.pick { display: block; margin: 0 0 8px; }
+  select, input[type="range"], input[type="number"] { font: inherit; }
+  .note {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; margin: 0 0 14px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: pre-line; }
+  th { color: var(--dim); font-weight: 500; }
+  tr.spike td { background: #3a221c; }
+  tr.off td { opacity: 0.45; }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .face { display: flex; gap: 6px; margin: 8px 0; }
+  .log { min-height: 4.5em; }
+  #roster { margin: 0 0 12px; padding-left: 18px; color: var(--dim); }
+  #roster li { margin: 0 0 3px; }
+  .mapline { display: flex; gap: 8px; align-items: center; margin: 0 0 6px; }
+  .mapline .grow { flex: 1; }
+  .sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin: 8px 0 14px; }
+  @media (max-width: 800px) { .sliders { grid-template-columns: 1fr; } }
+  .sliders label { display: flex; justify-content: space-between; gap: 10px; color: var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Combat lab</h1>
+  <p class="dim">Three ideas against the fight that is actually running. Nothing here is in the game yet. The squares, the boss beats, and the gold sheet are here to push around.</p>
+  <nav>
+    <button id="tab-shapes" class="on" type="button">Attack shapes</button>
+    <button id="tab-phases" type="button">Mira and Shirard</button>
+    <button id="tab-balance" type="button">Map balance</button>
+  </nav>
+</header>
+<main>
+<section id="shapes" class="on">
+  <div class="split">
+    <div>
+      <div id="shape-board" class="board"></div>
+      <p class="dim" style="margin-top:8px">
+        <span class="swatch" style="background:var(--threat)"></span>hurts now
+        <span class="swatch" style="background:#6a4a22;box-shadow:inset 0 0 0 2px var(--soon)"></span>hurts after they step
+        <span class="swatch" style="background:var(--axe)"></span>your axe
+        <span class="swatch" style="background:var(--hero)"></span>you
+      </p>
+    </div>
+    <div>
+      <h2 id="shape-title">Skeleton</h2>
+      <p id="shape-blurb"></p>
+      <label class="pick">Creature
+        <select id="shape-kind"></select>
+      </label>
+      <ul id="roster"></ul>
+      <div class="face" id="faces"></div>
+      <div class="tools">
+        <button type="button" id="place-hero">Click places you</button>
+        <button type="button" id="place-enemy">Click places them</button>
+        <button type="button" id="shape-reset">Reset</button>
+      </div>
+      <p id="shape-readout" class="log"></p>
+      <div class="note">
+        <p>The hit test and the step can live on the server. A creature already walks and swings in the playback, so a skeleton can be made to miss unless you stand on the one cell they face, and they can spend their step turning to put that cell on the square you occupied when the turn opened.</p>
+        <p>The red squares cannot. During a fight the phone paints a square only for the path you queued and the cell you are aiming at. It has no message for “these cells belong to the skeleton.” Painting their pattern means changing the 2005 drawing code. Until that exists, the pattern still changes the fight: the swing misses, and one line can say which way they face.</p>
+        <p class="dim">They plan blind, the same way they do now. The amber square is where they will try to stand, aimed at where you are before you move. Stepping off that cell is the dodge. On a tie, your step is already played first.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="phases">
+  <div class="split">
+    <div>
+      <div id="phase-board" class="board"></div>
+      <div class="tools">
+        <button type="button" id="beat-prev">Back</button>
+        <button type="button" id="beat-next">Next beat</button>
+      </div>
+    </div>
+    <div>
+      <div class="tools">
+        <button type="button" id="boss-mira" class="on">Mira</button>
+        <button type="button" id="boss-shirard">Shirard</button>
+      </div>
+      <h2 id="phase-title"></h2>
+      <p id="phase-text" class="log"></p>
+      <p id="phase-hp"></p>
+      <div class="note">
+        <p>A second phase fits inside the fight the phone already has. At zero life we do not remove her and we do not tell the quest she died. The playback says she drops the bow, a heal fills the bar, and the next swings use the other plan. The quest hears about the death only when the second pool is gone.</p>
+        <p>Her picture stays. A node is tied to one creature sheet for the whole fight, and Mira is already drawn on the people sheet. The change is the weapon and the cells she threatens, said out loud, not a new sprite.</p>
+        <p class="dim">Shirard is the same machine. Both of them finish in melee with the same five cells: the rank in front and both flanks. The pocket is behind them. Standing on a shoulder, which was safe against a golem, is a hit.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="balance">
+  <p>This is one walk, in the order the doors suggest, counting each creature once. Wildlife comes back later, so a patient player can earn more than this. Quest enemies do not.</p>
+  <p id="balance-sum"></p>
+  <div class="sliders" id="sliders"></div>
+  <div class="tools">
+    <label><input type="checkbox" id="use-curve"> Try a life curve instead of today’s numbers</label>
+    <label><input type="checkbox" id="use-phases"> Mira and Shirard have a second life pool</label>
+    <label><input type="checkbox" id="use-off"> Include creatures standing off the drawn map</label>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th></th><th>Map</th><th>When you walk in</th><th>After the room</th><th>Shop</th>
+      </tr>
+    </thead>
+    <tbody id="balance-body"></tbody>
+  </table>
+  <div class="note" style="margin-top:14px">
+    <p>A kill pays its life in gold, and the same amount in experience (at least 8). A level costs 65, then 5 more each level, and each level is 2 raises and 6 more life. The five traders already show a sliding shelf. Lava Island starts at 32 gold. The Core opens near 850.</p>
+    <p>The blow is not the life total. Most creatures carry their own hit number, and it climbs on its own. The Old Shrine skeletons have 10 life and a blow of 19. Shirard and Mira have 10 life and a blow of 8, because their rows never got that number and fall back to a formula. The life curve replaces both, and then a blow is 6 plus a quarter of the new life.</p>
+    <p class="dim">Crates are extra gold on top of this sheet. Kills only, and the purse is unspent, so the shop column is “could you afford it.” A requirement is checked as if every raise went into the one stat that item asks for.</p>
+  </div>
+</section>
+</main>
+<script>
+const N = 11;
+const DIRS = [[0,-1],[1,0],[0,1],[-1,0]];
+const FACE_GLYPH = ["↑","→","↓","←"];
+const SHAPES = [
+  {id:"front1", name:"Skeleton", tactic:"one cell, the one they face",
+   title:"Skeleton — one cell in front",
+   blurb:"A skeleton threatens the single cell they are facing. Either shoulder is safe, and so is behind them. They spend their step trying to put that one cell on the square you occupy when the turn opens."},
+  {id:"front3", name:"Golem", tactic:"three cells across the front rank",
+   title:"Golem — three in front",
+   blurb:"A golem threatens the cell they face and the corner to each side of it. A shoulder on that front rank still catches you. Beside them, on their own rank, the swing misses. That shoulder is exactly where Mira and Shirard do hit, which is how the two shapes stay different."},
+  {id:"boss", name:"Mira and Shirard", tactic:"front rank and both flanks, behind is open",
+   title:"Mira and Shirard — five cells",
+   blurb:"Phase two covers five cells: the three in front, and the cell on each flank. Behind them is open, and so are the two corners behind. A shoulder that would dodge a golem is a hit. The whole trick of the second phase is to end the turn behind them, because they have already turned toward the square you started on."},
+  {id:"sides", name:"Beetle", tactic:"both flanks, face and back stay open",
+   title:"Beetle — the sides only",
+   blurb:"A beetle threatens the cell on each flank and nothing else. Walking into the cell they are facing is safe, and so is stepping in behind them. The bad approach is from the side, which is the opposite of a skeleton. They turn until one flank lands on you."},
+  {id:"fire", name:"Fire devil", tactic:"two ranks deep, three cells wide",
+   title:"Fire devil — two rows in front",
+   blurb:"Fire covers two ranks in front, three cells wide. Six cells. You cannot walk straight down that corridor, even from a step further back than a golem reaches. The flanks, on their own rank, are open, and so is behind. Come in from the side."},
+  {id:"lunge", name:"Gorrak", tactic:"a straight lunge, two cells deep",
+   title:"Gorrak — two cells straight ahead",
+   blurb:"A gorrak lunges down the line they face: the near cell and the one past it. One step off that line and it misses. The far cell is awkward on purpose. They can hit you there, and your axe cannot hit them back until you close."},
+  {id:"spores", name:"Fungusman", tactic:"a puff one step out, hugging them is safe",
+   title:"Fungusman — spores one step out",
+   blurb:"The cloud sits on the four cells one step past the ones they touch, north, south, east, and west. Every cell next to them is safe. This is the creature you want to be standing on. An archer wants you far away. A fungusman wants you far away too, and the pocket is the hug."},
+  {id:"pierce", name:"Ghost", tactic:"the cell in front and the cell behind",
+   title:"Ghost — through the line",
+   blurb:"A ghost threatens the cell they face and the cell directly behind them. The line runs straight through their body. Both flanks are safe. You never stand in file with a ghost. You stand beside one."},
+  {id:"corners", name:"Beholder", tactic:"the four corners, the cross is open",
+   title:"Beholder — corners only",
+   blurb:"A beholder threatens the four corners and nothing on the cross. Standing directly north, south, east, or west is safe. They step until one corner lands on you. A ghost and a beholder are mirrors: one punishes the line, the other punishes the corner."},
+  {id:"fence", name:"Aldor", tactic:"the front cell and his left side only",
+   title:"Aldor — a guarded side",
+   blurb:"Aldor threatens the cell in front and the cell on his left. His right shoulder is open, and so is behind him. He is the only one with a safe side and a dangerous side. Circle to the open shoulder. He will spend the step trying to put the guarded side back toward you."},
+  {id:"ray", name:"Bow, phase 1", tactic:"a line that starts one cell out",
+   title:"Mira’s bow, and Shirard’s spell",
+   blurb:"The first phase fires along the way they face, starting one cell beyond the cell they touch. Hugging them is safe from the shot. Your own bow already works this way. Phase two is when that line becomes the five-cell swing."},
+  {id:"ring", name:"Everyone, today", tactic:"any of the eight cells around them",
+   title:"What the fight does now",
+   blurb:"Any creature in contact can swing, whichever way they face. There is no safe shoulder, no safe back, and no reason to circle."}
+];
+
+const state = {
+  pattern: "front1",
+  face: 2,
+  ex: 5, ey: 5,
+  hx: 5, hy: 8,
+  place: "hero",
+  showStep: true
+};
+
+function threatened(pattern, x, y, face) {
+  const [dx, dy] = DIRS[face];
+  const lx = -dy, ly = dx;
+  const front = [[x+dx, y+dy], [x+dx+lx, y+dy+ly], [x+dx-lx, y+dy-ly]];
+  if (pattern === "front1") return [front[0]];
+  if (pattern === "front3") return front;
+  if (pattern === "boss") return front.concat([[x+lx, y+ly], [x-lx, y-ly]]);
+  if (pattern === "sides") return [[x+lx, y+ly], [x-lx, y-ly]];
+  if (pattern === "fire") return front.concat(front.map(([cx, cy]) => [cx+dx, cy+dy]));
+  if (pattern === "lunge") return [[x+dx, y+dy], [x+2*dx, y+2*dy]];
+  if (pattern === "pierce") return [[x+dx, y+dy], [x-dx, y-dy]];
+  if (pattern === "fence") return [[x+dx, y+dy], [x+lx, y+ly]];
+  if (pattern === "spores") return [[x+2, y], [x-2, y], [x, y+2], [x, y-2]];
+  if (pattern === "corners") return [[x+1,y+1],[x+1,y-1],[x-1,y+1],[x-1,y-1]];
+  if (pattern === "ray") {
+    const out = [];
+    for (let d = 2; d <= 5; d++) out.push([x+dx*d, y+dy*d]);
+    return out;
+  }
+  if (pattern === "ring") {
+    const out = [];
+    for (let ay = -1; ay <= 1; ay++) for (let ax = -1; ax <= 1; ax++) {
+      if (ax || ay) out.push([x+ax, y+ay]);
+    }
+    return out;
+  }
+  return [];
+}
+
+function inside(x, y) { return x >= 0 && y >= 0 && x < N && y < N; }
+
+function covers(pattern, x, y, face, hx, hy) {
+  return threatened(pattern, x, y, face).some(([cx, cy]) => cx === hx && cy === hy);
+}
+
+function bestStance(pattern, ex, ey, face0, hx, hy) {
+  const q = [[ex, ey, 0]];
+  const seen = new Set([ex + "," + ey]);
+  let best = null;
+  while (q.length) {
+    const [x, y, dist] = q.shift();
+    const faces = (pattern === "corners" || pattern === "ring" || pattern === "spores")
+      ? [face0] : [0,1,2,3];
+    for (const face of faces) {
+      if (!covers(pattern, x, y, face, hx, hy)) continue;
+      const turn = face === face0 ? 0 : 1;
+      const score = dist * 10 + turn;
+      if (!best || score < best.score) best = {x, y, face, dist, score};
+    }
+    if (dist >= 7) continue;
+    for (const [dx, dy] of DIRS) {
+      const nx = x + dx, ny = y + dy;
+      if (!inside(nx, ny) || (nx === hx && ny === hy)) continue;
+      const key = nx + "," + ny;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      q.push([nx, ny, dist + 1]);
+    }
+  }
+  return best;
+}
+
+function axeCells(hx, hy) {
+  const out = [];
+  for (let ay = -1; ay <= 1; ay++) for (let ax = -1; ax <= 1; ax++) {
+    if ((ax || ay) && inside(hx+ax, hy+ay)) out.push([hx+ax, hy+ay]);
+  }
+  return out;
+}
+
+function drawShape() {
+  const spec = SHAPES.find(s => s.id === state.pattern);
+  document.getElementById("shape-title").textContent = spec.title;
+  document.getElementById("shape-blurb").textContent = spec.blurb;
+  const now = new Set(threatened(state.pattern, state.ex, state.ey, state.face)
+    .filter(([x,y]) => inside(x,y)).map(([x,y]) => x+","+y));
+  const stance = bestStance(state.pattern, state.ex, state.ey, state.face, state.hx, state.hy);
+  const soon = new Set();
+  if (stance && (stance.x !== state.ex || stance.y !== state.ey || stance.face !== state.face)) {
+    threatened(state.pattern, stance.x, stance.y, stance.face)
+      .filter(([x,y]) => inside(x,y))
+      .forEach(([x,y]) => soon.add(x+","+y));
+  }
+  const axe = new Set(axeCells(state.hx, state.hy).map(([x,y]) => x+","+y));
+  const board = document.getElementById("shape-board");
+  board.style.gridTemplateColumns = `repeat(${N}, 28px)`;
+  board.innerHTML = "";
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const b = document.createElement("button");
+    b.type = "button";
+    const key = x+","+y;
+    const hero = x === state.hx && y === state.hy;
+    const enemy = x === state.ex && y === state.ey;
+    if (now.has(key)) b.classList.add("threat");
+    else if (soon.has(key)) b.classList.add("soon");
+    else if (axe.has(key) && !hero && !enemy) b.classList.add("axe");
+    if (hero && now.has(key)) { b.classList.add("both"); b.textContent = "you"; }
+    else if (hero) { b.classList.add("hero"); b.textContent = "you"; }
+    else if (enemy) { b.classList.add("enemy"); b.textContent = FACE_GLYPH[state.face]; }
+    else if (stance && x === stance.x && y === stance.y) b.textContent = "·";
+    b.addEventListener("click", () => {
+      if (state.place === "enemy") { state.ex = x; state.ey = y; }
+      else { state.hx = x; state.hy = y; }
+      drawShape();
+    });
+    board.appendChild(b);
+  }
+  const onYou = covers(state.pattern, state.ex, state.ey, state.face, state.hx, state.hy);
+  const youHit = axe.has(state.ex+","+state.ey);
+  let line = onYou
+    ? "Where they stand now, this shape hits you."
+    : "Where they stand now, this shape misses you.";
+  line += youHit ? " Your axe reaches them." : " Your axe does not reach them.";
+  if (!stance) line += " They have no square in reach that covers you.";
+  else if (stance.dist === 0 && stance.face === state.face) line += " They are already placed. They will swing instead of stepping.";
+  else if (stance.dist === 0) line += " They only need to turn. The amber cells are the new shape.";
+  else line += ` They step ${stance.dist} square${stance.dist===1?"":"s"} (the dot) and the amber cells are what they will threaten. That plan was aimed at the square you occupy now.`;
+  document.getElementById("shape-readout").textContent = line;
+}
+
+function setupShapes() {
+  const sel = document.getElementById("shape-kind");
+  const roster = document.getElementById("roster");
+  SHAPES.forEach(s => {
+    const o = document.createElement("option");
+    o.value = s.id; o.textContent = s.name;
+    sel.appendChild(o);
+    const li = document.createElement("li");
+    li.textContent = s.name + " — " + s.tactic;
+    roster.appendChild(li);
+  });
+  sel.addEventListener("change", () => { state.pattern = sel.value; drawShape(); });
+  const faces = document.getElementById("faces");
+  FACE_GLYPH.forEach((g, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = g;
+    b.addEventListener("click", () => { state.face = i; drawShape(); });
+    faces.appendChild(b);
+  });
+  document.getElementById("place-hero").addEventListener("click", () => { state.place = "hero"; });
+  document.getElementById("place-enemy").addEventListener("click", () => { state.place = "enemy"; });
+  document.getElementById("shape-reset").addEventListener("click", () => {
+    state.face = 2; state.ex = 5; state.ey = 5; state.hx = 5; state.hy = 8; state.place = "hero";
+    drawShape();
+  });
+  drawShape();
+}
+
+const BEATS = {
+  mira: [
+    {title:"Mira, phase 1 — the bow", pattern:"ray", face:2, ex:4, ey:1, hx:1, hy:5, phase:1, p1:16, p2:16,
+     text:"She opens at range. The line runs south. You are off to the side, so the arrow misses, and you are not yet close enough to swing."},
+    {title:"Mira, phase 1 — on the line", pattern:"ray", face:2, ex:4, ey:1, hx:4, hy:4, phase:1, p1:16, p2:16,
+     text:"Move onto the line and she shoots. She chose that line at the start of the turn, aimed at where you were standing."},
+    {title:"Mira, phase 1 — too close to shoot", pattern:"ray", face:2, ex:4, ey:1, hx:4, hy:2, phase:1, p1:10, p2:16,
+     text:"Stand on the cell she touches. The bow will not fire. Your axe will. Her answer is to step away and open the line again, not to trade blows."},
+    {title:"Mira, the bow breaks", pattern:"boss", face:2, ex:4, ey:1, hx:4, hy:2, phase:2, p1:0, p2:16,
+     text:"The line on the fight bar says: Mira drops her bow and draws a blade. She stays. Life fills. The swing is now five cells, the three in front and both flanks. You are standing on the front cell."},
+    {title:"Mira, phase 2 — in front", pattern:"boss", face:2, ex:4, ey:1, hx:4, hy:2, phase:2, p1:0, p2:12,
+     text:"In front of her, or on either flank, she hits and you hit her back. A shoulder that would have saved you from a golem does not save you here."},
+    {title:"Mira, phase 2 — behind her", pattern:"boss", face:2, ex:4, ey:1, hx:4, hy:0, phase:2, p1:0, p2:6,
+     text:"Behind her the five cells are empty, and the axe still reaches. That is the second phase. She already turned toward the square you started on, so behind means behind the facing she committed to, not behind where she was looking at the start."}
+  ],
+  shirard: [
+    {title:"Shirard, phase 1 — the spell", pattern:"ray", face:0, ex:4, ey:6, hx:4, hy:2, phase:1, p1:22, p2:22,
+     text:"He starts as a caster. The line runs north, and it does not include the cell he is standing against. You are on the line."},
+    {title:"Shirard, phase 1 — under his chin", pattern:"ray", face:0, ex:4, ey:6, hx:4, hy:5, phase:1, p1:22, p2:22,
+     text:"The near cell is safe from the spell. An axe hits him there. He will try to step back and put you on the line again."},
+    {title:"Shirard, the spell breaks", pattern:"boss", face:0, ex:4, ey:6, hx:4, hy:5, phase:2, p1:0, p2:22,
+     text:"The line on the fight bar says: Shirard quits magic and draws a blade. He stays. Life fills. Same five cells as Mira: three in front, both flanks. You are on the front cell."},
+    {title:"Shirard, phase 2 — the flanks count", pattern:"boss", face:0, ex:4, ey:6, hx:3, hy:6, phase:2, p1:0, p2:16,
+     text:"Level with him, on either side, is still inside the swing. Backing straight off the front rank is not enough if you finish on a flank."},
+    {title:"Shirard, phase 2 — behind him", pattern:"boss", face:0, ex:4, ey:6, hx:4, hy:7, phase:2, p1:0, p2:8,
+     text:"Behind him the swing misses and the axe lands. The quest, and the end of the fight, wait for this second pool. He will have turned to face where you were, so the step that matters is the one that puts you behind that facing."}
+  ]
+};
+let boss = "mira";
+let beat = 0;
+
+function drawPhase() {
+  const frames = BEATS[boss];
+  const f = frames[beat];
+  document.getElementById("phase-title").textContent = f.title + `  (${beat+1}/${frames.length})`;
+  document.getElementById("phase-text").textContent = f.text;
+  document.getElementById("phase-hp").textContent =
+    `Phase 1 life ${f.p1}    Phase 2 life ${f.p2}    ${f.phase===1 ? "shooting" : "in melee"}`;
+  const now = new Set(threatened(f.pattern, f.ex, f.ey, f.face).map(([x,y]) => x+","+y));
+  const board = document.getElementById("phase-board");
+  const n = 9;
+  board.style.gridTemplateColumns = `repeat(${n}, 28px)`;
+  board.innerHTML = "";
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const b = document.createElement("button");
+    b.type = "button";
+    const key = x+","+y;
+    if (x === f.hx && y === f.hy && now.has(key)) { b.classList.add("both"); b.textContent = "you"; }
+    else if (x === f.hx && y === f.hy) { b.classList.add("hero"); b.textContent = "you"; }
+    else if (x === f.ex && y === f.ey) { b.classList.add("enemy"); b.textContent = FACE_GLYPH[f.face]; }
+    else if (now.has(key)) b.classList.add("threat");
+    board.appendChild(b);
+  }
+}
+
+const MAPS = [
+  {id:1, name:"Village", role:"story", door:"where you start", groups:[
+    {name:"Gorrak", n:1, hp:10, back:0, swing:8, quest:1, note:"beside Hrom"}]},
+  {id:15, name:"Dune Burrow", role:"side", door:"off the Village", groups:[
+    {name:"Beetle", n:2, hp:30, back:30, swing:12}]},
+  {id:2, name:"Lava Island", role:"story", door:"north of the Village", groups:[
+    {name:"Gorrak", n:5, hp:24, back:24, swing:22}, {name:"Beetle", n:4, hp:30, back:30, swing:20}]},
+  {id:8, name:"Old Shrine", role:"side", door:"off Lava Island", groups:[
+    {name:"Skeleton", n:15, hp:10, back:0, swing:19, quest:1, note:"Dreyfus, hardest of them"}]},
+  {id:9, name:"The Long Run", role:"side", door:"off Lava Island", groups:[
+    {name:"Gorrak", n:3, hp:24, back:24, swing:26}]},
+  {id:3, name:"Dwarven Hall", role:"story", door:"north of Lava Island", groups:[
+    {name:"Skeleton", n:9, hp:18, back:18, swing:22}]},
+  {id:10, name:"Cave of Doom", role:"side", door:"off Dwarven Hall", groups:[
+    {name:"Fungusman", n:2, hp:50, back:50, swing:18}]},
+  {id:12, name:"Fire Cave", role:"side", door:"off Dwarven Hall", groups:[
+    {name:"Fire Devil", n:2, hp:10, back:0, swing:8, quest:1, note:"Tillic"},
+    {name:"Beetle", n:2, hp:10, back:0, swing:16}]},
+  {id:14, name:"Ilrik's Tomb", role:"side", door:"off the Fire Cave", groups:[
+    {name:"Skeleton", n:4, hp:18, back:18, swing:11}]},
+  {id:11, name:"Aldor's Outpost", role:"side", door:"after the fire devils", groups:[
+    {name:"Aldor", n:1, hp:10, back:0, swing:16, quest:1}, {name:"Gorrak", n:5, hp:24, back:24, swing:19}]},
+  {id:4, name:"Mira's Hideout", role:"story", door:"north of Dwarven Hall", boss:"Mira", groups:[
+    {name:"Mira", n:1, hp:10, back:0, swing:8, quest:1},
+    {name:"Fungusman", n:1, hp:10, back:0, swing:8},
+    {name:"Fungusman", n:4, hp:50, back:50, swing:18}]},
+  {id:13, name:"The Evil Eye", role:"side", door:"a crate in Mira's Hideout", groups:[
+    {name:"Beholder", n:1, hp:10, back:0, swing:11, quest:1, note:"Milas"}]},
+  {id:5, name:"The Lair", role:"story", door:"east of Mira", groups:[
+    {name:"Gorrak", n:4, hp:24, back:24, swing:26}, {name:"Beetle", n:5, hp:30, back:30, swing:22}]},
+  {id:16, name:"Crypt", role:"side", door:"off the Lair", groups:[
+    {name:"Ghost", n:2, hp:20, back:20, swing:11},
+    {name:"Fire Devil", n:4, hp:10, back:0, swing:14, off:1, note:"off the drawn map"}]},
+  {id:6, name:"The Core", role:"story", door:"on the way to the Forge", groups:[
+    {name:"Golem", n:6, hp:36, back:36, swing:22}]},
+  {id:17, name:"Lava Pit", role:"side", door:"off the Core", groups:[
+    {name:"Beetle", n:2, hp:30, back:30, swing:12}]},
+  {id:7, name:"The Forge", role:"story", door:"the last room", boss:"Shirard", groups:[
+    {name:"Shirard", n:1, hp:10, back:0, swing:8, quest:1}]},
+  {id:18, name:"Golem Secret", role:"side", door:"off the Forge", groups:[
+    {name:"Golem", n:1, hp:50, back:50, swing:10}, {name:"Fungusman", n:4, hp:50, back:50, swing:18}]}
+];
+
+const SHOP = {"traders": [{"id": 2, "name": "Lava Island", "melee": [{"name": "Bloody Blade", "req": 3, "price": 32, "effect": -5}, {"name": "Longfang", "req": 15, "price": 174, "effect": 0}, {"name": "Spike Axe", "req": 18, "price": 248, "effect": 15}, {"name": "Corrupter", "req": 21, "price": 238, "effect": 5}, {"name": "Fell Blade", "req": 24, "price": 270, "effect": 5}, {"name": "Smasher", "req": 27, "price": 442, "effect": 25}, {"name": "Razor Axe", "req": 27, "price": 428, "effect": 20}, {"name": "Lizard Sword", "req": 30, "price": 390, "effect": 10}, {"name": "Cleaverhead", "req": 33, "price": 534, "effect": 25}, {"name": "Giant Sword", "req": 36, "price": 580, "effect": 20}], "bow": [{"name": "Short Bow", "req": 3, "price": 32, "effect": -5}, {"name": "Medium Bow", "req": 18, "price": 150, "effect": 0}, {"name": "Long Bow", "req": 27, "price": 232, "effect": 5}, {"name": "Ghost Bow", "req": 33, "price": 268, "effect": 0}, {"name": "Heavy Bow", "req": 39, "price": 388, "effect": 15}], "armour": [{"name": "Scrapsuit", "req": 3, "price": 32, "effect": 3}, {"name": "Snail Shell", "req": 12, "price": 100, "effect": 6}, {"name": "Iron Shell", "req": 21, "price": 182, "effect": 10}, {"name": "Doom Suit", "req": 30, "price": 292, "effect": 15}, {"name": "Trollskin", "req": 36, "price": 356, "effect": 18}, {"name": "Spike Suit", "req": 39, "price": 388, "effect": 20}]}, {"id": 3, "name": "Dwarven Hall", "melee": [{"name": "Smasher", "req": 27, "price": 442, "effect": 25}, {"name": "Widow Maker", "req": 48, "price": 708, "effect": 30}], "bow": [{"name": "Long Bow", "req": 27, "price": 232, "effect": 5}, {"name": "Fire Bow", "req": 46, "price": 444, "effect": 10}], "armour": [{"name": "Doom Suit", "req": 30, "price": 292, "effect": 15}, {"name": "Lava Plate", "req": 52, "price": 536, "effect": 32}]}, {"id": 12, "name": "Fire Cave", "melee": [{"name": "Bone Crusher", "req": 39, "price": 710, "effect": 30}, {"name": "Rustaxe", "req": 58, "price": 852, "effect": 40}], "bow": [{"name": "Heavy Bow", "req": 39, "price": 388, "effect": 15}, {"name": "Haunter", "req": 54, "price": 548, "effect": 20}], "armour": [{"name": "Ice Armour", "req": 44, "price": 418, "effect": 22}, {"name": "Bull Armour", "req": 62, "price": 652, "effect": 40}]}, {"id": 5, "name": "The Lair", "melee": [{"name": "Widow Maker", "req": 48, "price": 708, "effect": 30}, {"name": "Souldevourer", "req": 66, "price": 1012, "effect": 45}], "bow": [{"name": "Bolt Bow", "req": 42, "price": 392, "effect": 25}, {"name": "Eyepiercer", "req": 58, "price": 460, "effect": 15}], "armour": [{"name": "Lava Plate", "req": 52, "price": 536, "effect": 32}, {"name": "Chaos Plate", "req": 68, "price": 674, "effect": 45}]}, {"id": 6, "name": "The Core", "melee": [{"name": "Rustaxe", "req": 58, "price": 852, "effect": 40}, {"name": "Brutalis", "req": 78, "price": 1308, "effect": 80}], "bow": [{"name": "Giant Bow", "req": 48, "price": 512, "effect": 25}, {"name": "Doombow", "req": 74, "price": 696, "effect": 45}], "armour": [{"name": "Bull Armour", "req": 62, "price": 652, "effect": 40}, {"name": "Holy Plate", "req": 78, "price": 818, "effect": 65}]}], "staples": [{"name": "Bloody Blade", "kind": "weapon", "req": 3, "price": 32, "effect": -5}, {"name": "Longfang", "kind": "weapon", "req": 15, "price": 174, "effect": 0}, {"name": "Short Bow", "kind": "weapon", "req": 3, "price": 32, "effect": -5}, {"name": "Scrapsuit", "kind": "armour", "req": 3, "price": 32, "effect": 3}, {"name": "Snail Shell", "kind": "armour", "req": 12, "price": 100, "effect": 6}, {"name": "Wait", "kind": "skill", "req": 12, "price": 72, "effect": 0}, {"name": "Zig-Zag", "kind": "skill", "req": 12, "price": 162, "effect": 9}, {"name": "Deflect", "kind": "skill", "req": 15, "price": 90, "effect": 0}, {"name": "Magic Coat", "kind": "spell", "req": 3, "price": 18, "effect": 5}, {"name": "Blur Body", "kind": "spell", "req": 15, "price": 90, "effect": 8}]};
+
+let order = MAPS.map(m => m.id);
+const knobs = { goldDiv: 1, armour: 3, step: 3, bossBase: 16, wildBase: 10 };
+
+function need(level) { return 60 + 5 * Math.max(1, level); }
+function climb(total) {
+  let level = 0, xp = total;
+  while (xp >= need(level)) { xp -= need(level); level++; }
+  return {level, xp};
+}
+function goldOf(hp) { return Math.max(1, Math.floor(hp / knobs.goldDiv)); }
+function xpOf(hp) { return Math.max(8, hp); }
+
+function groupsOf(map, index) {
+  const curve = document.getElementById("use-curve").checked;
+  const phases = document.getElementById("use-phases").checked;
+  const off = document.getElementById("use-off").checked;
+  const out = [];
+  for (const g of map.groups) {
+    if (g.off && !off) continue;
+    let hp = g.hp;
+    let swing = g.swing;
+    if (curve) {
+      hp = (g.quest ? knobs.bossBase : knobs.wildBase) + index * knobs.step;
+      swing = 6 + Math.floor(hp / 4);
+    }
+    let n = g.n;
+    if (phases && map.boss && g.name === map.boss) n += g.n;
+    out.push({...g, hp, n, swing});
+  }
+  return out;
+}
+
+function shopLine(map, purse, gained, stat) {
+  const t = SHOP.traders.find(s => s.id === map.id);
+  const crossed = SHOP.staples.filter(s => s.req <= stat && s.price <= purse && s.price > purse - gained);
+  const fresh = crossed.length ? " Newly in reach: " + crossed.map(s => `${s.name} ${s.price}g`).join(", ") + "." : "";
+  if (!t) return (fresh || "No trader in this room.").trim();
+  const low = t.melee[0], high = t.melee[t.melee.length - 1];
+  const arm = t.armour[0];
+  let line = `Shelf runs ${low.name} ${low.price}g (needs ${low.req}) to ${high.name} ${high.price}g.`;
+  if (purse < low.price) line += ` The cheap end is still ${low.price - purse}g short.`;
+  else if (purse < high.price) line += ` The purse covers the cheap end, not ${high.name}.`;
+  else line += " The purse covers this melee shelf, if nothing was spent on the way.";
+  const worn = t.armour.filter(a => a.price <= purse && a.req <= stat);
+  if (worn.length) line += ` Armour in reach: ${worn[worn.length-1].name} (−${worn[worn.length-1].effect}).`;
+  else line += ` First armour here is ${arm.name} at ${arm.price}g.`;
+  return line + fresh;
+}
+
+function drawBalance() {
+  const body = document.getElementById("balance-body");
+  body.innerHTML = "";
+  let gold = 50, xp = 0, worst = null;
+  order.forEach((id, index) => {
+    const map = MAPS.find(m => m.id === id);
+    const arrived = climb(xp);
+    const hpNow = 40 + 6 * arrived.level;
+    const groups = groupsOf(map, index);
+    let gRoom = 0, xRoom = 0, hardest = 0, hardestName = "";
+    const bits = groups.map(g => {
+      gRoom += goldOf(g.hp) * g.n;
+      xRoom += xpOf(g.hp) * g.n;
+      if (g.swing > hardest) { hardest = g.swing; hardestName = g.name; }
+      const back = g.back ? "returns" : "stays dead";
+      return `${g.n} ${g.name} (${g.hp}${g.note ? ", " + g.note : ""}, ${back})`;
+    });
+    const through = Math.max(0, hardest - knobs.armour);
+    const hits = through ? Math.ceil(hpNow / through) : 0;
+    const after = climb(xp + xRoom);
+    gold += gRoom; xp += xRoom;
+    const stat = 15 + 3 * (after.level * 2);
+    const tr = document.createElement("tr");
+    if (hits && hits <= 3) tr.classList.add("spike");
+    const td = (text, cls) => {
+      const c = document.createElement("td");
+      c.textContent = text;
+      if (cls) c.className = cls;
+      return c;
+    };
+    const controls = document.createElement("td");
+    const up = document.createElement("button"); up.type = "button"; up.textContent = "↑";
+    const down = document.createElement("button"); down.type = "button"; down.textContent = "↓";
+    up.addEventListener("click", () => { if (index) { const [a] = order.splice(index,1); order.splice(index-1,0,a); drawBalance(); }});
+    down.addEventListener("click", () => { if (index < order.length-1) { const [a] = order.splice(index,1); order.splice(index+1,0,a); drawBalance(); }});
+    controls.append(up, document.createTextNode(" "), down);
+    tr.appendChild(controls);
+    tr.appendChild(td(`${map.name}\n${map.door}`, ""));
+    const walk = through
+      ? `${hardestName} swings for ${hardest}, ${through} through armour. At ${hpNow} life you fall in ${hits} hit${hits===1?"":"s"}.`
+      : `${hardestName} swings for ${hardest}, and armour stops it.`;
+    tr.appendChild(td((bits.join("; ") || "nothing counted") + "\n" + walk));
+    tr.appendChild(td(`+${gRoom}g  +${xRoom} xp\nPurse ${gold}g · level ${after.level} (${after.xp}/${need(after.level)})`, "num"));
+    tr.appendChild(td(shopLine(map, gold, gRoom, stat)));
+    body.appendChild(tr);
+    if (!worst || (hits && hits < worst.hits)) worst = {name: map.name, hits, through};
+  });
+  const end = climb(xp);
+  document.getElementById("balance-sum").textContent =
+    `Start with 50 gold and 40 life. One included pass ends at ${gold} gold, level ${end.level}, ${40 + 6*end.level} life. ` +
+    (worst && worst.hits ? `The sharpest room on this order is ${worst.name}, which drops you in ${worst.hits} hit${worst.hits===1?"":"s"} when you arrive.` : "");
+}
+
+function slider(id, label, min, max, value, on) {
+  const lab = document.createElement("label");
+  const span = document.createElement("span");
+  const input = document.createElement("input");
+  input.type = "range"; input.min = min; input.max = max; input.value = value;
+  const paint = () => { span.textContent = `${label}: ${input.value}`; };
+  input.addEventListener("input", () => { on(Number(input.value)); paint(); drawBalance(); });
+  paint();
+  lab.append(span, input);
+  return lab;
+}
+
+function setupBalance() {
+  const box = document.getElementById("sliders");
+  box.appendChild(slider("gold", "Life per 1 gold", 1, 12, knobs.goldDiv, v => knobs.goldDiv = v));
+  box.appendChild(slider("arm", "Armour subtracted", 0, 12, knobs.armour, v => knobs.armour = v));
+  box.appendChild(slider("step", "Extra life each map", 0, 10, knobs.step, v => knobs.step = v));
+  box.appendChild(slider("wild", "Wildlife base life", 6, 40, knobs.wildBase, v => knobs.wildBase = v));
+  box.appendChild(slider("boss", "Quest-enemy base life", 8, 40, knobs.bossBase, v => knobs.bossBase = v));
+  ["use-curve","use-phases","use-off"].forEach(id => {
+    document.getElementById(id).addEventListener("change", drawBalance);
+  });
+  drawBalance();
+}
+
+function setupTabs() {
+  const tabs = [["tab-shapes","shapes"],["tab-phases","phases"],["tab-balance","balance"]];
+  tabs.forEach(([btn, sec]) => {
+    document.getElementById(btn).addEventListener("click", () => {
+      tabs.forEach(([b, s]) => {
+        document.getElementById(b).classList.toggle("on", b === btn);
+        document.getElementById(s).classList.toggle("on", s === sec);
+      });
+    });
+  });
+}
+
+function setupPhases() {
+  document.getElementById("boss-mira").addEventListener("click", () => {
+    boss = "mira"; beat = 0;
+    document.getElementById("boss-mira").classList.add("on");
+    document.getElementById("boss-shirard").classList.remove("on");
+    drawPhase();
+  });
+  document.getElementById("boss-shirard").addEventListener("click", () => {
+    boss = "shirard"; beat = 0;
+    document.getElementById("boss-shirard").classList.add("on");
+    document.getElementById("boss-mira").classList.remove("on");
+    drawPhase();
+  });
+  document.getElementById("beat-prev").addEventListener("click", () => {
+    beat = Math.max(0, beat - 1); drawPhase();
+  });
+  document.getElementById("beat-next").addEventListener("click", () => {
+    beat = Math.min(BEATS[boss].length - 1, beat + 1); drawPhase();
+  });
+  drawPhase();
+}
+
+setupTabs();
+setupShapes();
+setupPhases();
+setupBalance();
+</script>
+</body>
+</html>

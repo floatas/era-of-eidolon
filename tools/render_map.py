@@ -27,15 +27,65 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "server"))
 
 from world import World  # noqa: E402
 
-TILE_W, TILE_H = 32, 15
-STEP_X, STEP_Y = 16, 8
+from iso import (STEP_X, STEP_Y, TILE_W, TILE_H,  # noqa: E402
+                  ground_top_left, obstacle_top_left)
+
+# Fade a tall obstacle standing over a one-tile passage so a map shows the way
+# through. Off by default: "a walkable tile with few open neighbours" is a road
+# as much as it is a corridor, so it faded towers the length of every road
+# rather than the one dead-end it was aimed at. The scenery is watAgame's and
+# should be drawn as they composed it; a better fix marks the path instead of
+# hiding what stands beside it.
+SHOW_PASSAGES = False
 OUT = os.path.join(os.path.dirname(HERE), "assets", "maps")
 
 
-def render(w, loc, annotate=True, bg=(10, 10, 16, 255)):
+def _unrotate(x, y, turns, width, height):
+    """A point on a grid turned `turns` times clockwise, back in the original."""
+    w, h = width, height
+    sizes = [(w, h)]
+    for _ in range(turns % 4):
+        w, h = h, w
+        sizes.append((w, h))
+    for i in range(turns % 4, 0, -1):
+        dw = sizes[i][0]
+        x, y = y, dw - 1 - x
+    return x, y
+
+
+class _Turned:
+    """The same tilemap, with its footprint turned clockwise in quarter turns.
+
+    The isometric pictures stay upright. Only which tile sits where changes,
+    which is what a clockwise turn of the room means on this projection.
+    """
+
+    def __init__(self, mp, turns):
+        self._mp = mp
+        self.turns = turns % 4
+        self.w, self.h = mp.w, mp.h
+        for _ in range(self.turns):
+            self.w, self.h = self.h, self.w
+
+    def _src(self, x, y):
+        return _unrotate(x, y, self.turns, self._mp.w, self._mp.h)
+
+    def tile(self, x, y):
+        return self._mp.tile(*self._src(x, y))
+
+    def obstacle(self, x, y):
+        return self._mp.obstacle(*self._src(x, y))
+
+    def is_override(self, x, y):
+        return self._mp.is_override(*self._src(x, y))
+
+
+def render(w, loc, annotate=True, bg=(10, 10, 16, 255), turns=0):
     mp = w.map(loc)
     if not mp:
         return None
+    if turns:
+        mp = _Turned(mp, turns)
     # Shirad's Forge hardcodes (4,0), (5,2), (6,2); Sterling Lake's build uses
     # (4,1), (5,0x30), (6,0x30). Each chapter has exactly one of each, so find
     # them rather than assuming.
@@ -60,8 +110,8 @@ def render(w, loc, annotate=True, bg=(10, 10, 16, 255)):
     img = Image.new("RGBA", (width, height), bg)
 
     def screen(x, y):
-        return (ox + (x - y) * STEP_X - TILE_W // 2,
-                oy + (x + y) * STEP_Y - TILE_H // 2)
+        dx, dy = ground_top_left(x, y)
+        return (ox + dx, oy + dy)
 
     # Painter's order: back to front, or tall obstacles overlap wrongly.
     order = sorted(((x, y) for y in range(mp.h) for x in range(mp.w)),
@@ -77,24 +127,47 @@ def render(w, loc, annotate=True, bg=(10, 10, 16, 255)):
                   (sx, sy), ground.crop((0, (low - 1) * TILE_H,
                                          TILE_W, low * TILE_H)))
 
+    def walkable(x, y):
+        return 0 <= x < mp.w and 0 <= y < mp.h and bool(mp.tile(x, y) & 15) \
+            and not mp.obstacle(x, y)
+
+    def in_a_passage(x, y):
+        """A walkable tile with almost nothing open around it."""
+        if not walkable(x, y):
+            return False
+        return sum(walkable(x + a, y + b)
+                   for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1))) <= 2
+
     for x, y in order:
         idx = mp.obstacle(x, y)
         if idx < 2 or obs is None:
             continue
+        # A tall obstacle reaches up the screen and covers the tile behind
+        # it. In an open room that reads fine; down a one-tile corridor it
+        # hides the floor entirely, and Ilrik's Tomb's southern passage
+        # looks like a dead end when it is a clear run. Fade the ones that
+        # stand over a passage so the way through shows.
+        hides_a_way = in_a_passage(x - 1, y) or in_a_passage(x, y - 1)
         o = (idx - 2) * 8
         if o + 8 > len(table):
             continue
         ow, oh = table[o], table[o + 1]
-        sxr = int.from_bytes(table[o + 2:o + 4], "big", signed=True)
-        syr = int.from_bytes(table[o + 4:o + 6], "big", signed=True)
+        # Source x,y are unsigned, the same way the phone builds them
+        # (`byte<<8 | byte&0xFF`). The two offsets are signed bytes.
+        sxr = int.from_bytes(table[o + 2:o + 4], "big", signed=False)
+        syr = int.from_bytes(table[o + 4:o + 6], "big", signed=False)
         dx = int.from_bytes(table[o + 6:o + 7], "big", signed=True)
         dy = int.from_bytes(table[o + 7:o + 8], "big", signed=True)
         if ow <= 0 or oh <= 0:
             continue
         spr = obs.crop((sxr, syr, min(obs.width, sxr + ow),
                         min(obs.height, syr + oh)))
-        sx, sy = screen(x, y)
-        img.paste(spr, (sx + dx, sy + dy), spr)
+        sx, sy = obstacle_top_left(x, y, dx, dy)
+        sx, sy = ox + sx, oy + sy
+        if hides_a_way and SHOW_PASSAGES:
+            spr = spr.copy()
+            spr.putalpha(spr.getchannel("A").point(lambda v: v * 45 // 100))
+        img.paste(spr, (sx, sy), spr)
 
     if annotate:
         d = ImageDraw.Draw(img)

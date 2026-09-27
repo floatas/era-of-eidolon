@@ -1,0 +1,1535 @@
+{
+ "hero": {
+  "level": 0,
+  "experience": 0,
+  "nextLevel": 65,
+  "gold": 0,
+  "health": 40,
+  "maxHealth": 40,
+  "raises": 0,
+  "stats": {
+   "Strength": 3,
+   "Intelligence": 3,
+   "Dexterity": 3,
+   "Toughness": 3,
+   "Willpower": 3,
+   "Speed": 3
+  },
+  "weapon": "Bloody Blade",
+  "armour": "Scrapsuit",
+  "pack": [
+   "Bloody Blade",
+   "Short Bow",
+   "Scrapsuit"
+  ]
+ },
+ "levels": [
+  {
+   "level": 1,
+   "experience": 65,
+   "total": 65
+  },
+  {
+   "level": 2,
+   "experience": 65,
+   "total": 130
+  },
+  {
+   "level": 3,
+   "experience": 70,
+   "total": 200
+  },
+  {
+   "level": 4,
+   "experience": 75,
+   "total": 275
+  },
+  {
+   "level": 5,
+   "experience": 80,
+   "total": 355
+  },
+  {
+   "level": 6,
+   "experience": 85,
+   "total": 440
+  },
+  {
+   "level": 7,
+   "experience": 90,
+   "total": 530
+  },
+  {
+   "level": 8,
+   "experience": 95,
+   "total": 625
+  },
+  {
+   "level": 9,
+   "experience": 100,
+   "total": 725
+  },
+  {
+   "level": 10,
+   "experience": 105,
+   "total": 830
+  },
+  {
+   "level": 11,
+   "experience": 110,
+   "total": 940
+  },
+  {
+   "level": 12,
+   "experience": 115,
+   "total": 1055
+  },
+  {
+   "level": 13,
+   "experience": 120,
+   "total": 1175
+  },
+  {
+   "level": 14,
+   "experience": 125,
+   "total": 1300
+  },
+  {
+   "level": 15,
+   "experience": 130,
+   "total": 1430
+  },
+  {
+   "level": 16,
+   "experience": 135,
+   "total": 1565
+  },
+  {
+   "level": 17,
+   "experience": 140,
+   "total": 1705
+  },
+  {
+   "level": 18,
+   "experience": 145,
+   "total": 1850
+  },
+  {
+   "level": 19,
+   "experience": 150,
+   "total": 2000
+  },
+  {
+   "level": 20,
+   "experience": 155,
+   "total": 2155
+  },
+  {
+   "level": 21,
+   "experience": 160,
+   "total": 2315
+  },
+  {
+   "level": 22,
+   "experience": 165,
+   "total": 2480
+  },
+  {
+   "level": 23,
+   "experience": 170,
+   "total": 2650
+  },
+  {
+   "level": 24,
+   "experience": 175,
+   "total": 2825
+  },
+  {
+   "level": 25,
+   "experience": 180,
+   "total": 3005
+  },
+  {
+   "level": 26,
+   "experience": 185,
+   "total": 3190
+  },
+  {
+   "level": 27,
+   "experience": 190,
+   "total": 3380
+  },
+  {
+   "level": 28,
+   "experience": 195,
+   "total": 3575
+  },
+  {
+   "level": 29,
+   "experience": 200,
+   "total": 3775
+  },
+  {
+   "level": 30,
+   "experience": 205,
+   "total": 3980
+  },
+  {
+   "level": 31,
+   "experience": 210,
+   "total": 4190
+  },
+  {
+   "level": 32,
+   "experience": 215,
+   "total": 4405
+  },
+  {
+   "level": 33,
+   "experience": 220,
+   "total": 4625
+  },
+  {
+   "level": 34,
+   "experience": 225,
+   "total": 4850
+  },
+  {
+   "level": 35,
+   "experience": 230,
+   "total": 5080
+  },
+  {
+   "level": 36,
+   "experience": 235,
+   "total": 5315
+  },
+  {
+   "level": 37,
+   "experience": 240,
+   "total": 5555
+  },
+  {
+   "level": 38,
+   "experience": 245,
+   "total": 5800
+  },
+  {
+   "level": 39,
+   "experience": 250,
+   "total": 6050
+  },
+  {
+   "level": 40,
+   "experience": 255,
+   "total": 6305
+  },
+  {
+   "level": 41,
+   "experience": 260,
+   "total": 6565
+  },
+  {
+   "level": 42,
+   "experience": 265,
+   "total": 6830
+  },
+  {
+   "level": 43,
+   "experience": 270,
+   "total": 7100
+  },
+  {
+   "level": 44,
+   "experience": 275,
+   "total": 7375
+  },
+  {
+   "level": 45,
+   "experience": 280,
+   "total": 7655
+  },
+  {
+   "level": 46,
+   "experience": 285,
+   "total": 7940
+  },
+  {
+   "level": 47,
+   "experience": 290,
+   "total": 8230
+  },
+  {
+   "level": 48,
+   "experience": 295,
+   "total": 8525
+  },
+  {
+   "level": 49,
+   "experience": 300,
+   "total": 8825
+  },
+  {
+   "level": 50,
+   "experience": 305,
+   "total": 9130
+  }
+ ],
+ "items": {
+  "melee": [
+   {
+    "name": "Bloody Blade",
+    "class": "sword",
+    "rank": 1,
+    "ability": "Strength",
+    "requirement": 3,
+    "effect": -5,
+    "time": 96,
+    "precision": 100,
+    "weight": 1,
+    "price": 32,
+    "recycle": 22,
+    "description": "The Bloody Blade is the type of sword most commonly made and used in Eidolon. It is a rather small sword with a blade that is just slightly larger that a big kitchen knife."
+   },
+   {
+    "name": "Longfang",
+    "class": "sword",
+    "rank": 2,
+    "ability": "Strength",
+    "requirement": 15,
+    "effect": 0,
+    "time": 102,
+    "precision": 100,
+    "weight": 6,
+    "price": 174,
+    "recycle": 121,
+    "description": "A Longfang sword has a slightly curved blade that is shaped like a big tooth of some large monster. Such blades are often used by the nomads of Vulcor as they are quite handy for cutting through the hide of the desert animals."
+   },
+   {
+    "name": "Spike Axe",
+    "class": "axe",
+    "rank": 11,
+    "ability": "Strength",
+    "requirement": 18,
+    "effect": 15,
+    "time": 195,
+    "precision": 115,
+    "weight": 10,
+    "price": 248,
+    "recycle": 173,
+    "description": "Spike Axes are very characteristic weapons that are usually only found in the Arenas or amongst the tribesmen of Vulcor. A Spike Axe is a brutish weapon which has a design more aimed at causing pain rather than harm. Of course, nobody will escape injury if they are subjected to the row of pointy spikes that are fitted onto the axe head instead of a sharp edge."
+   },
+   {
+    "name": "Corrupter",
+    "class": "sword",
+    "rank": 1,
+    "ability": "Strength",
+    "requirement": 21,
+    "effect": 5,
+    "time": 96,
+    "precision": 100,
+    "weight": 8,
+    "price": 238,
+    "recycle": 166,
+    "description": "These blades have a reputation of turning people into criminals. Are you interested?"
+   },
+   {
+    "name": "Fell Blade",
+    "class": "sword",
+    "rank": 3,
+    "ability": "Strength",
+    "requirement": 24,
+    "effect": 5,
+    "time": 108,
+    "precision": 100,
+    "weight": 9,
+    "price": 270,
+    "recycle": 189,
+    "description": "These swords have been out of production for quite some years now and they exist in a limited number. They were formerly used by the red masked Executioners that served under the queens in the early years of their reign. Most of the victims that fell to the blades when they were still used for official purposes were sentenced to death because they didn\u2019t want to serve in the royal armies."
+   },
+   {
+    "name": "Smasher",
+    "class": "hammer",
+    "rank": 7,
+    "ability": "Strength",
+    "requirement": 27,
+    "effect": 25,
+    "time": 211,
+    "precision": 130,
+    "weight": 20,
+    "price": 442,
+    "recycle": 309,
+    "description": "The hammer head of a Smasher is no larger than a child\u2019s fist but if used properly it can still be quite effective. They are cheap and easy to make and can be bought anywhere in Eidolon."
+   },
+   {
+    "name": "Razor Axe",
+    "class": "axe",
+    "rank": 12,
+    "ability": "Strength",
+    "requirement": 27,
+    "effect": 20,
+    "time": 202,
+    "precision": 115,
+    "weight": 19,
+    "price": 428,
+    "recycle": 299,
+    "description": "The art of making a Razor Axe is closely guarded by the few smiths that know how to make them. The special techniques involved result in a super keen edge that cut through most materials with ease."
+   },
+   {
+    "name": "Lizard Sword",
+    "class": "sword",
+    "rank": 4,
+    "ability": "Strength",
+    "requirement": 30,
+    "effect": 10,
+    "time": 114,
+    "precision": 100,
+    "weight": 15,
+    "price": 390,
+    "recycle": 273,
+    "description": "Lizard Swords come in many shapes and sizes but what distinguishes them from other swords is that they are always coated with lizard venom taken from the giant lizards that can be found in the mountains of Blissmor."
+   },
+   {
+    "name": "Cleaverhead",
+    "class": "axe",
+    "rank": 13,
+    "ability": "Strength",
+    "requirement": 33,
+    "effect": 25,
+    "time": 210,
+    "precision": 115,
+    "weight": 24,
+    "price": 534,
+    "recycle": 373,
+    "description": "If the axe can cleave a large tree then it should also be able to cleave a skull. At least that was what a group of foresters thought when they decided to use their tools against their enemies when they were attacked in Mystor. Since then the large bladed type of axe has become more and more popular with gladiators in the Arenas and the foresters have now been proven right."
+   },
+   {
+    "name": "Giant Sword",
+    "class": "sword",
+    "rank": 5,
+    "ability": "Strength",
+    "requirement": 36,
+    "effect": 20,
+    "time": 120,
+    "precision": 110,
+    "weight": 26,
+    "price": 580,
+    "recycle": 406,
+    "description": "The name of this type of weapon reflects the sheer size of it. Most Giant Swords are longer than a tall man and it takes great strength to wield them properly. However, once a hero has learned how to use a Giant Swords he or she becomes a truly dangerous foe! There is no secret behind the invention of Giant swords \u2013 the smith that made the first of its kind simply thought that \u201cbigger is better\u201d\u2026"
+   },
+   {
+    "name": "Bone Crusher",
+    "class": "hammer",
+    "rank": 8,
+    "ability": "Strength",
+    "requirement": 39,
+    "effect": 30,
+    "time": 221,
+    "precision": 130,
+    "weight": 34,
+    "price": 710,
+    "recycle": 497,
+    "description": "Made from the bones of large animals these hammers are more than capable of dishing out damage. Bone Crushers are usually made in Vulcor because the availability of large bones is higher here than anywhere else."
+   },
+   {
+    "name": "Beheader Axe",
+    "class": "axe",
+    "rank": 14,
+    "ability": "Strength",
+    "requirement": 42,
+    "effect": 40,
+    "time": 218,
+    "precision": 125,
+    "weight": 36,
+    "price": 756,
+    "recycle": 529,
+    "description": "Just like Fell Blades these axes were invented for the purpose of executions. It was soon discovered that Fell Blades were not good enough for the job \u2013 it would often take several strikes to cut off a person\u2019s head which was found to be too cruel. Beheader Axes, however, fully live up to their name and will always chop off a head in the first try\u2026at least if the executioner is half decent. The axes are no longer made but because they were originally produced in such great numbers they can still be bought."
+   },
+   {
+    "name": "Ghost Sword",
+    "class": "sword",
+    "rank": 6,
+    "ability": "Strength",
+    "requirement": 44,
+    "effect": 30,
+    "time": 126,
+    "precision": 90,
+    "weight": 18,
+    "price": 516,
+    "recycle": 361,
+    "description": "Ghost swords are very rare and are as such collector items. Once one of these weapons surfaces it will usually end up in a store and be sold to a hefty price. The swords all come from Mystor and it is said that they must be created in the ancient Stone Circles of the forest. On more than one occasion the victim of a Ghost Sword has simply vanished when killed by the weapon. This has resulted in the common belief that these weapons can turn people into ghosts, but this is still to be proven."
+   },
+   {
+    "name": "Inferno Axe",
+    "class": "axe",
+    "rank": 15,
+    "ability": "Strength",
+    "requirement": 46,
+    "effect": 20,
+    "time": 225,
+    "precision": 110,
+    "weight": 27,
+    "price": 654,
+    "recycle": 457,
+    "description": "Inferno Axes are made from a special material that the wizards of Orumant invented some years ago. The material is comprised of many elements, including lava rock from Vulcor, which creates intense heat. The weapons are therefore not easy to carry around and as a result they are usually used in the Arenas or in great battles."
+   },
+   {
+    "name": "Widow Maker",
+    "class": "hammer",
+    "rank": 9,
+    "ability": "Strength",
+    "requirement": 48,
+    "effect": 30,
+    "time": 230,
+    "precision": 130,
+    "weight": 30,
+    "price": 708,
+    "recycle": 495,
+    "description": "Widow Makers are beautiful hammers that are made by master smiths as a tribute to the art of their craft. The hammers are adorned with delicate runes and small cavities that will produce a low whisper when the weapon is swung. Most of these hammers are made in Blissmor."
+   },
+   {
+    "name": "Black Axe",
+    "class": "axe",
+    "rank": 16,
+    "ability": "Strength",
+    "requirement": 50,
+    "effect": 30,
+    "time": 232,
+    "precision": 115,
+    "weight": 30,
+    "price": 720,
+    "recycle": 504,
+    "description": "The heads of Black Axes have been burned in the fire of volcanoes for decades, giving the metal a pitch black surface. When the metal has been shaped into its final form and is cooled down it becomes very hard and is almost unbreakable. These axes are often favoured by more shady people that don\u2019t want to be spotted at night."
+   },
+   {
+    "name": "Twin Axe",
+    "class": "axe",
+    "rank": 10,
+    "ability": "Strength",
+    "requirement": 52,
+    "effect": 35,
+    "time": 188,
+    "precision": 120,
+    "weight": 34,
+    "price": 788,
+    "recycle": 551,
+    "description": "This weapon is more or less a long shaft with axe heads in both ends."
+   },
+   {
+    "name": "Heartcutter",
+    "class": "sword",
+    "rank": 2,
+    "ability": "Strength",
+    "requirement": 54,
+    "effect": 20,
+    "time": 102,
+    "precision": 100,
+    "weight": 29,
+    "price": 730,
+    "recycle": 511,
+    "description": "A nasty little thing this is! The small blade is designed to cut out the foe's heart."
+   },
+   {
+    "name": "Doom Hammer",
+    "class": "hammer",
+    "rank": 10,
+    "ability": "Strength",
+    "requirement": 56,
+    "effect": 40,
+    "time": 240,
+    "precision": 140,
+    "weight": 40,
+    "price": 896,
+    "recycle": 627,
+    "description": "Doom Hammers are large and clumsy to wield but the damage they cause more than compensates for this. Upon impact with any hard surface, be it a rock or the head of a person, a Doom Hammer will emit a loud thundering noise which is how they earned their name. These weapons are only manufactured by a few smiths that reside in the depths of the mountains of Blissmor."
+   },
+   {
+    "name": "Rustaxe",
+    "class": "axe",
+    "rank": 11,
+    "ability": "Strength",
+    "requirement": 58,
+    "effect": 40,
+    "time": 195,
+    "precision": 120,
+    "weight": 36,
+    "price": 852,
+    "recycle": 596,
+    "description": "The secret behind Rustaxes is simply that the metal is rusty ...surprise!"
+   },
+   {
+    "name": "Foul Basher",
+    "class": "hammer",
+    "rank": 5,
+    "ability": "Strength",
+    "requirement": 60,
+    "effect": 35,
+    "time": 192,
+    "precision": 130,
+    "weight": 38,
+    "price": 892,
+    "recycle": 624,
+    "description": "Formerly used for pest control these hammers are now popular in the Arena."
+   },
+   {
+    "name": "Duoblade",
+    "class": "sword",
+    "rank": 3,
+    "ability": "Strength",
+    "requirement": 62,
+    "effect": 30,
+    "time": 108,
+    "precision": 105,
+    "weight": 34,
+    "price": 848,
+    "recycle": 593,
+    "description": "This exotic sword actually has two blades and look more like a huge claw."
+   },
+   {
+    "name": "Skullhammer",
+    "class": "hammer",
+    "rank": 6,
+    "ability": "Strength",
+    "requirement": 64,
+    "effect": 45,
+    "time": 202,
+    "precision": 135,
+    "weight": 50,
+    "price": 1084,
+    "recycle": 758,
+    "description": "The head of this hammer is one large skull taken from any kind of monster."
+   },
+   {
+    "name": "Souldevourer",
+    "class": "axe",
+    "rank": 12,
+    "ability": "Strength",
+    "requirement": 66,
+    "effect": 45,
+    "time": 202,
+    "precision": 110,
+    "weight": 44,
+    "price": 1012,
+    "recycle": 708,
+    "description": "Some say that these ancient axes can eat a man's soul if they hit just right."
+   },
+   {
+    "name": "Slayer Blade",
+    "class": "sword",
+    "rank": 4,
+    "ability": "Strength",
+    "requirement": 68,
+    "effect": 30,
+    "time": 114,
+    "precision": 95,
+    "weight": 40,
+    "price": 968,
+    "recycle": 677,
+    "description": "Monster hunters from Mystor swear to this long and slender sword."
+   },
+   {
+    "name": "Chaos Sledge",
+    "class": "hammer",
+    "rank": 7,
+    "ability": "Strength",
+    "requirement": 68,
+    "effect": 50,
+    "time": 211,
+    "precision": 130,
+    "weight": 52,
+    "price": 1136,
+    "recycle": 795,
+    "description": "Get a suit of Chaos Armour too and you will look like you mean business!"
+   },
+   {
+    "name": "Dark Reaper",
+    "class": "axe",
+    "rank": 13,
+    "ability": "Strength",
+    "requirement": 72,
+    "effect": 55,
+    "time": 210,
+    "precision": 115,
+    "weight": 50,
+    "price": 1132,
+    "recycle": 792,
+    "description": "The Dark Reaper axe features a long curving head that looks like the blade of a scythe."
+   },
+   {
+    "name": "Soulcrusher",
+    "class": "hammer",
+    "rank": 8,
+    "ability": "Strength",
+    "requirement": 74,
+    "effect": 50,
+    "time": 221,
+    "precision": 120,
+    "weight": 53,
+    "price": 1186,
+    "recycle": 830,
+    "description": "This evil hammer shouldn't be taken lightly as it can destroy souls."
+   },
+   {
+    "name": "Brutalis",
+    "class": "hammer",
+    "rank": 9,
+    "ability": "Strength",
+    "requirement": 78,
+    "effect": 80,
+    "time": 230,
+    "precision": 140,
+    "weight": 60,
+    "price": 1308,
+    "recycle": 915,
+    "description": "Many Vulcor Clans favour this brutal weapon only for the visual effect."
+   }
+  ],
+  "bow": [
+   {
+    "name": "Short Bow",
+    "class": "bow",
+    "rank": 22,
+    "ability": "Dexterity",
+    "requirement": 3,
+    "effect": -5,
+    "time": 255,
+    "precision": 100,
+    "weight": 1,
+    "price": 32,
+    "recycle": 22,
+    "description": "Short Bows are the smallest of all bows. They can be used in a flash which makes them ideal for hunting. However, the small arrows that can be fired from such bows are relatively harmless to anything but small animals and thus they are not too popular in the Arenas."
+   },
+   {
+    "name": "Medium Bow",
+    "class": "bow",
+    "rank": 23,
+    "ability": "Dexterity",
+    "requirement": 18,
+    "effect": 0,
+    "time": 262,
+    "precision": 100,
+    "weight": 3,
+    "price": 150,
+    "recycle": 105,
+    "description": "A Medium Bow is slightly longer than a Short Bow, which makes it possible to fire arrows with greater damage potential. As a result the type of bow is quite popular."
+   },
+   {
+    "name": "Long Bow",
+    "class": "bow",
+    "rank": 24,
+    "ability": "Dexterity",
+    "requirement": 27,
+    "effect": 5,
+    "time": 269,
+    "precision": 105,
+    "weight": 5,
+    "price": 232,
+    "recycle": 162,
+    "description": "Long Bows are slender bows made after the fine traditions of Mystoran hunters. They are the favoured weapon when hunting for the fearsome monsters called Morgulars that dwell within the mighty forest."
+   },
+   {
+    "name": "Ghost Bow",
+    "class": "bow",
+    "rank": 25,
+    "ability": "Dexterity",
+    "requirement": 33,
+    "effect": 0,
+    "time": 276,
+    "precision": 90,
+    "weight": 5,
+    "price": 268,
+    "recycle": 187,
+    "description": "Ghost Bows are ancient weapons that were long ago used in an epic battle that would decide the fate of Eidolon. Now the rare weapons are said to hold the spirits of the fallen warriors of that battle. For that reason many shun the bows, fearing that they might be evil."
+   },
+   {
+    "name": "Heavy Bow",
+    "class": "bow",
+    "rank": 26,
+    "ability": "Dexterity",
+    "requirement": 39,
+    "effect": 15,
+    "time": 283,
+    "precision": 110,
+    "weight": 11,
+    "price": 388,
+    "recycle": 271,
+    "description": "Heavy Bows are made from solid hardwood trees and are quite heavy, requiring some strength to use. All Heavy Bows are made in Mystor but since they are very popular they can be bought everywhere in Eidolon."
+   },
+   {
+    "name": "Bolt Bow",
+    "class": "bow",
+    "rank": 27,
+    "ability": "Dexterity",
+    "requirement": 42,
+    "effect": 25,
+    "time": 290,
+    "precision": 120,
+    "weight": 10,
+    "price": 392,
+    "recycle": 274,
+    "description": "The type of ammunition used for Bolt Bows is very thick and strong bolt-like arrows that are capable of penetrating even steel. They were invented to counter some of the heavier kinds of armour but now they are used for practically all purposes. Their high damage potential makes up for their slow rate of fire."
+   },
+   {
+    "name": "Fire Bow",
+    "class": "bow",
+    "rank": 28,
+    "ability": "Dexterity",
+    "requirement": 46,
+    "effect": 10,
+    "time": 297,
+    "precision": 100,
+    "weight": 12,
+    "price": 444,
+    "recycle": 310,
+    "description": "Fire Bows are an excellent example of how the various regions of Eidolon work together to ensure maximum efficiency and prosperity. The bows are made from Vulcan steel that is particularly resilient to heat and fire. This is important because the incendiary arrows that are used with the bows generate a lot of heat. The arrows are made in Blissmor and are based on the same principles as Lava Bombs \u2013 they are also called Arrows of Inferno."
+   },
+   {
+    "name": "Giant Bow",
+    "class": "bow",
+    "rank": 29,
+    "ability": "Dexterity",
+    "requirement": 48,
+    "effect": 25,
+    "time": 304,
+    "precision": 115,
+    "weight": 16,
+    "price": 512,
+    "recycle": 358,
+    "description": "Although a Giant Bow is quite large the name of the weapon is rather a result of the use of giant hair as strings. Only few true giants still roam Eidolon and these are viciously hunted for the durable material that their hair is."
+   },
+   {
+    "name": "Haunter",
+    "class": "bow",
+    "rank": 19,
+    "ability": "Dexterity",
+    "requirement": 54,
+    "effect": 20,
+    "time": 235,
+    "precision": 105,
+    "weight": 16,
+    "price": 548,
+    "recycle": 383,
+    "description": "The arrows fired from this bow emit a shivering sound...like ghosts!"
+   },
+   {
+    "name": "Eyepiercer",
+    "class": "bow",
+    "rank": 20,
+    "ability": "Dexterity",
+    "requirement": 58,
+    "effect": 15,
+    "time": 241,
+    "precision": 90,
+    "weight": 8,
+    "price": 460,
+    "recycle": 322,
+    "description": "This light bow is perfect for fast and accurate shots e.g. Taking out an eye or two."
+   },
+   {
+    "name": "Striker",
+    "class": "bow",
+    "rank": 21,
+    "ability": "Dexterity",
+    "requirement": 66,
+    "effect": 20,
+    "time": 248,
+    "precision": 95,
+    "weight": 16,
+    "price": 620,
+    "recycle": 434,
+    "description": "This advanced bow is actually very easy to use and requires little skill of the user."
+   },
+   {
+    "name": "Doombow",
+    "class": "bow",
+    "rank": 22,
+    "ability": "Dexterity",
+    "requirement": 74,
+    "effect": 45,
+    "time": 255,
+    "precision": 120,
+    "weight": 18,
+    "price": 696,
+    "recycle": 487,
+    "description": "Oh boy is this a slow bow. But just wait till you see the carnage it can cause!"
+   }
+  ],
+  "armour": [
+   {
+    "name": "Scrapsuit",
+    "class": null,
+    "rank": 1,
+    "ability": "Strength",
+    "requirement": 3,
+    "effect": 3,
+    "time": 0,
+    "precision": 100,
+    "weight": 1,
+    "price": 32,
+    "recycle": 22,
+    "description": "Most people would laugh at the notion that a Scrapsuit should be regarded as a suit of armour. Basically, the suit is made from all sorts of waste materials like pieces of leather or wood - only few contain any metal pieces. A Scrapsuit is not very durable since the different types of materials are difficult to fit together. Many a wearer has suddenly found himself without armour as a Scrapsuit fell apart due to a blow from the enemy\u2019s weapon and as a result the armour is only used by those who cannot afford better."
+   },
+   {
+    "name": "Snail Shell",
+    "class": null,
+    "rank": 2,
+    "ability": "Strength",
+    "requirement": 12,
+    "effect": 6,
+    "time": 0,
+    "precision": 100,
+    "weight": 2,
+    "price": 100,
+    "recycle": 70,
+    "description": "Slightly better than a Scrapsuit is the Snail Shell that is made of large pieces of shell that is taken from lake slugs. The armour is rather cumbersome and offers only little room for delicate manoeuvring, but on the other hand it is very cheap."
+   },
+   {
+    "name": "Iron Shell",
+    "class": null,
+    "rank": 3,
+    "ability": "Strength",
+    "requirement": 21,
+    "effect": 10,
+    "time": 0,
+    "precision": 100,
+    "weight": 4,
+    "price": 182,
+    "recycle": 127,
+    "description": "The Iron Shell body armour is based on the same principles as Snail Shell armour. However, the skilled smiths of Orumant have discovered that by using iron instead of slug shells they can make the armour fit the wearer better."
+   },
+   {
+    "name": "Doom Suit",
+    "class": null,
+    "rank": 4,
+    "ability": "Strength",
+    "requirement": 30,
+    "effect": 15,
+    "time": 0,
+    "precision": 100,
+    "weight": 8,
+    "price": 292,
+    "recycle": 204,
+    "description": "Doom Suits consists of breast and shoulder plates of metal and earned the name because the guards of the Arenas, Doom Guards, favour this type of armour. The suits are mass produced all over the country and are relatively cheap considering the protection they afford."
+   },
+   {
+    "name": "Trollskin",
+    "class": null,
+    "rank": 1,
+    "ability": "Strength",
+    "requirement": 36,
+    "effect": 18,
+    "time": 0,
+    "precision": 100,
+    "weight": 10,
+    "price": 356,
+    "recycle": 249,
+    "description": "Hides from forest trolls are quite useful for making armour as they are very tough. Getting the hides for the armour is just as tough, however, as troll rarely want to part with their skin!"
+   },
+   {
+    "name": "Spike Suit",
+    "class": null,
+    "rank": 5,
+    "ability": "Strength",
+    "requirement": 39,
+    "effect": 20,
+    "time": 0,
+    "precision": 100,
+    "weight": 11,
+    "price": 388,
+    "recycle": 271,
+    "description": "Spike Suits can be quite a nasty experience to the wearer as the many long spikes may cause harm if a wrong move is made. However, many brave warriors have learned to live with this since the mere appearance of the armour may discourage enemies from attacking."
+   },
+   {
+    "name": "Ice Armour",
+    "class": null,
+    "rank": 2,
+    "ability": "Strength",
+    "requirement": 44,
+    "effect": 22,
+    "time": 0,
+    "precision": 100,
+    "weight": 11,
+    "price": 418,
+    "recycle": 292,
+    "description": "The name is quite misleading as Ice Armour isn't made from ice but cold steel."
+   },
+   {
+    "name": "Blood Armour",
+    "class": null,
+    "rank": 6,
+    "ability": "Strength",
+    "requirement": 48,
+    "effect": 25,
+    "time": 0,
+    "precision": 100,
+    "weight": 15,
+    "price": 498,
+    "recycle": 348,
+    "description": "These rare suits of armour are surrounded by mystery and are banned in many places because they are thought to be linked to some sort of evil. Blood Armour is made from an unknown, blood red material and even today no one knows who made them."
+   },
+   {
+    "name": "Lava Plate",
+    "class": null,
+    "rank": 3,
+    "ability": "Strength",
+    "requirement": 52,
+    "effect": 32,
+    "time": 0,
+    "precision": 100,
+    "weight": 16,
+    "price": 536,
+    "recycle": 375,
+    "description": "The hardened lava of Vulcor volcanos can be made into plates of hard armour."
+   },
+   {
+    "name": "Power Mail",
+    "class": null,
+    "rank": 7,
+    "ability": "Strength",
+    "requirement": 54,
+    "effect": 35,
+    "time": 0,
+    "precision": 100,
+    "weight": 18,
+    "price": 576,
+    "recycle": 403,
+    "description": "Many famous heroes swear to this type of armour. Power Mail is strong, durable and allows for reasonable movement during combat. It consists of many small plates of metal that are fitted together in overlaying layers. The metal used varies from region to region but the smiths of Blissmor are probably the best at making Power Mail."
+   },
+   {
+    "name": "Black mail",
+    "class": null,
+    "rank": 4,
+    "ability": "Strength",
+    "requirement": 60,
+    "effect": 37,
+    "time": 0,
+    "precision": 100,
+    "weight": 19,
+    "price": 626,
+    "recycle": 438,
+    "description": "We are not talking about crime now but a suit of black armour worn by many warriors."
+   },
+   {
+    "name": "Bull Armour",
+    "class": null,
+    "rank": 8,
+    "ability": "Strength",
+    "requirement": 62,
+    "effect": 40,
+    "time": 0,
+    "precision": 100,
+    "weight": 20,
+    "price": 652,
+    "recycle": 456,
+    "description": "Bull Armour is fashioned from thick metal plate and comes with a great helmet shaped like the head of a bull, hence the name. Skilled warriors have learned to use the big horns on the helmet as brute weapons in the wars against intruders."
+   },
+   {
+    "name": "Paladin Suit",
+    "class": null,
+    "rank": 5,
+    "ability": "Strength",
+    "requirement": 64,
+    "effect": 45,
+    "time": 0,
+    "precision": 100,
+    "weight": 17,
+    "price": 622,
+    "recycle": 435,
+    "description": "Bright and shiny this is the suit of armour for those that need to think about their image."
+   },
+   {
+    "name": "Chaos Plate",
+    "class": null,
+    "rank": 6,
+    "ability": "Strength",
+    "requirement": 68,
+    "effect": 45,
+    "time": 0,
+    "precision": 100,
+    "weight": 19,
+    "price": 674,
+    "recycle": 471,
+    "description": "The twisted metal and strange shape of these suits have earned them their name."
+   },
+   {
+    "name": "Vulcor suit",
+    "class": null,
+    "rank": 7,
+    "ability": "Strength",
+    "requirement": 70,
+    "effect": 50,
+    "time": 0,
+    "precision": 100,
+    "weight": 20,
+    "price": 700,
+    "recycle": 490,
+    "description": "Heavy armour is not seen often in the region of Vulcor as it is simply too hot to wear in the relentless wastes of the desert. A Vulcor Suit is one of the few that are popular, though."
+   },
+   {
+    "name": "Wraith Mail",
+    "class": null,
+    "rank": 8,
+    "ability": "Strength",
+    "requirement": 74,
+    "effect": 60,
+    "time": 0,
+    "precision": 100,
+    "weight": 21,
+    "price": 738,
+    "recycle": 516,
+    "description": "The light material used for these suits makes the armour look transparent."
+   },
+   {
+    "name": "Holy Plate",
+    "class": null,
+    "rank": 9,
+    "ability": "Strength",
+    "requirement": 78,
+    "effect": 65,
+    "time": 0,
+    "precision": 100,
+    "weight": 25,
+    "price": 818,
+    "recycle": 572,
+    "description": "Suits of Holy Plate are highly prized by Heroes as they are blessed by gods."
+   }
+  ]
+ },
+ "map": [
+  null,
+  {
+   "name": "Village",
+   "enemies": [
+    {
+     "name": "Gorrak",
+     "count": 1,
+     "health": 10,
+     "damage": 8,
+     "gold": 10,
+     "experience": 10
+    }
+   ]
+  },
+  {
+   "name": "Lava Island",
+   "enemies": [
+    {
+     "name": "Beetle",
+     "count": 4,
+     "health": 30,
+     "damage": 20,
+     "gold": 30,
+     "experience": 30
+    },
+    {
+     "name": "Gorrak",
+     "count": 2,
+     "health": 24,
+     "damage": 12,
+     "gold": 24,
+     "experience": 24
+    },
+    {
+     "name": "Gorrak",
+     "count": 2,
+     "health": 24,
+     "damage": 14,
+     "gold": 24,
+     "experience": 24
+    },
+    {
+     "name": "Gorrak",
+     "count": 1,
+     "health": 24,
+     "damage": 22,
+     "gold": 24,
+     "experience": 24
+    }
+   ]
+  },
+  {
+   "name": "Dwarven Hall",
+   "enemies": [
+    {
+     "name": "Skeleton",
+     "count": 3,
+     "health": 18,
+     "damage": 10,
+     "gold": 18,
+     "experience": 18
+    },
+    {
+     "name": "Skeleton",
+     "count": 4,
+     "health": 18,
+     "damage": 14,
+     "gold": 18,
+     "experience": 18
+    },
+    {
+     "name": "Skeleton",
+     "count": 1,
+     "health": 18,
+     "damage": 21,
+     "gold": 18,
+     "experience": 18
+    },
+    {
+     "name": "Skeleton",
+     "count": 1,
+     "health": 18,
+     "damage": 22,
+     "gold": 18,
+     "experience": 18
+    }
+   ]
+  },
+  {
+   "name": "Mira's Hideout",
+   "enemies": [
+    {
+     "name": "Fungusman",
+     "count": 1,
+     "health": 10,
+     "damage": 8,
+     "gold": 10,
+     "experience": 10
+    },
+    {
+     "name": "Fungusman",
+     "count": 4,
+     "health": 50,
+     "damage": 18,
+     "gold": 50,
+     "experience": 50
+    },
+    {
+     "name": "Mira",
+     "count": 1,
+     "health": 10,
+     "damage": 8,
+     "gold": 10,
+     "experience": 10
+    }
+   ]
+  },
+  {
+   "name": "The Lair",
+   "enemies": [
+    {
+     "name": "Beetle",
+     "count": 4,
+     "health": 30,
+     "damage": 19,
+     "gold": 30,
+     "experience": 30
+    },
+    {
+     "name": "Beetle",
+     "count": 1,
+     "health": 30,
+     "damage": 22,
+     "gold": 30,
+     "experience": 30
+    },
+    {
+     "name": "Gorrak",
+     "count": 1,
+     "health": 24,
+     "damage": 13,
+     "gold": 24,
+     "experience": 24
+    },
+    {
+     "name": "Gorrak",
+     "count": 1,
+     "health": 24,
+     "damage": 14,
+     "gold": 24,
+     "experience": 24
+    },
+    {
+     "name": "Gorrak",
+     "count": 1,
+     "health": 24,
+     "damage": 18,
+     "gold": 24,
+     "experience": 24
+    },
+    {
+     "name": "Gorrak",
+     "count": 1,
+     "health": 24,
+     "damage": 26,
+     "gold": 24,
+     "experience": 24
+    }
+   ]
+  },
+  {
+   "name": "The Core",
+   "enemies": [
+    {
+     "name": "Golem",
+     "count": 1,
+     "health": 36,
+     "damage": 13,
+     "gold": 36,
+     "experience": 36
+    },
+    {
+     "name": "Golem",
+     "count": 2,
+     "health": 36,
+     "damage": 18,
+     "gold": 36,
+     "experience": 36
+    },
+    {
+     "name": "Golem",
+     "count": 1,
+     "health": 36,
+     "damage": 19,
+     "gold": 36,
+     "experience": 36
+    },
+    {
+     "name": "Golem",
+     "count": 2,
+     "health": 36,
+     "damage": 22,
+     "gold": 36,
+     "experience": 36
+    }
+   ]
+  },
+  {
+   "name": "The Forge",
+   "enemies": [
+    {
+     "name": "Shirard",
+     "count": 1,
+     "health": 10,
+     "damage": 8,
+     "gold": 10,
+     "experience": 10
+    }
+   ]
+  },
+  {
+   "name": "Old Shrine",
+   "enemies": [
+    {
+     "name": "Skeleton",
+     "count": 3,
+     "health": 10,
+     "damage": 8,
+     "gold": 10,
+     "experience": 10
+    },
+    {
+     "name": "Skeleton",
+     "count": 8,
+     "health": 10,
+     "damage": 10,
+     "gold": 10,
+     "experience": 10
+    },
+    {
+     "name": "Skeleton",
+     "count": 4,
+     "health": 10,
+     "damage": 19,
+     "gold": 10,
+     "experience": 10
+    }
+   ]
+  },
+  {
+   "name": "The Long Run",
+   "enemies": [
+    {
+     "name": "Gorrak",
+     "count": 1,
+     "health": 24,
+     "damage": 11,
+     "gold": 24,
+     "experience": 24
+    },
+    {
+     "name": "Gorrak",
+     "count": 1,
+     "health": 24,
+     "damage": 13,
+     "gold": 24,
+     "experience": 24
+    },
+    {
+     "name": "Gorrak",
+     "count": 1,
+     "health": 24,
+     "damage": 26,
+     "gold": 24,
+     "experience": 24
+    }
+   ]
+  },
+  {
+   "name": "Cave of Doom",
+   "enemies": [
+    {
+     "name": "Fungusman",
+     "count": 2,
+     "health": 50,
+     "damage": 18,
+     "gold": 50,
+     "experience": 50
+    }
+   ]
+  },
+  {
+   "name": "Aldor's Outpost",
+   "enemies": [
+    {
+     "name": "Aldor",
+     "count": 1,
+     "health": 10,
+     "damage": 16,
+     "gold": 10,
+     "experience": 10
+    },
+    {
+     "name": "Gorrak",
+     "count": 2,
+     "health": 24,
+     "damage": 12,
+     "gold": 24,
+     "experience": 24
+    },
+    {
+     "name": "Gorrak",
+     "count": 2,
+     "health": 24,
+     "damage": 14,
+     "gold": 24,
+     "experience": 24
+    },
+    {
+     "name": "Gorrak",
+     "count": 1,
+     "health": 24,
+     "damage": 19,
+     "gold": 24,
+     "experience": 24
+    }
+   ]
+  },
+  {
+   "name": "Fire Cave",
+   "enemies": [
+    {
+     "name": "Beetle",
+     "count": 2,
+     "health": 10,
+     "damage": 16,
+     "gold": 10,
+     "experience": 10
+    },
+    {
+     "name": "Fire Devil",
+     "count": 2,
+     "health": 10,
+     "damage": 8,
+     "gold": 10,
+     "experience": 10
+    }
+   ]
+  },
+  {
+   "name": "The Evil Eye",
+   "enemies": [
+    {
+     "name": "Beholder",
+     "count": 1,
+     "health": 10,
+     "damage": 11,
+     "gold": 10,
+     "experience": 10
+    }
+   ]
+  },
+  {
+   "name": "Ilrik's Tomb",
+   "enemies": [
+    {
+     "name": "Skeleton",
+     "count": 4,
+     "health": 18,
+     "damage": 11,
+     "gold": 18,
+     "experience": 18
+    }
+   ]
+  },
+  {
+   "name": "Dune Burrow",
+   "enemies": [
+    {
+     "name": "Beetle",
+     "count": 2,
+     "health": 30,
+     "damage": 12,
+     "gold": 30,
+     "experience": 30
+    }
+   ]
+  },
+  {
+   "name": "Crypt",
+   "enemies": [
+    {
+     "name": "Ghost",
+     "count": 2,
+     "health": 20,
+     "damage": 11,
+     "gold": 20,
+     "experience": 20
+    }
+   ]
+  },
+  {
+   "name": "Lava Pit",
+   "enemies": [
+    {
+     "name": "Beetle",
+     "count": 2,
+     "health": 30,
+     "damage": 12,
+     "gold": 30,
+     "experience": 30
+    }
+   ]
+  },
+  {
+   "name": "Golem Secret",
+   "enemies": [
+    {
+     "name": "Fungusman",
+     "count": 4,
+     "health": 50,
+     "damage": 18,
+     "gold": 50,
+     "experience": 50
+    },
+    {
+     "name": "Golem",
+     "count": 1,
+     "health": 50,
+     "damage": 10,
+     "gold": 50,
+     "experience": 50
+    }
+   ]
+  }
+ ]
+}

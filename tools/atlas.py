@@ -26,7 +26,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "server"))
 sys.path.insert(0, HERE)
 
-from render_map import STEP_X, STEP_Y, render  # noqa: E402
+from iso import diamond  # noqa: E402
+from render_map import render  # noqa: E402
 from world import World  # noqa: E402
 
 PAD = 64          # render_map's own margin; the tile origin sits inside it
@@ -55,11 +56,15 @@ TRIM = {}
 
 
 def tile_px(w, loc, x, y):
-    """Where a tile lands inside that location's rendered image."""
+    """The diamond point of a tile, inside that location's cropped image.
+
+    Creatures and markers hang off this point. The floor picture's top-left
+    is half a tile up and to the left of it.
+    """
     mp = w.map(loc)
     ox, oy = TRIM.get((w.game, loc), (0, 0))
-    return (mp.h * STEP_X + PAD + (x - y) * STEP_X - ox,
-            PAD + (x + y) * STEP_Y - oy)
+    dx, dy = diamond(x, y)
+    return (mp.h * 16 + PAD + dx - ox, PAD + dy - oy)
 
 
 def centre_px(w, loc):
@@ -175,9 +180,20 @@ def markers(w, loc):
     if not any(m.location == loc for m in w.mobs.values()):
         w.populate_location(loc)
     for m in w.mobs.values():
-        if m.location == loc and m.alive:
+        if m.location != loc:
+            continue
+        if m.alive:
             kind = "npc" if getattr(m, "label", None) else "foe"
-            out.append(((m.x, m.y), kind, m.creature))
+        elif getattr(m, "dormant", False):
+            # Not there when you walk in: eleven creatures wait for a kind 5
+            # entity to switch them on — Shirard behind the statue, the
+            # Crypt's second and third waves standing where their chamber has
+            # not been painted yet. A map that leaves them out is as wrong as
+            # one that draws them as if they were on the board.
+            kind = "waiting"
+        else:
+            continue
+        out.append(((m.x, m.y), kind, m.creature))
     return out
 
 
@@ -315,12 +331,12 @@ def main():
                                                key=lambda m: sum(m[0])):
             px, py = tile_px(w, loc, tx, ty)
             px += x + shift[0]
-            py += y + shift[1] + STEP_Y   # sit on the tile, not above it
+            py += y + shift[1]
             colour = MARKERS[kind][0] + (255,)
             if kind == "door":
                 strip = marker_tile(w)
                 if strip:
-                    sheet.alpha_composite(strip, (int(px) - 16, int(py) - 15))
+                    sheet.alpha_composite(strip, (int(px) - 16, int(py) - 7))
                 else:
                     draw.rectangle([px - 8, py - 5, px + 8, py + 5],
                                    outline=colour, width=2)
