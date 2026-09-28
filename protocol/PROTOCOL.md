@@ -949,8 +949,10 @@ Read from the client and checked against all 235 of Shirad's Forge's rows:
     11  script       opcode 17, and then screen 33 whatever the reply, whose
                      c() is notifyDestroyed(): the game quits. Shirad's
                      Forge's one kind 11 (state 226) fires when Shirard dies,
-                     so beating him closed the game. The server now serves
-                     it as kind 3 and answers with an ending (World.ENDING)
+                     so beating him closed the game. The server drops 226
+                     from Shirard's death switch (entity 132), and the
+                     battle report after his fight carries the ending
+                     (World.ending_text)
 
 Open: the quest item name keys (0x19c4-0x19c7) are in no location's text
 table we hold, so the Quest items menu may show them blank.
@@ -983,6 +985,30 @@ server round trip.
 `var12` is computed unconditionally, so a record that stops after block 1 is
 read one byte past its end — on a 19-byte record, "Index 19 out of bounds for
 length 19".
+
+# The trigger byte, [6]
+
+What fires an entity once it is live (state 2) and its prerequisites hold:
+
+    0  stepping into its box [2..5] (d.b(), d.java:599). A box of 0,0,0,0
+       fires the moment it is live: that is how a chain runs on its own.
+    1  the action key: it joins the "Choose action" list, labelled by the
+       text key at [7][8] (see "Interactables" below).
+    2  a won fight whose tag 28 (who died) names node [8] (d.java:843).
+    3  a won fight in which a creature of GROUP [8] died (type 9 byte 2).
+
+With trigger 2 or 3, [7][8] is not a label: [8] is the node or group.
+
+The four bosses use them together. Mira (85), Aldor (122) and Shirard (111)
+are kind 2 fight boxes with trigger 0: walk in and the fight is offered. A
+separate trigger 2 entity on the boss's node (227, 134, 132) completes the
+box when the boss dies and arms what comes next: Mira standing again to be
+spoken to, Aldor's cave, the ending. The Beholder needs no box; its creature
+row has a notice radius and it attacks on sight.
+
+A server that rewrites a boss box to trigger 2 (as ours once did, so the box
+would close on the death) leaves a fight that waits for its own boss to die
+before it will start: no boss can be fought at all.
 
 # Opcode 10 is the on-demand resource fetch
 

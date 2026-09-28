@@ -22,9 +22,39 @@ their creature numbers were the server's and did not survive. Weight is
 theirs, byte 11 of the type 9 row, Skeleton 18 to Fungusman 50.
 """
 
+import json
+import os
 import statistics
 
 from catalogue import catalogue
+
+# Which game the server plays. "classic" is as close to watAgame's as the
+# record allows: a creature strikes anything beside it (the client's own
+# contact rule), no attack shapes, no mid-turn habits, no shells, and bosses
+# are single fights except Mira, whose second phase is watAgame's own twin.
+# "remastered" is ours: shapes, habits, two-phase bosses, shells. Both keep
+# the fixes, the tier sizing that stands in for the lost server numbers, the
+# gear, crates, trophies and the ending. Set on /balance, kept in
+# balance.json; RULESET_OVERRIDE is for tests and tools.
+RULESETS = ("classic", "remastered")
+RULESET_OVERRIDE = None
+_BALANCE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "balance.json")
+
+
+def ruleset():
+    if RULESET_OVERRIDE in RULESETS:
+        return RULESET_OVERRIDE
+    try:
+        with open(_BALANCE) as fh:
+            chosen = json.load(fh).get("ruleset")
+    except (OSError, ValueError, AttributeError):
+        chosen = None
+    return chosen if chosen in RULESETS else "classic"
+
+
+def remastered():
+    return ruleset() == "remastered"
+
 
 # lab_data and balance_sim walk the chapter in this order. Stops 1-4 are
 # tier I, 5-11 tier II, 12-18 tier III, as tools/tune_gear.py pitched the
@@ -246,6 +276,18 @@ def shell(tier, species):
     return round(share * sword_blow(tier)) if share else 0
 
 
+# Turns a Beetle-weight creature lasts against the tier's best weapon, as
+# best_round counts it. best_round undercounts what a hero really deals: once
+# he is beside a creature he swings the whole 720 rather than walking 160 of
+# it, and precise hits and practice titles add more. At 1.0 creatures died
+# before they swung back, a starter sword won most of tier III on Auto fight,
+# and nothing a creature did mattered (tools/autoplay.py). 1.5 is where
+# skipping gear starts to lose.
+LIFE_TURNS = 1.5
+# How much harder a boss hits than a creature of its tier, turn for turn.
+BOSS_FORCE = 1.0
+
+
 def creature_life(tier, weight, species=None):
     """Weight counts a little less than in proportion, so a Fungusman (50)
     takes about one and a half Beetles, not five thirds, and a pair of them
@@ -254,7 +296,7 @@ def creature_life(tier, weight, species=None):
     A shelled species gives up life for its armour, so that the average of
     a sword and a hammer clears it as fast as a soft one: the sword loses
     the whole share a turn, the hammer half of it."""
-    life = (weight / BEETLE) ** 0.75 * best_round(tier)
+    life = (weight / BEETLE) ** 0.75 * best_round(tier) * LIFE_TURNS
     life *= 1 - 0.75 * SHELL.get(species or "", 0)
     return max(1, round(life))
 
@@ -274,8 +316,10 @@ BOSS_WEIGHT = 60
 
 
 def boss_life(tier, turns):
-    """One phase of a boss: this many turns of the tier's best weapon."""
-    return max(1, round(turns * best_round(tier)))
+    """One phase of a boss: this many turns of the tier's best weapon, with
+    the same LIFE_TURNS allowance creatures get for what a hero really deals
+    (a full turn of swings once he is beside it, precise hits, titles)."""
+    return max(1, round(turns * best_round(tier) * LIFE_TURNS))
 
 
 def _expected(blow, chance, armour):

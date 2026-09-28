@@ -7,6 +7,7 @@ Everything here is driven by data that *did* survive inside the chapter jar —
 tilemaps, location text, the creature catalogue. See tools/dump_world.py.
 """
 
+import copy
 import os
 import random
 import re
@@ -24,8 +25,10 @@ POTENCY_DIV = 3     # tiers.POTENCY_DIV; see tiers.potency_bonus
 import zipfile
 
 from catalogue import catalogue
-from layout import apply_forge_layout, migrate_save
+from layout import (QUEST_GIFTS, apply_forge_layout, apply_forge_texts,
+                    migrate_save)
 import tiers
+import trophies
 
 JARS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                     "jars")
@@ -294,6 +297,7 @@ class World:
         # moved, before anything reads a coordinate out of them.
         if self.game == "ShiradsForge":
             apply_forge_layout(self.res, self.real1, self.real9)
+            apply_forge_texts(self.res)
         self._names = {}
         self.locations = sorted(
             int(n[1:], 16) for n in self.res.files
@@ -341,6 +345,11 @@ class World:
         self.opened = []          # crate state ids already looted
         self.crate_found = []     # what crates have handed out, in order
         self.finished = False     # the chapter's ending has been shown
+        self.kills = 0            # creatures slain, for the tally and trophies
+        self.slain = []           # node ids the hero has killed
+        self.visited = []         # location ids the phone has reported
+        self.trophies = {}        # trophy id -> the order it was earned in
+        self.trophy_news = []     # earned but not yet announced
         self.progress = None      # the phone's quest switches, d.i, once saved
 
         # "Your hero starts with the most basic sword as a default" and the
@@ -375,11 +384,41 @@ class World:
     # -- map access ---------------------------------------------------------
 
     def map(self, location=None):
+        """The location's tilemap as the phone has it now: the jar's map with
+        every kind 6 patch the phone has fired laid over it. A fired patch
+        is at state 3 in the phone's switches (self.progress). Without them
+        a wall the Crypt's crate opened is still a wall here, and Auto fight
+        stalls on the far side of it."""
         loc = self.location if location is None else location
         if loc not in self.maps:
             blob = self.res.get(2, loc)
             self.maps[loc] = TileMap(blob) if blob else None
-        return self.maps[loc]
+        base = self.maps[loc]
+        rows = [r for r in getattr(self, "_patch_rows", ()) if r[14] == loc]
+        prog = getattr(self, "progress", None)
+        if base is None or not rows or not prog:
+            return base
+        fired = tuple(r[0] for r in rows if r[0] < len(prog) and prog[r[0]] == 3)
+        if not fired:
+            return base
+        cache = self.__dict__.setdefault("_patched", {})
+        hit = cache.get(loc)
+        if hit and hit[0] == fired:
+            return hit[1]
+        mp = copy.copy(base)
+        mp.tiles = bytearray(base.tiles)
+        for r in rows:
+            if r[0] not in fired or len(r) < 19:
+                continue
+            px, py, pw, ph = r[15], r[16], r[17], r[18]
+            for row in range(ph):         # d.java:1026, a row at a time
+                for col in range(pw):
+                    i = 19 + row * pw + col
+                    x, y = px + col, py + row
+                    if i < len(r) and 0 <= x < mp.w and 0 <= y < mp.h:
+                        mp.tiles[y * mp.w + x] = r[i]
+        cache[loc] = (fired, mp)
+        return mp
 
     # Objectives read as imperatives — the verb is what separates them from
     # the quest ITEM names and descriptions sharing the same table.
@@ -429,6 +468,10 @@ class World:
         """
         if location:
             self.seen = location
+            visited = getattr(self, "visited", None)
+            if visited is not None and location not in visited:
+                visited.append(location)
+                trophies.check(self)
 
     def place(self):
         return getattr(self, "seen", None) or self.location
@@ -625,8 +668,9 @@ class World:
             m.tier = tier
             if not m.respawn:
                 m.weight = typical.get(m.creature, 20)
-            species = self.creature_name(m.creature)
-            m.shell = tiers.shell(tier, species)
+            # shells are the remastered game's; a classic creature is soft
+            species = self.creature_name(m.creature) if tiers.remastered() else None
+            m.shell = tiers.shell(tier, species) if species else 0
             m.max_hp = m.hp = tiers.creature_life(tier, m.weight, species)
 
     def _adopt_real_creatures(self):
@@ -690,7 +734,9 @@ class World:
         # she dies. The phases now happen on her own node (handlers._kill),
         # so the twin would be a third fight. State 3 is gone for good, and
         # the phone cannot promote it back when the kind 5 fires.
-        if self.game == "ShiradsForge" and 47 in self.mobs:
+        # In the classic game the twin is watAgame's own second phase and
+        # wakes when Mira falls, so she stays asleep, waiting.
+        if self.game == "ShiradsForge" and 47 in self.mobs and tiers.remastered():
             self.mobs[47].alive = False
             self.mobs[47].dormant = False
         self._size_by_tier()
@@ -1306,12 +1352,13 @@ class World:
             return None
         self.gold -= it.price
         self.inventory.append(it.name)
+        trophies.earn(self, "customer")
         return it
 
-    # Lines that name a sum. Tillic says "a few" and gives no number; 3 is
-    # the same token Dreyfus states outright. The state ids are the kind-3
-    # checkpoints in the Shirad's Forge table.
-    GIFTS = {"ShiradsForge": {117: 3, 136: 3, 148: 5}}
+    # The optional quests' rewards, at the kind-3 checkpoints that pay them.
+    # The sums and the lines that name them live in layout.QUEST_GIFTS.
+    GIFTS = {"ShiradsForge": {state: gold for state, (_, _, gold, _)
+                              in QUEST_GIFTS.items()}}
 
     def claim_gift(self, state):
         """Pay a checkpoint's stated gold once. Returns what was paid."""
@@ -1349,8 +1396,15 @@ class World:
         moment it is armed, the same way the other crates do. Shirad's Forge
         has three: one on Lava Island and two in the Crypt. Only the first
         used to get one, so the Lava Island crate and one in the Crypt
-        opened onto nothing. Returns {new state id: location}.
+        opened onto nothing. Returns {new state id: location}; the crate
+        that arms each is kept in self._extra_crate_parents.
+
+        Like the jar's own payoffs, each starts dormant (_fresh_entity_states)
+        and completes itself when it fires. Built live and never completing,
+        the Lava Island one fired as the hero walked in and then fired
+        forever, "Nothing left inside" on every step.
         """
+        parents = {}
         made = {}
         for r in list(rows):
             if r[12] != 6:
@@ -1371,8 +1425,10 @@ class World:
             r[p] = 1
             r[p + 1:p + 1] = bytes([sid])
             rows.append(bytearray(entity(sid, r[1], kind=3, tail=b"",
-                                         box=(0, 0, 0, 0))))
+                                         box=(0, 0, 0, 0), completes=(sid,))))
             made[sid] = r[1]
+            parents[sid] = r[0]
+        self._extra_crate_parents = parents
         return made
 
     def crate_payoffs(self):
@@ -1413,20 +1469,21 @@ class World:
     # the catalogue's floor of 3 — he owns every piece that asks for 3.
     CRATE_AHEAD = 6
 
-    # Shirad's Forge's last entity. Shirard's death (entity 132, "node 20
-    # died") arms it. As written it is kind 11: the phone asks the server
-    # (opcode 17) and then opens screen 33, whose only job is
-    # notifyDestroyed(), so beating Shirard closed the game. Whatever the
-    # original server said there is lost, and that reply path cannot show
-    # text anyway. entity_table serves it as kind 3 instead, like a crate:
-    # the phone asks, shows the answer, and the hero stays in the world.
-    ENDING = {"ShiradsForge": 226}
+    def shirard_fell(self):
+        """Whether this fight just ended Shirard: Shirad's Forge's finale."""
+        return self.game == "ShiradsForge" and any(
+            n == 20 and (m := self.mobs.get(n)) and not m.alive
+            for n in (self.engaged or []))
 
     def ending_text(self):
-        """The chapter's close, and the hero's tally."""
-        slain = sum(1 for m in self.mobs.values()
-                    if not m.npc and not m.alive and not getattr(m, "dormant", False)
-                    and m.node != 47)
+        """The chapter's close, and the hero's tally, for the battle report
+        after Shirard's fight. Shirard's death switch (entity 132) also armed
+        entity 226, a kind 11: the phone asks the server for a script and
+        then opens screen 33, which quits the game. entity_table drops 226
+        from that switch, so the hero stays in the world and this is the
+        ending instead. Tally includes what this fight is about to pay."""
+        slain = self.kills
+        gold = self.gold + getattr(self, "pending_gold", 0)
         return (
             "Shirard falls, and the Forge goes quiet.\n\n"
             "The lava runs in its old streams again. The statue is gone, and "
@@ -1437,8 +1494,20 @@ class World:
             "Tillic and every soul you helped along the way owe you their "
             "homes, and they know it.\n\n"
             "Thank you, hero, for saving this land.\n\n"
-            f"Level {self.level}, {slain} creatures slain, {self.gold} gold.\n\n"
+            f"Level {self.level}, {slain} creatures slain, {gold} gold.\n\n"
             "Shirard's Forge is complete. The land is yours to wander.")
+
+    def prize_crates(self):
+        """Every crate that holds a prize: the payoffs smashing a crate arms,
+        the silent crates entity_table arms (worked out on a copy, so asking
+        changes nothing), and the labelled kind 3 crates."""
+        states = set(self.crate_payoffs())
+        states |= set(self._arm_silent_crates(
+            [bytearray(r) for r in self.real1 or ()]))
+        for r in self.real1 or ():
+            if len(r) > 12 and r[12] == 3 and "crate" in self.entity_label(r[0]).lower():
+                states.add(r[0])
+        return states
 
     def crate_location(self, state):
         """Which location a crate's payoff sits in. The silent crate the
@@ -1505,6 +1574,7 @@ class World:
             gold = 8 + (state % 10)
         self.gold += gold
         self.opened.append(state)
+        trophies.check(self)
         return found, gold
 
     def _crate_spare(self, state, tier):
@@ -1755,6 +1825,7 @@ class World:
         # reach that square, so open the fight one step off it.
         self.step_off_fighter()
         self.fight_at = (self.hero_x, self.hero_y)
+        self.fight_hurt = False   # for the Untouchable trophy
         self.guard = 0
         self.defences = 0
         self.pending_gold = 0
@@ -1813,7 +1884,19 @@ class World:
     # and the percent starts over. Sensei is the last title.
     TITLES = ("Fumbler", "Beginner", "Trained", "Experienced",
               "Master", "Expert", "Sensei")
+    # A landed use earns PRACTICE_STEP percent toward the first title, and
+    # each title after needs one more round of that: 20 uses for Beginner,
+    # 40 more for Trained, 60 for Experienced, 420 in all for Sensei. A title
+    # adds 1 to the action's effect and takes TITLE_TIME percent off its time.
+    #
+    # At a flat 20 uses a title, -5% each, with the weapon line's title adding
+    # its own +1 to every blow as well, a hero reached Sensei twice over by
+    # level 4: +12 a blow and -30% time, three times the damage the gear was
+    # tuned for, and a starter sword cleared tier III on Auto fight
+    # (tools/autoplay.py). Over a chapter a main attack now climbs about three
+    # titles.
     PRACTICE_STEP = 5
+    TITLE_TIME = 3
 
     def practice_rank(self, name):
         rank, _ = self.practice.get(name, (0, 0))
@@ -1825,24 +1908,39 @@ class World:
         title = self.TITLES[rank]
         if rank >= len(self.TITLES) - 1:
             return f"{title}"
-        return f"{title} {pct}%"
+        return f"{title} {int(pct)}%"
 
     def trained_effect(self, name, base):
         """Each title adds one to the skill's effect."""
         return base + self.practice_rank(name)
 
     def trained_time(self, name, base):
-        """Each title takes 5% off the time, and Speed takes its share off
-        what is left (tiers.speed_scaled). The cost never reaches 0. This is
-        the time the fight bar sends the phone, so both sides charge it."""
-        practised = max(1, base * (100 - 5 * self.practice_rank(name)) // 100)
+        """Each title takes TITLE_TIME% off the time, and Speed takes its
+        share off what is left (tiers.speed_scaled). The cost never reaches
+        0. This is the time the fight bar sends the phone, so both sides
+        charge it."""
+        practised = max(1, base * (100 - self.TITLE_TIME * self.practice_rank(name)) // 100)
         return tiers.speed_scaled(practised, self.stats.get("Speed", 3))
 
     def note_use(self, name):
         """A successful use this fight. Kept only if the fight is won."""
         if not name:
             return
-        self.fight_gains[name] = self.fight_gains.get(name, 0) + self.PRACTICE_STEP
+        step = self.PRACTICE_STEP / (self.practice_rank(name) + 1)
+        self.fight_gains[name] = self.fight_gains.get(name, 0) + step
+
+    def _replay_practice(self, uses):
+        """(rank, percent) that this many landed uses earn."""
+        last = len(self.TITLES) - 1
+        rank, pct = 0, 0.0
+        for _ in range(int(uses)):
+            if rank >= last:
+                return last, 0.0
+            pct += self.PRACTICE_STEP / (rank + 1)
+            if pct >= 100:
+                pct -= 100
+                rank += 1
+        return rank, (0.0 if rank >= last else pct)
 
     def commit_practice(self):
         """Fold this fight's gains into the hero. Past Sensei, nothing more."""
@@ -1877,12 +1975,13 @@ class World:
                 lines.append("No gains")
                 continue
             for name in got:
+                pct = max(1, round(gains[name]))
                 if kind == "usage":
-                    lines.append(f"{gains[name]}% {name} usage")
+                    lines.append(f"{pct}% {name} usage")
                 elif kind == "skill":
-                    lines.append(f"{gains[name]}% {name} skill")
+                    lines.append(f"{pct}% {name} skill")
                 else:
-                    lines.append(f"{gains[name]}% {name}")
+                    lines.append(f"{pct}% {name}")
         return lines
 
     def battle_report(self):
@@ -1911,15 +2010,8 @@ class World:
             lines.append(f"Gold +{self.pending_gold}")
             lines.append(f"Experience +{self.pending_xp}")
         lines += self.practice_report()
-        if (self.game == "ShiradsForge" and any(
-                n == 20 and (m := self.mobs.get(n)) and not m.alive
-                for n in (self.engaged or []))):
-            lines += ["",
-                      "Congratulations. You have completed Shirad's Forge "
-                      "and saved the mountain.",
-                      "Shirard is defeated, and the lava runs its old course.",
-                      "The world is still yours. Explore as long as you like, "
-                      "and leave when you wish."]
+        if self.shirard_fell():
+            lines += ["", self.ending_text()]
         return "\n".join(lines) or "The fight is over."
 
     def npcs(self):
@@ -2004,32 +2096,25 @@ class World:
             made = self._arm_silent_crates(rows)
             self._extra_crates = set(made)
             self._extra_crate_locs = made
-            # the chapter's end asks and shows, instead of asking and quitting
-            end = self.ENDING.get(self.game)
             for r in rows:
-                if end is not None and r[0] == end and r[12] == 11:
-                    r[12] = 3
-            for r in rows:
-                # A fight box (kind 2) stays live until something completes
-                # it. The client completes an entity whose trigger is "this
-                # node died" (byte 6 == 2, byte 8 == the node) when tag 28
-                # names that node. These rows started the fight from a box
-                # and left that trigger empty, so killing Shirard never
-                # turned the box off and it asked to fight him again.
-                if (len(r) > 14 and r[12] == 2 and r[6] == 0
-                        and r[13] >= 1):
-                    r[6] = 2
-                    r[8] = r[14]
+                # The boss fights (Mira 85, Aldor 122, Shirard 111) are kind 2
+                # boxes with trigger 0: stepping in starts the fight, and a
+                # separate trigger 2 entity (227, 134, 132) completes the box
+                # when tag 28 names the boss dead. They stay as written.
+                # Turning the boxes themselves into trigger 2 meant each
+                # waited for its own boss to die before it would start.
                 # Shirard's death switch also armed entity 226, a kind 11
                 # request. The phone answers that by opening a blank screen
                 # which quits the game. Leave the player in the world; the
-                # battle report carries the ending instead.
+                # battle report carries the ending instead (ending_text).
                 if r[0] == 132 and len(r) > 16 and r[16] == 226:
                     r[15:17] = b"\x00"
             for r in rows:
                 if len(r) > 12 and r[12] == 3:
                     key = int.from_bytes(r[7:9], "big")
                     self.interactables[r[0]] = (r[1], self.text(r[1]).get(key, "Use"), key)
+            self._patch_rows = [bytes(r) for r in rows
+                                if len(r) > 18 and r[12] == 6]
             self.entity_count = max((r[0] for r in rows), default=0) + 1
             # both state arrays are u8-indexed, so they can hold 255
             self.node_count = max(self.node_count, self.entity_count)
@@ -2120,12 +2205,19 @@ class World:
                 out.append((key, v))
         return out
 
+    def _silent_crate_ids(self):
+        """The prize rows _arm_silent_crates adds, worked out on a copy."""
+        if not self.real1:
+            return {}
+        return self._arm_silent_crates([bytearray(r) for r in self.real1])
+
     def _fresh_entity_states(self):
-        """A new game: live entities at 2, anything armed later at 1."""
+        """A new game: live entities at 2, anything armed later at 1. The
+        prize rows the server adds to silent crates are armed later too."""
         s = bytearray(self.node_count)
         for i in range(1, getattr(self, "entity_count", 1)):
             s[i] = 2
-        for i in self.armed_later():
+        for i in set(self.armed_later()) | set(self._silent_crate_ids()):
             if i < len(s):
                 s[i] = 1
         return bytes(s)
@@ -2139,6 +2231,7 @@ class World:
         if len(blob) != len(fresh):
             return
         self.progress = bytes(blob)
+        trophies.check(self)
 
     def entity_states(self):
         """tag 21 -> d.i. An entity only fires while its state is 2
@@ -2152,8 +2245,25 @@ class World:
         saved = getattr(self, "progress", None)
         fresh = self._fresh_entity_states()
         if saved and len(saved) == len(fresh):
-            return bytes(saved)
+            return self._repair_silent_crates(bytearray(saved))
         return fresh
+
+    def _repair_silent_crates(self, states):
+        """A save made while the server-made crate prizes were built live
+        and never completed can hold one at 2, firing on every step. Set it
+        straight: done if its crate was looted, dormant until its crate is
+        smashed, live only once that crate has been."""
+        made = self._silent_crate_ids()
+        parents = getattr(self, "_extra_crate_parents", {})
+        for sid in made:
+            if sid >= len(states):
+                continue
+            parent = parents.get(sid)
+            if sid in self.opened:
+                states[sid] = 3
+            elif parent is not None and parent < len(states) and states[parent] != 3:
+                states[sid] = 1
+        return bytes(states)
 
     def armed_later(self):
         """State indices that another entity turns on (block 2 of a type 1
@@ -2393,6 +2503,7 @@ World.travel = _travel
 # So the account lives on the server and the handset only ever holds a token.
 # We keep the same shape: a key file per account, a world per hero.
 
+import copy
 import json
 import uuid
 
@@ -2413,10 +2524,16 @@ def _world_to_dict(self):
         "engaged": self.engaged,
         "pending_gold": self.pending_gold, "pending_xp": self.pending_xp,
         "practice": {k: list(v) for k, v in self.practice.items()},
+        "practice_v": 2,
         "gifts_paid": list(self.gifts_paid),
         "opened": list(getattr(self, "opened", ())),
         "crate_found": list(getattr(self, "crate_found", ())),
         "finished": bool(getattr(self, "finished", False)),
+        "kills": int(getattr(self, "kills", 0)),
+        "slain": list(getattr(self, "slain", ())),
+        "visited": list(getattr(self, "visited", ())),
+        "trophies": dict(getattr(self, "trophies", {})),
+        "trophy_news": list(getattr(self, "trophy_news", ())),
         "progress": (list(self.progress)
                      if getattr(self, "progress", None) else None),
         "layout": 1,
@@ -2466,12 +2583,22 @@ def _world_from_dict(self, d):
     self.practice = {}
     for name, pair in (d.get("practice") or {}).items():
         if isinstance(pair, (list, tuple)) and len(pair) == 2:
-            self.practice[name] = (int(pair[0]), int(pair[1]))
+            rank, pct = int(pair[0]), float(pair[1])
+            if d.get("practice_v", 1) < 2:
+                # A save from the flat 20-uses-a-title rule: count the uses it
+                # stood for and earn them again under the rising one.
+                rank, pct = self._replay_practice(rank * 20 + pct / 5)
+            self.practice[name] = (rank, pct)
     self.fight_gains = {}
     self.gifts_paid = list(d.get("gifts_paid") or [])
     self.opened = list(d.get("opened") or [])
     self.crate_found = list(d.get("crate_found") or [])
     self.finished = bool(d.get("finished"))
+    self.kills = int(d.get("kills") or 0)
+    self.slain = list(d.get("slain") or [])
+    self.visited = list(d.get("visited") or [])
+    self.trophies = dict(d.get("trophies") or {})
+    self.trophy_news = list(d.get("trophy_news") or [])
     raw = d.get("progress")
     self.progress = bytes(raw) if raw else None
     saved = d.get("mobs") or []
@@ -2502,7 +2629,7 @@ def _world_from_dict(self, d):
                 if not d.get("tiers"):
                     m.hp = m.fight_hp = m.max_hp
                 m.hp = min(m.hp, m.max_hp)
-        if self.game == "ShiradsForge" and 47 in self.mobs:
+        if self.game == "ShiradsForge" and 47 in self.mobs and tiers.remastered():
             self.mobs[47].alive = False     # Mira's twin; see _adopt_real_creatures
         return self
     self.refresh_npcs()
@@ -2538,7 +2665,9 @@ class Saves:
     """
 
     def __init__(self, path=None):
-        self.path = path or os.path.join(SAVE_DIR, "game.json")
+        # EOE_SAVES points a server at its own file, so a test relay never
+        # shares one with the server a person is playing on
+        self.path = path or os.environ.get("EOE_SAVES") or os.path.join(SAVE_DIR, "game.json")
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         self.data = {"accounts": {}, "heroes": {}}
         if os.path.exists(self.path):
@@ -2549,8 +2678,34 @@ class Saves:
                 pass
         self.live = {}          # "game:name" -> live World
         self.active = None      # (game, name) the handset is playing
+        self.written = set()    # hero slots this process has saved
 
     def flush(self):
+        """Write back what this process changed, on top of what is on disk
+        now. Two servers on one file (the web game and a test relay) each
+        hold their own copy; writing a whole copy would roll the other's
+        heroes back to whenever this one loaded them."""
+        try:
+            with open(self.path) as fh:
+                disk = json.load(fh)
+        except (ValueError, OSError):
+            disk = {}
+        accounts = disk.setdefault("accounts", {})
+        for key, acct in self.data["accounts"].items():
+            have = accounts.get(key)
+            if isinstance(acct, dict) and isinstance(have, dict):
+                for game, names in acct.items():
+                    slot = have.setdefault(game, [])
+                    slot.extend(n for n in names if n not in slot)
+            elif have is None or not isinstance(acct, dict):
+                accounts[key] = acct
+        heroes = disk.setdefault("heroes", {})
+        for slot in self.written:
+            if slot in self.data["heroes"]:
+                heroes[slot] = self.data["heroes"][slot]
+        for slot, hero in self.data["heroes"].items():
+            heroes.setdefault(slot, hero)
+        self.data = disk
         tmp = self.path + ".tmp"
         with open(tmp, "w") as fh:
             json.dump(self.data, fh, indent=1)
@@ -2581,15 +2736,20 @@ class Saves:
 
     def create_hero(self, key, name, game=DEFAULT_GAME):
         slot = self._slot(key, game)
-        if name in slot:
+        if name in slot or self.taken(key, name, game):
             return False
         slot.append(name)
         self.data["heroes"][f"{game}:{name}"] = World(game).to_dict()
+        self.written.add(f"{game}:{name}")
         self.flush()
         return True
 
     def taken(self, key, name, game=DEFAULT_GAME):
-        return name in self._slot(key, game)
+        """A hero's save is keyed by chapter and name alone, so a name is
+        taken if any account holds it. Checking only this account let a
+        second account "create" a hero over someone else's save."""
+        return (name in self._slot(key, game)
+                or f"{game}:{name}" in self.data["heroes"])
 
     def world(self, name, game=None):
         """The live World for a hero, restored from disk on first use. A hero
@@ -2628,6 +2788,7 @@ class Saves:
         slot = f"{game}:{name}"
         if slot in self.live:
             self.data["heroes"][slot] = self.live[slot].to_dict()
+            self.written.add(slot)
             self.flush()
 
 

@@ -17,6 +17,7 @@ import zipfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "server"))
 from layout import TYPE2, TURNS, rewrite_type2  # noqa: E402
+from layout import rewrite_strings as rewrite_texts, text_patches  # noqa: E402
 from tiers import RECYCLE_PERCENT  # noqa: E402
 
 MANIFEST = "META-INF/MANIFEST.MF"
@@ -265,6 +266,8 @@ def main():
         with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
             for n in names:
                 data = new_mf.encode("utf-8") if n == MANIFEST else zin.read(n)
+                if forge and n in text_patches():
+                    data = rewrite_texts(data, text_patches()[n])
                 if forge and n in TYPE2.values():
                     loc = next(k for k, v in TYPE2.items() if v == n)
                     data, _ = rewrite_type2(data, TURNS[loc], bridge=(loc == 12))

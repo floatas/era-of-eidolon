@@ -167,8 +167,17 @@ give no numbers. Here a point of Toughness above 3 is 5 life, and an action
 takes 120 / (117 + Speed) of its time.
 
 **The ending.** Beating Shirard fired a kind 11, which asked the server for a
-script and then closed the game. The epilogue that now shows instead, and
-the hero staying in the world afterwards, are ours.
+script and then closed the game. The server drops that from his death
+switch; the epilogue in the battle report, and the hero staying in the world
+afterwards, are ours.
+
+**Quest rewards.** Dreyfus, Tillic and Milas name their reward out loud: 3,
+"a few" and 5 Gold coins. In this economy that read as a mistake. They now
+pay 250, 150 and 400, and the run jar's copy of their lines says so. The
+original jar is untouched.
+
+**Trophies.** watAgame's chapters kept a score and rankings on their server.
+The eighteen trophies and the platinum are ours (`server/trophies.py`).
 
 **Weapons and shells.** Chapter I weapons have their effect and price set so
 a sword, an axe or hammer, and a bow are each the right tool somewhere. The

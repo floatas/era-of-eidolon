@@ -19,9 +19,8 @@ _tune_bosses' sizing, market_rows, balance(), World.grant_xp and
 loot_container, and the tier model in server/tiers.py. Change the game and
 this follows.
 
-The walk. Rooms in tiers.ROUTE order. A room's creatures are split into
-encounters the way the phone gathers them: everyone within four tiles of
-someone already in the fight (reach radii run 2 to 5). Dormant creatures
+The walk. Rooms in tiers.ROUTE order. Every fight is one creature, as in
+the game: however close its neighbours stand, the hero engages one at a time. Dormant creatures
 count, because each is a fight the player meets. Every crate is smashed on
 arrival. At a trader the hero buys the best weapon, then the best suit, his
 purse and stat allow, and wears the best he carries. Two of every three
@@ -88,27 +87,17 @@ TARGETS = {
     # a tier's gold (kills, crates and recycling) against its top weapon in
     # the build's line plus its top suit; the last tier may run richer, as
     # there is nothing after it to buy ahead into
-    "tier_gold": (1.0, 1.8),
+    "tier_gold": (1.0, 1.9),
 }
 TIER_SLACK = 0.35
 
 
 def encounters(foes):
-    """Chain creatures within REACH tiles into one fight."""
-    left = {m.node: m for m in foes}
-    out = []
-    while left:
-        _, seed = left.popitem()
-        group, queue = [seed], [seed]
-        while queue:
-            a = queue.pop()
-            for n, b in list(left.items()):
-                if max(abs(a.x - b.x), abs(a.y - b.y)) <= REACH:
-                    del left[n]
-                    group.append(b)
-                    queue.append(b)
-        out.append(group)
-    return out
+    """One creature to a fight. The game engages a single creature at a time,
+    however close its neighbours stand; the first version of this chained
+    everything within reach into one fight, and made archers look hopeless
+    against "packs" that the game never fields."""
+    return [[m] for m in sorted(foes, key=lambda m: m.node)]
 
 
 class Run:
@@ -129,8 +118,8 @@ class Run:
         self.shops = []
         self.bosses = []
         self.loot = []
-        self.ledger = {t: dict(kills=0, crates=0, recycled=0, spent=0, found=[],
-                               bought=[], sold=[])
+        self.ledger = {t: dict(kills=0, crates=0, recycled=0, quests=0, spent=0,
+                               found=[], bought=[], sold=[])
                        for t in tiers.ORDER}
 
     # -- the hero between fights -------------------------------------------
@@ -408,6 +397,11 @@ class Run:
         w.grant_xp(xp)
         w.gold += gold + crate_gold
         self.ledger[tier]["kills"] += gold
+        # an optional quest's reward, paid in the room where it is handed in
+        from layout import QUEST_GIFTS
+        for state, (gift_loc, _, _, _) in QUEST_GIFTS.items():
+            if gift_loc == loc:
+                self.ledger[tier]["quests"] += w.claim_gift(state)
         self.spend()
         self.wear_best()
 
@@ -495,9 +489,12 @@ def report(run):
         if not ok:
             misses.append(f"tier {t}: {earned}g earned is {ratio:.2f}x its top "
                           f"weapon and suit ({top_w + top_s}g)")
+        quest = (f" + optional quests {led['quests']}"
+                 f" = {(earned + led['quests']) / max(1, top_w + top_s):.2f}x"
+                 if led["quests"] else "")
         print(f"  tier {t:4} gold in {earned:>5} (kills {led['kills']}, crates "
               f"{led['crates']}, recycled {led['recycled']}) = {ratio:.2f}x top gear"
-              f"{'' if ok else ' !'}, spent {led['spent']:>5}\n"
+              f"{'' if ok else ' !'}{quest}, spent {led['spent']:>5}\n"
               f"             found {', '.join(led['found']) or '-'}\n"
               f"             bought {', '.join(led['bought']) or '-'}; "
               f"recycled {', '.join(led['sold']) or '-'}")

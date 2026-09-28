@@ -38,8 +38,10 @@ shapes.
 free kit is the Bloody Blade, the Short Bow and the Scrapsuit. A win opens
 **Raises left** (2 points a level; one point adds 3 / 2 / 1). A level costs
 60 + 20 × level experience. A kill pays by the species' weight and its
-tier. Dreyfus pays 3 gold, Milas 5, Tillic 3. Other
-checkpoints stay silent, because the jar already showed the line.
+tier. The optional quests pay Dreyfus 250 gold,
+Tillic 150 and Milas 400, and their lines in the run jar say so (the jar
+wrote 3, "a few" and 5; `layout.QUEST_GIFTS`). Other checkpoints stay
+silent, because the jar already showed the line.
 
 **Items.** Chapter I sells 22 of watAgame's weapons and suits, retuned
 (`notes/chapter-items.json`). The five traders sell the route tier they
@@ -66,9 +68,33 @@ a sword, a heavy weapon and a bow of equal worth, and Beetles and Golems
 wear shells, so each weapon has rooms where it is the right one. Mira's watAgame
 twin (node 47) is sent as gone, since her phases happen on her own node.
 
+**Trophies.** Eighteen and a platinum (`server/trophies.py`), ours: a kill
+with each kind of weapon and Zap, a won fight, one won untouched, recycling,
+buying, the three cogwheels, each boss, every room, the Crypt's three
+waves, the hidden rooms (Ilrik's Tomb, The Evil Eye, the Crypt, Golem
+Secret), every crate, every quest (the jar's own quest rows: 8 main, 3
+optional, done when their entity reaches state 3), and Shirard. They live in
+the save, are announced in the next battle report or crate message, and the
+web player's side panel lists them with progress. The sidebar code is in
+`tools/freej2me-web/web/run.html`, which git ignores.
+
 **The side panel** is a flat reference to the chapter (`server/compendium.py`).
 It no longer tries to follow the player, because under CheerpJ the map
 loaded ping never arrives.
+
+**Played through on the phone.** `tools/harness/playthrough.py` plays the
+real client under MicroEmulator against a relay on its own save file
+(`EOE_SAVES`): a new hero, Auto fight for every fight, raises two to
+Strength for one to Dexterity, the best sword and armour worn through the
+phone's own menus. It reaches all 18 rooms, all four bosses and the ending.
+It found the bosses could not be fought (the trigger rewrite, see
+`protocol/PROTOCOL.md`, "The trigger byte"), that a second account could
+create a hero over someone else's, that two servers on one save file
+rolled back each other's heroes, and that the server fought on the jar's
+bare maps: a wall a kind 6 patch had opened on the phone (the Crypt's inner
+chambers) was still a wall to Auto fight, which stalled and fled. The
+server's map now lays every fired patch (state 3) over the jar's. All four
+are fixed.
 
 ## Shirad's Forge — still open
 
@@ -118,9 +144,9 @@ jar's own line. Only the three gold sums were written down.
 **The ending is ours.** Every entity kind is now read (see
 `protocol/PROTOCOL.md`, "Type 1 entity kinds"). The last one, kind 11, asked
 the server for a script when Shirard died and then quit the game whatever
-the answer. That script is lost. The server now serves it as a kind 3 and
-answers with an epilogue and the hero's tally (`World.ending_text`), and the
-hero stays in the world.
+the answer. That script is lost. The server drops it from Shirard's death
+switch, and the battle report after his fight carries an epilogue and the
+hero's tally (`World.ending_text`); the hero stays in the world.
 
 **Quest item names.** The cogwheels and the gem stone show in the Quest items
 menu (the phone builds it from kind 8 entities), but their name keys,

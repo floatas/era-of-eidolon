@@ -28,6 +28,7 @@ from codec import (build_response, chunk_int, chunk_str, chunk_raw,
 from catalogue import catalogue
 from world import POTENCY_DIV, get_world, saves, World
 import tiers
+import trophies
 
 HANDLERS = {}
 
@@ -469,11 +470,7 @@ def turn(req):
     # Tag 1 is the node ids the player engaged (one byte each). Tag 3 = 1
     # is "Auto fight": i.java then delivers THIS response to d.b, the result
     # handler, so it must be a finished fight and never status 1.
-    w.begin_fight(list(req.get(1)), req.get(2))
-    for m in w.fighters():
-        m.phase = 1
-        m.rest = False
-    _tune_bosses(w)
+    open_fight(w, req.get(1), req.get(2))
     if req.int_(3) == 1:
         resp = auto_response(w, rng=random)
         if hero:
@@ -623,7 +620,10 @@ BOSS_SHAPES = {
 # pay: gold and experience as a percent of what a kill is worth.
 BALANCE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                             "balance.json")
-DEFAULT_BALANCE = {"mistakes": 3, "boss_turns": 2, "pay": 100}
+# mistakes 2: one whole turn beside a creature costs half the life its tier
+# expects. At 3, with every fight one on one, a hero straight out of tier I
+# won nine Lair fights in ten (tools/autoplay.py, the early-Lair check).
+DEFAULT_BALANCE = {"mistakes": 2, "boss_turns": 2, "pay": 100}
 
 
 def balance():
@@ -642,6 +642,7 @@ def balance():
     out["mistakes"] = min(8, max(1, out["mistakes"]))
     out["boss_turns"] = min(8, max(1, out["boss_turns"]))
     out["pay"] = min(300, max(10, out["pay"]))
+    out["ruleset"] = tiers.ruleset()
     return out
 
 
@@ -695,10 +696,13 @@ def _pressure_blow(w, m=None):
     tier = getattr(m, "tier", None) if m is not None else None
     if tier:
         # Sized to the tier, never to the hero: see tiers.py. Levels, life
-        # and a better suit are what carry him through more mistakes.
+        # and a better suit are what carry him through more mistakes. A boss
+        # hits tiers.BOSS_FORCE times as hard: the fight's answer is the
+        # shape, and a boss you stand in front of has to be felt.
+        force = tiers.BOSS_FORCE if fighter_name(w, m) in BOSSES else 1.0
         return tiers.creature_blow(
             tier, max(1, TURN_BUDGET // m.offence()["swing"]),
-            THREAT.get(pattern_of(w, m), 8), cfg["mistakes"])
+            THREAT.get(pattern_of(w, m), 8), cfg["mistakes"] / force)
     through = max(1, (w.hero_max + cfg["mistakes"] - 1) // cfg["mistakes"])
     if m is not None:
         swings = max(1, TURN_BUDGET // m.offence()["swing"])
@@ -721,10 +725,16 @@ def _tune_bosses(w):
     if getattr(w, "game", "") != "ShiradsForge":
         return
     for m in w.fighters():
-        if fighter_name(w, m) not in BOSSES:
+        name = fighter_name(w, m)
+        if name not in BOSSES:
             continue
-        pool = tiers.boss_life(getattr(m, "tier", None) or "I",
-                               balance()["boss_turns"])
+        turns = balance()["boss_turns"]
+        # classic bosses are one fight of both phases' length. Mira's twin
+        # (node 47) is not a second fight: she has no label and no reach,
+        # and wakes after the fight only to be spoken to.
+        if not tiers.remastered():
+            turns *= 2
+        pool = tiers.boss_life(getattr(m, "tier", None) or "I", turns)
         m.boss = True
         m.max_hp = pool
         m.hp = pool
@@ -786,7 +796,8 @@ def fighter_name(w, m):
     """The name a blow should use. Bosses share a sheet with other people,
     so the node is what says Mira from a townsman."""
     if getattr(w, "game", "") == "ShiradsForge":
-        named = {20: "Shirard", 46: "Mira", 48: "Aldor", 19: "Beholder"}
+        named = {20: "Shirard", 46: "Mira", 48: "Aldor", 19: "Beholder",
+                 47: "Mira"}              # her twin: watAgame's second phase
         if m.node in named:
             return named[m.node]
     return w.creature_name(m.creature) or "It"
@@ -806,7 +817,8 @@ def pattern_of(w, m):
     on and swing from there, so the arrow has a line to meet. Other chapters
     keep that ring for both weapons.
     """
-    if getattr(w, "game", "") != "ShiradsForge":
+    if getattr(w, "game", "") != "ShiradsForge" or not tiers.remastered():
+        # classic: the client's own contact rule, every square beside it
         return "ring"
     name = fighter_name(w, m)
     # A boss keeps its shapes whatever the hero holds: reading them is the
@@ -920,12 +932,101 @@ def _best_stance(w, pattern, x, y, face0, hx, hy, blocked):
     return path, face
 
 
+# How each creature second-guesses you partway through its turn. It never
+# sees where you are: it assumes you slipped into one of its blind spots and
+# turns to cover one, paying some of its turn to do it. So a hero who walks
+# up and stands in a blind spot is caught in the second half, and a careful
+# one out-guesses it: strikes early and moves on, or stands where it will
+# have turned away from.
+#
+#   guess   None never turns; "nearest" the blind spot nearest the square
+#           you stood on when the turn began; "memory" the square you last
+#           hit it from, and "nearest" until you have
+#   when    "first" after its first swing (halfway, if it has not swung by
+#           then); "half" at the middle of the turn; "thirds" at a third and
+#           at two thirds
+#   cost    what turning takes out of its turn
+#
+# Shapes that point nowhere (spores, corners, gaze, burst, and the ring every
+# creature uses against a bow) cannot turn to anything, so never do.
+HABITS = {
+    "Skeleton": (None, None, 0),              # dim: the beginner's creature
+    "Fungusman": (None, None, 0),             # rooted in its spores
+    "Beetle": ("nearest", "first", 40),
+    "Fire Devil": ("nearest", "first", 40),
+    "Ghost": ("nearest", "first", 40),
+    "Gorrak": ("memory", "first", 40),        # cunning: remembers your trick
+    "Golem": ("nearest", "half", 120),        # slow to come round
+    "Mira": ("memory", "thirds", 40),
+    "Aldor": ("memory", "thirds", 40),
+    "Shirard": ("memory", "thirds", 40),
+    "Beholder": ("memory", "thirds", 40),
+}
+HALF = TURN_BUDGET // 2
+FACELESS = ("corners", "ring", "spores", "gaze", "burst")
+
+
+def habit_of(w, m):
+    if getattr(w, "game", "") != "ShiradsForge" or not tiers.remastered():
+        return (None, None, 0)
+    return HABITS.get(fighter_name(w, m), (None, None, 0))
+
+
+def _blind_spots(pattern, x, y, face):
+    """The squares beside a creature its shape does not reach, facing so."""
+    hit = set(_cells(pattern, x, y, face))
+    return [(x + ax, y + ay) for ax, ay in
+            ((0, -1), (1, 0), (0, 1), (-1, 0), (1, -1), (1, 1), (-1, 1), (-1, -1))
+            if (x + ax, y + ay) not in hit]
+
+
+def _guess(w, m, pattern, x, y, face, start, taken):
+    """The square this creature bets you are standing on by now."""
+    guess, _, _ = habit_of(w, m)
+    spots = [s for s in _blind_spots(pattern, x, y, face)
+             if w.can_stand(*s) and s not in taken]
+    if not spots:
+        return None
+    if guess == "memory" and getattr(m, "hit_from", None):
+        dx, dy = m.hit_from
+        if (x + dx, y + dy) in spots:
+            return (x + dx, y + dy)
+    sx, sy = start
+    return min(spots, key=lambda s: (abs(s[0] - sx) + abs(s[1] - sy),
+                                     abs(s[0] - x) + abs(s[1] - y)))
+
+
+def _face_covering(w, pattern, x, y, target, face0):
+    """The facing, nearest the one it has, whose shape reaches `target`."""
+    best = None
+    for face in range(4):
+        if not _covers(w, pattern, x, y, face, *target):
+            continue
+        cost = min((face - face0) % 4, (face0 - face) % 4)
+        if best is None or cost < best[0]:
+            best = (cost, face)
+    return best[1] if best else None
+
+
+def open_fight(w, nodes, seen=b""):
+    """Start a fight the way the phone's fight request does. Autoplay calls
+    this too, so a tested fight starts exactly as a played one."""
+    w.begin_fight(list(nodes), seen)
+    for m in w.fighters():
+        m.phase = 1
+        m.rest = False
+        m.hit_from = None
+    _tune_bosses(w)
+
+
 def mob_timeline(w):
     """The creature's plan, chosen blind from where everyone is standing now.
 
     It walks until its own shape covers the square you occupy, then swings.
-    It does not know which way you will step. A shoulder that is safe
-    against the facing it committed to stays safe for the rest of the turn.
+    It does not know which way you will step. Partway through, if its habit
+    says so (HABITS), it bets you have slipped into one of its blind spots,
+    turns to cover that one instead, and swings there for the rest of the
+    turn.
     """
     events = []
     reserved = {(w.hero_x, w.hero_y)} | _blocked(w)
@@ -968,10 +1069,43 @@ def mob_timeline(w):
                     break
         # the creature's own swing, not a flat cost shared with the hero
         blow_time = m.offence()["swing"]
-        while (t + blow_time <= TURN_BUDGET
-               and _covers(w, pattern, x, y, face, hx, hy)):
-            t += blow_time
-            events.append((t, ("mob_attack", m.node, face)))
+        guess, when, cost = habit_of(w, m)
+        if guess is None or pattern in FACELESS:
+            points = []
+        elif when == "first":
+            points = ["first"]
+        elif when == "half":
+            points = [HALF]
+        else:
+            points = [TURN_BUDGET // 3, 2 * TURN_BUDGET // 3]
+        aim, swung = (hx, hy), 0
+        while t + blow_time <= TURN_BUDGET:
+            due = points and (
+                (points[0] == "first" and (swung >= 1 or t >= HALF))
+                or (points[0] != "first" and t >= points[0]))
+            if due:
+                points.pop(0)
+                taken = {(o.x, o.y) for o in w.fighters() if o is not m}
+                target = _guess(w, m, pattern, x, y, face, (hx, hy), taken)
+                turn_to = (_face_covering(w, pattern, x, y, target, face)
+                           if target else None)
+                if turn_to is not None and turn_to != face and t + cost <= TURN_BUDGET:
+                    t += cost
+                    events.append((t, ("mob_turn", m.node, turn_to)))
+                    face, aim = turn_to, target
+                continue
+            if _covers(w, pattern, x, y, face, *aim):
+                t += blow_time
+                events.append((t, ("mob_attack", m.node, face)))
+                swung += 1
+                continue
+            # nothing in reach: wait for its next second guess, if it has one
+            nxt = None
+            if points:
+                nxt = HALF if points[0] == "first" else points[0]
+            if nxt is None or nxt <= t or nxt > TURN_BUDGET:
+                break
+            t = nxt
         reserved.add((x, y))
     return events
 
@@ -1043,7 +1177,7 @@ def _kill(w, target, script):
     # A boss (BOSSES) has a second pool in the same fight. The first
     # time they drop, they stay on the board and change shape. The quest
     # hears about the death only when the second pool is gone.
-    if name in BOSSES and getattr(target, "phase", 1) < 2:
+    if name in BOSSES and getattr(target, "phase", 1) < 2 and tiers.remastered():
         target.phase = 2
         target.hp = target.max_hp
         target.rest = True
@@ -1055,6 +1189,8 @@ def _kill(w, target, script):
         return
     target.alive = False
     target.hp = 0
+    w.kills = getattr(w, "kills", 0) + 1
+    trophies.killed(w, target.node, getattr(w, "last_attack", None))
     gold, xp = target.spoil()
     pay = balance()["pay"]
     gold = max(1, gold * pay // 100)
@@ -1151,6 +1287,7 @@ def _hero_attack(w, name, tx, ty, script, rng):
             _note(script, "No line of sight")
             return
         off = target.offence()
+        w.last_attack = "zap"
         outcome, dmg = w.strike(
             w.trained_effect(name, it.effect if it else 9),
             it.precision if it else 100,
@@ -1176,6 +1313,7 @@ def _hero_attack(w, name, tx, ty, script, rng):
             _note(script, "Too close")
             return
         off = target.offence()
+        w.last_attack = "bow"
         # A bow draws on Dexterity for its force as well as its aim. With
         # Strength behind it, an archer who raised the ability his bows ask
         # for hit for 11 all chapter.
@@ -1184,7 +1322,7 @@ def _hero_attack(w, name, tx, ty, script, rng):
             it.precision if it else 100,
             w.stats["Dexterity"], off["avoid"], dex=w.stats["Dexterity"],
             armour=off["armour"], swing_time=swing_cost(w, "Shoot"),
-            weapon_mod=weapon.effect + w.practice_rank("Bow"), rng=rng)
+            weapon_mod=weapon.effect, rng=rng)
         _land_on_mob(w, 0, target, outcome, dmg, w.anim(0, "bow"), script)
         if outcome in ("hit", "precise", "crit"):
             w.note_use(name)
@@ -1203,15 +1341,20 @@ def _hero_attack(w, name, tx, ty, script, rng):
             _note(script, "Too far away")
         return
     off = target.offence()
+    w.last_attack = tiers.line_of(weapon)
     outcome, dmg = w.strike(
         w.trained_effect(name, it.effect if it else 10),
         it.precision if it else 100,
         w.stats["Strength"], off["avoid"], dex=w.stats["Dexterity"],
         armour=off["armour"], swing_time=swing_cost(w, "Hit"),
-        weapon_mod=weapon.effect + w.practice_rank(weapon.cls.capitalize()),
+        # the weapon line's title is a record of use, not a second +1 on top
+        # of the action's own (World.PRACTICE_STEP)
+        weapon_mod=weapon.effect,
         rng=rng)
     _land_on_mob(w, 0, target, outcome, dmg, w.anim(0, "attack"), script)
     if outcome in ("hit", "precise", "crit"):
+        # a Gorrak or a boss remembers where the blow came from (HABITS)
+        target.hit_from = (w.hero_x - target.x, w.hero_y - target.y)
         w.note_use(name)
         w.note_use(weapon.cls.capitalize())
 
@@ -1318,6 +1461,7 @@ def _mob_attack(w, m, script, rng, face):
               red=False, anim=anim, node=m.node)
         return
     w.hero_hp = max(0, w.hero_hp - dmg)
+    w.fight_hurt = True
     label = {"crit": "CRIT", "precise": "Precise"}.get(outcome, "")
     who = fighter_name(w, m)
     script.append(res_attack(m.node, [(0, dmg)], anim=anim,
@@ -1353,6 +1497,14 @@ def _play(w, events, script, rng):
             m = w.mobs.get(ev[1])
             if m and m.alive and not getattr(m, "rest", False):
                 _mob_attack(w, m, script, rng, ev[2])
+        elif kind == "mob_turn":
+            # the same set-animation record a "Miss" line already sends,
+            # carrying the creature's new facing
+            m = w.mobs.get(ev[1])
+            if m and m.alive and not getattr(m, "rest", False):
+                m.face = ev[2]
+                script.append(result(0, [1, m.node, _faced(w.anim(m.creature), m.face)],
+                                     msg=f"{fighter_name(w, m)} turns", red=False))
 
 
 def resolve(w, actions, rng=None):
@@ -1409,6 +1561,8 @@ def finish(w, script):
     if w.engaged is not None and not w.fighters():
         _regen(w, script)
         report = w.battle_report()
+        if w.shirard_fell():
+            w.finished = True
         w.commit_practice()
         leveled = w.grant_xp(w.pending_xp)
         w.gold += w.pending_gold
@@ -1417,6 +1571,13 @@ def finish(w, script):
         if leveled:
             report += f"\nLevel {w.level}!"
             _note(script, f"Level {w.level}!", red=False)
+        trophies.earn(w, "first_blood")
+        if not getattr(w, "fight_hurt", False):
+            trophies.earn(w, "untouchable")
+        trophies.check(w)
+        news = trophies.news(w)
+        if news:
+            report += "\n\n" + "\n".join(news)
         w.commit_kills()
         dead = bytes(n for n in (w.engaged or [])
                      if n in w.mobs and not w.mobs[n].alive)
@@ -1990,13 +2151,6 @@ def interact(req):
     # the line named one, and otherwise stays quiet. A second sentence
     # here would cover the jar's own text.
     if w.real1:
-        if state == w.ENDING.get(w.game):
-            w.finished = True
-            if hero:
-                saves().save(hero, w.game)
-            print(f"    \033[35mchapter complete: level {w.level}\033[0m")
-            return build_response(status=1, chunks=[chunk_str(2, w.ending_text())]
-                                  + hud_chunks(w))
         label = w.entity_label(state)
         if (state in w.crate_payoffs()
                 or "crate" in label.lower() or "barrel" in label.lower()):
@@ -2016,6 +2170,9 @@ def interact(req):
                         lines.append(f"{it.name}, a {it.kind}")
                 if gold:
                     lines.append(f"{gold} gold")
+                news = trophies.news(w)
+                if news:
+                    lines += [""] + news
                 body = "\n".join(lines)
             else:
                 body = "Nothing left inside."
@@ -2191,8 +2348,8 @@ def scripted(req):
     """Opcode 17 — a type 1 entity of kind 11, the one kind that asked the
     server what should happen. Its script is lost, and whatever this answers
     the phone then opens screen 33, which quits the game. Shirad's Forge's
-    only kind 11, the ending, is served as kind 3 (World.ENDING), so this
-    is only reached by a phone holding an older entity table."""
+    only kind 11 is dropped from Shirard's death switch (World.entity_table),
+    so this is only reached by a phone holding an older entity table."""
     print(f"    \033[35mscripted entity: tag1={req.int_(1)}\033[0m")
     return build_response(status=1, chunks=[])
 
@@ -2231,6 +2388,7 @@ def salvage(w, wanted):
             break
     refund = 0
     if gone:
+        trophies.earn(w, "recycler")
         it = w.item(gone)
         if it:
             refund = it.price * tiers.RECYCLE_PERCENT // 100
@@ -2280,7 +2438,7 @@ def spellbook(req):
         nxt = World.TITLES[rank + 1] if rank + 1 < len(World.TITLES) else None
         _, pct = w.practice.get(name, (0, 0))
         if nxt:
-            body = (f"{title}. {pct}% toward {nxt}. "
+            body = (f"{title}. {int(pct)}% toward {nxt}. "
                     "A landed use adds 5%. Each title hits harder and takes less of the turn.")
         else:
             body = f"{title}. This can go no higher."

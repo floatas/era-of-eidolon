@@ -190,3 +190,62 @@ def migrate_save(world, saved):
         mobs.append(md)
     saved["mobs"] = mobs
     return saved
+
+
+# -- the three optional quests' rewards -------------------------------------
+#
+# Dreyfus, Tillic and Milas each name their reward out loud, in the jar's
+# own text: 3, "a few" and 5 Gold coins. That was watAgame's economy; in
+# this one a tier II weapon costs 300-460 and 3 gold reads as a mistake.
+# The sums are raised, and the lines rewritten to say them: here for the
+# server (apply_forge_texts) and in the run jar (run/mkjar.py), from this
+# one table, so what a character says is always what he pays.
+#
+#   checkpoint state -> (location, text key, gold, the line as it now reads)
+QUEST_GIFTS = {
+    117: (8, 0x197E, 250,
+          "Dreyfus: Good, good! I can see that you have put all the undead "
+          "creatures to rest.\n\nAs a token of my gratitude please take these "
+          "250 Gold coins. Go in peace."),
+    136: (12, 0x1984, 150,
+          "Tillic: Wow, it must really have taken all your strength to defeat "
+          "those two fire devils, but you did it! I would like to give you "
+          "these 150 Gold coins as a token of my appreciation."),
+    148: (13, 0x1981, 400,
+          "Milas: Hurrah, you actually managed to slay the beholder! I would "
+          "never have thought that. Please take these 400 Gold coins as a "
+          "reward for helping me out. Now I can return to my home."),
+}
+
+
+def text_patches():
+    """type 3 resource name -> {text key: new line}."""
+    out = {}
+    for loc, key, _, line in QUEST_GIFTS.values():
+        out.setdefault(f"3{loc:x}", {})[key] = line
+    return out
+
+
+def rewrite_strings(blob, patches):
+    """A keyed string table (u16 key, u16 len, utf-8) with some lines
+    replaced. Everything else is copied as it was, in order."""
+    out, i = bytearray(), 0
+    while i + 4 <= len(blob):
+        key = int.from_bytes(blob[i:i + 2], "big")
+        ln = int.from_bytes(blob[i + 2:i + 4], "big")
+        body = bytes(blob[i + 4:i + 4 + ln])
+        if key in patches:
+            body = patches[key].encode("utf-8")
+        out += key.to_bytes(2, "big") + len(body).to_bytes(2, "big") + body
+        i += 4 + ln
+    out += blob[i:]
+    return bytes(out)
+
+
+def apply_forge_texts(res):
+    """Rewrite the loaded chapter's lines the same way the run jar is. In place."""
+    for name, patches in text_patches().items():
+        blob = res.files.get(name)
+        if blob is not None:
+            res.files[name] = rewrite_strings(blob, patches)
+

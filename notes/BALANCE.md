@@ -88,7 +88,10 @@ their tier, never to the hero playing (`server/tiers.py`):
   returns 30%** (`tiers.RECYCLE_PERCENT`, written into the phone's text by
   `run/mkjar.py`). At 70% every crate and every outgrown weapon earned three
   times what a tier's gear costs. The simulator recycles whatever a build
-  does not use and checks the ledger: 1.2–1.7× in every tier for every build.
+  does not use and checks the ledger: 1.2–1.8× in every tier for every build.
+  The three optional quests pay on top (Dreyfus 250 and Tillic 150 in tier
+  II, Milas 400 in tier III; `layout.QUEST_GIFTS`), taking a hero who does
+  them to about 2× a tier's top gear: optional content makes you richer.
 - **Three lines of weapon, each with a job.** Every tier sells a sword, an
   axe or hammer, and a bow at each price, and their top pieces cost the
   same (`tools/tune_gear.py`). On paper the heavy line and the bow deal 15%

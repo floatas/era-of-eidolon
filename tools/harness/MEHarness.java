@@ -132,6 +132,31 @@ public class MEHarness {
         out.println("MEH started " + jar.getName());
 
         String script = args.length > 1 ? args[1] : "wait:5000,state";
+        if ("-".equals(script)) {
+            // Interactive: one line of steps at a time from stdin, answered
+            // with "MEH ready" when it is done, so a driver can look at what
+            // happened before it decides what to do next.
+            java.io.BufferedReader in = new java.io.BufferedReader(
+                new java.io.InputStreamReader(System.in));
+            out.println("MEH ready");
+            out.flush();
+            String line;
+            while ((line = in.readLine()) != null) {
+                if ("quit".equals(line.trim())) {
+                    break;
+                }
+                runSteps(out, line);
+                out.println("MEH ready");
+                out.flush();
+            }
+            out.println("MEH done");
+            return;
+        }
+        runSteps(out, script);
+        out.println("MEH done");
+    }
+
+    private static void runSteps(PrintStream out, String script) {
         for (String step : script.split(",")) {
             String[] p = step.trim().split(":");
             try {
@@ -156,6 +181,36 @@ public class MEHarness {
                 } else if ("goto".equals(p[0])) {
                     walkTo(out, Integer.parseInt(p[1]), Integer.parseInt(p[2]),
                            p.length > 3 ? Long.parseLong(p[3]) : 15000);
+                } else if ("path".equals(p[0])) {
+                    pathTo(out, Integer.parseInt(p[1]), Integer.parseInt(p[2]),
+                           p.length > 3 ? Long.parseLong(p[3]) : 60000);
+                } else if ("states".equals(p[0])) {
+                    Object ds = field(currentScreen(), "i");
+                    StringBuilder sb = new StringBuilder("STATES");
+                    for (String id : p[1].split("/")) {
+                        int n = Integer.parseInt(id);
+                        sb.append(" ").append(n).append("=")
+                          .append(ds instanceof byte[] && n < ((byte[]) ds).length
+                                  ? String.valueOf(((byte[]) ds)[n]) : "?");
+                    }
+                    Object near = field(currentScreen(), "S");
+                    sb.append("  nearby-actions=").append(near instanceof Vector ? ((Vector<?>) near).size() : -1);
+                    out.println(sb);
+                } else if ("where".equals(p[0])) {
+                    // live tiles of the drawn creatures: (h + 128) >> 8, as d.java
+                    // reports them to the server
+                    Object drawn = field(currentScreen(), "aF");
+                    if (drawn instanceof Vector) {
+                        for (Object e : (Vector<?>) drawn) {
+                            Object b = field(e, "b"), h = field(e, "h"), i = field(e, "i");
+                            if (b instanceof Integer && h instanceof Integer && i instanceof Integer) {
+                                out.println("WHERE " + b + " " + (((Integer) h + 128) >> 8)
+                                    + " " + (((Integer) i + 128) >> 8));
+                            }
+                        }
+                    }
+                } else if ("act".equals(p[0])) {
+                    act(out, step.split(":", 2)[1]);
                 } else if ("entities".equals(p[0])) {
                     entities(out);
                 } else if ("await".equals(p[0])) {
@@ -168,6 +223,14 @@ public class MEHarness {
                     pick(Integer.parseInt(p[1]), Integer.parseInt(p[2]));
                 } else if ("choose".equals(p[0])) {
                     choose(out, step.split(":", 2)[1]);
+                } else if ("item".equals(p[0])) {
+                    Vector<?> items = entries();
+                    int n = Integer.parseInt(p[1]);
+                    if (items == null || n >= items.size()) {
+                        out.println("MEH no item " + n);
+                    } else {
+                        activate(out, n, items.elementAt(n));
+                    }
                 } else if ("fields".equals(p[0])) {
                     DisplayAccess da = access();
                     Object target = "screen".equals(p.length > 1 ? p[1] : "")
@@ -189,7 +252,6 @@ public class MEHarness {
                 out.println("MEH step " + step + " failed: " + e);
             }
         }
-        out.println("MEH done");
     }
 
     private static DisplayAccess access() {
@@ -464,6 +526,22 @@ public class MEHarness {
             if (screen == null || "d".equals(screen.getClass().getSimpleName())) {
                 return;
             }
+            // "Entering fight" (screen 36) must be answered, never popped:
+            // d.a(String, byte[]) sets d.aw when it opens, and only a fight's
+            // end clears it, so a popped one blocks every later fight.
+            if (isFightOffer(screen)) {
+                out.println("FIGHT offered");
+                return;
+            }
+            // say what is being closed: a stack of dialogs (the fight's
+            // "X attacks", "Congratulations", the Battle report) goes in one
+            // dismiss, and the script still has to read them
+            if ("h".equals(screen.getClass().getSimpleName())) {
+                Object text = field(screen, "a");
+                if (text != null) {
+                    out.println("SAID " + String.valueOf(text).replace('\n', '|'));
+                }
+            }
             DisplayAccess da = access();
             pop(da == null ? null : da.getCurrent(), screen);
             Thread.sleep(250);
@@ -515,7 +593,12 @@ public class MEHarness {
             if (screen != null
                     && !"d".equals(screen.getClass().getSimpleName())) {
                 // something spoke to us on the way — Hrom calling for help
-                // the moment you leave the Village. Read it and walk on.
+                // the moment you leave the Village. Read it and walk on;
+                // but a creature that noticed us is a fight, not a message
+                if (isFightOffer(screen)) {
+                    out.println("FIGHT offered");
+                    return;
+                }
                 dismiss(out);
                 screen = currentScreen();
             }
@@ -549,6 +632,149 @@ public class MEHarness {
             int left = Math.abs(useX ? tx - x : ty - y);
             key(code, left <= 1 ? 140 : 400);
         }
+    }
+
+    /**
+     * Screens the walker and dismiss hand back to the script instead of
+     * closing: "Entering fight" (36), and "Raises left" (14) with its "Add"
+     * confirmation (15). Closing a raise screen banks the points unspent.
+     */
+    private static boolean isFightOffer(Object screen) {
+        Object u = field(screen, "u");
+        if (!(u instanceof Integer)) {
+            return false;
+        }
+        int id = ((Integer) u).intValue();
+        return id == 36 || id == 14 || id == 15;
+    }
+
+    /** The phone's own walk test, d.b(x, y), on its live map. */
+    private static boolean walkable(Object screen, int x, int y) throws Exception {
+        for (java.lang.reflect.Method m : screen.getClass().getDeclaredMethods()) {
+            Class<?>[] sig = m.getParameterTypes();
+            if ("b".equals(m.getName()) && sig.length == 2
+                    && sig[0] == Integer.TYPE && sig[1] == Integer.TYPE
+                    && m.getReturnType() == Boolean.TYPE) {
+                m.setAccessible(true);
+                return ((Boolean) m.invoke(screen, x, y)).booleanValue();
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Breadth-first over the phone's live map, straight steps only, from the
+     * hero to (tx, ty) or, if that tile cannot be stood on, to the nearest
+     * one beside it. Returns the tiles to walk, first step first, or null.
+     */
+    private static List<int[]> route(Object screen, int sx, int sy, int tx, int ty)
+            throws Exception {
+        int w = (Integer) field(screen, "ay"), h = (Integer) field(screen, "az");
+        boolean exact = walkable(screen, tx, ty);
+        int[] prev = new int[w * h];
+        java.util.Arrays.fill(prev, -2);
+        java.util.ArrayDeque<Integer> q = new java.util.ArrayDeque<Integer>();
+        prev[sy * w + sx] = -1;
+        q.add(sy * w + sx);
+        int goal = -1;
+        int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        while (!q.isEmpty()) {
+            int c = q.poll(), cx = c % w, cy = c / w;
+            boolean there = exact ? (cx == tx && cy == ty)
+                : Math.max(Math.abs(cx - tx), Math.abs(cy - ty)) <= 1;
+            if (there) {
+                goal = c;
+                break;
+            }
+            for (int[] d : dirs) {
+                int nx = cx + d[0], ny = cy + d[1];
+                if (nx < 0 || ny < 0 || nx >= w || ny >= h) {
+                    continue;
+                }
+                int n = ny * w + nx;
+                if (prev[n] != -2 || !walkable(screen, nx, ny)) {
+                    continue;
+                }
+                prev[n] = c;
+                q.add(n);
+            }
+        }
+        if (goal < 0) {
+            return null;
+        }
+        java.util.LinkedList<int[]> path = new java.util.LinkedList<int[]>();
+        for (int c = goal; prev[c] != -1; c = prev[c]) {
+            path.addFirst(new int[] {c % w, c / w});
+        }
+        return path;
+    }
+
+    /**
+     * Walk to a tile by the phone's own map, round walls and water, one step
+     * at a time so a creature or a patch in the way is seen on the next plan.
+     * Stops at a doorway, like goto.
+     */
+    private static void pathTo(PrintStream out, int tx, int ty, long timeoutMs)
+            throws Exception {
+        long until = System.currentTimeMillis() + timeoutMs;
+        Object start = field(currentScreen(), "I");
+        while (System.currentTimeMillis() < until) {
+            Object screen = currentScreen();
+            if (screen != null && !"d".equals(screen.getClass().getSimpleName())) {
+                if (isFightOffer(screen)) {
+                    out.println("PATH stopped: a fight is offered");
+                    return;
+                }
+                dismiss(out);
+                screen = currentScreen();
+                if (screen != null && !"d".equals(screen.getClass().getSimpleName())) {
+                    out.println("PATH stopped: a dialog is up");
+                    return;
+                }
+            }
+            Object loc = field(screen, "I");
+            if (loc != null && !loc.equals(start)) {
+                out.println("PATH through a doorway to " + loc);
+                return;
+            }
+            int x = (Integer) field(screen, "Q"), y = (Integer) field(screen, "R");
+            List<int[]> path = route(screen, x, y, tx, ty);
+            if (path == null) {
+                out.println("PATH none from " + x + "," + y + " to " + tx + "," + ty);
+                return;
+            }
+            if (path.isEmpty()) {
+                out.println("PATH arrived " + x + "," + y);
+                return;
+            }
+            int[] next = path.get(0);
+            walkTo(out, next[0], next[1], 4000);
+        }
+        out.println("PATH timed out heading for " + tx + "," + ty);
+    }
+
+    /** Open the phone's "Choose action" list (fire) and pick an entry. */
+    private static void act(PrintStream out, String label) throws Exception {
+        key(-5, 60);
+        Thread.sleep(300);
+        Object screen = currentScreen();
+        Object u = field(screen, "u");
+        if (!(u instanceof Integer) || ((Integer) u).intValue() != 32) {
+            out.println("ACT no action list here (screen " + u + ")");
+            return;
+        }
+        Vector<?> items = entries();
+        List<String> have = new ArrayList<String>();
+        for (Object o : items) {
+            have.add(labelOf(o));
+        }
+        if (!have.contains(label)) {
+            choose(out, "Cancel");
+            out.println("ACT missing \"" + label + "\" in " + have);
+            return;
+        }
+        choose(out, label);
+        out.println("ACT " + label);
     }
 
     /** Wait for whichever of these screens turns up first; -1 if none does. */
@@ -712,6 +938,30 @@ public class MEHarness {
         out.println("MEH no entry \"" + label + "\" in " + have);
     }
 
+    /** Activate one entry of the current list by position (choose, by index). */
+    private static void activate(PrintStream out, int i, Object entry) throws Exception {
+        Object screen = currentScreen();
+        // Put the list's cursor (c.c) on the row first, as the keys would.
+        // Screens that act on "the selected row" later (Equip reads f(),
+        // the row under the cursor) otherwise act on row 0.
+        if (screen != null && "c".equals(screen.getClass().getSimpleName())) {
+            setField(screen, "c", Integer.valueOf(i));
+        }
+        DisplayAccess access = access();
+        Object canvas = access == null ? null : access.getCurrent();
+        for (java.lang.reflect.Method m : canvas.getClass().getDeclaredMethods()) {
+            Class<?>[] sig = m.getParameterTypes();
+            if (sig.length == 3 && sig[1] == Integer.TYPE && sig[2] == Object.class
+                    && sig[0].isInstance(screen)) {
+                m.setAccessible(true);
+                m.invoke(canvas, screen, Integer.valueOf(i), entry);
+                method(canvas, "d").invoke(canvas);
+                return;
+            }
+        }
+        out.println("MEH no command handler on " + canvas.getClass().getName());
+    }
+
     /** g.b(e) drops a screen; g.d() commits the swap, as keyPressed does. */
     private static void pop(Object canvas, Object screen) throws Exception {
         for (java.lang.reflect.Method m : canvas.getClass().getMethods()) {
@@ -860,6 +1110,21 @@ public class MEHarness {
             }
         }
         return null;
+    }
+
+    private static void setField(Object o, String name, Object value) {
+        for (Class<?> c = o.getClass(); c != null; c = c.getSuperclass()) {
+            try {
+                Field f = c.getDeclaredField(name);
+                f.setAccessible(true);
+                f.set(o, value);
+                return;
+            } catch (NoSuchFieldException e) {
+                // keep walking up
+            } catch (Exception e) {
+                return;
+            }
+        }
     }
 
     private static Object field(Object o, String name) {

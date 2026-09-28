@@ -73,6 +73,10 @@ def chunks_of(resp):
 
 
 def main():
+    # Most of these checks describe the remastered game (attack shapes,
+    # habits, two-phase bosses, shells); the classic one is checked at the
+    # end, under its own override.
+    tiers.RULESET_OVERRIDE = "remastered"
     print("world")
     for game in ("ShiradsForge", "SterlingLake", "MistralGrove"):
         w = World(game)
@@ -482,9 +486,15 @@ def main():
     village_report = w.battle_report()
     w = World("ShiradsForge")
     w.entity_table()
-    shirard = next(r for r in w.entity_table() if r[0] == 111)
+    rows = {r[0]: r for r in w.entity_table()}
+    death = rows[132]            # trigger 2 on node 20: prereq, arms, completes
+    i = 14 + death[13]
+    i += 1 + death[i]
+    i += 1 + death[i]
     check("Shirard's fight closes when he dies",
-          shirard[6] == 2 and shirard[8] == 20 and shirard[14] == 20)
+          rows[111][6] == 0 and rows[111][14] == 20
+          and death[6] == 2 and death[8] == 20
+          and 111 in death[i + 1:i + 1 + death[i]])
     w.mobs[20].alive = False
     w.mobs[20].hp = 0
     w.location = 7
@@ -501,9 +511,10 @@ def main():
           b"108" in hud and b"1582" in hud
           and b"L14" not in hud and b"1582g" not in hud and b"108/" not in hud)
 
-    check("the win tells him the mountain is saved and the world is still open",
-          "saved the mountain" in report and "Explore as long as you like" in report
-          and "Shirard is defeated" in report,
+    check("the win thanks him for saving the land and leaves the world open",
+          "Thank you, hero, for saving this land." in report
+          and "The land is yours to wander." in report
+          and "Shirard defeated" in report,
           report.replace("\n", " | "))
 
     check("a Village win does not paste Hrom's speech",
@@ -806,7 +817,7 @@ def main():
     check("a Beetle has its tier's life, less what its shell is worth, "
           "and more life deeper in",
           one.max_hp == tiers.creature_life("I", 30, "Beetle")
-          < tiers.best_round("I") and three.max_hp > 3 * one.max_hp
+          < tiers.best_round("I") * tiers.LIFE_TURNS and three.max_hp > 3 * one.max_hp
           and one.offence()["armour"] > 0,
           f"{one.max_hp} / {three.max_hp}")
     before = handlers._pressure_blow(t, one)
@@ -907,19 +918,198 @@ def main():
 
     # Beating Shirard ends the chapter with words, not by closing the game
     e = World("ShiradsForge")
-    last = [r for r in e.entity_table() if r[0] == World.ENDING["ShiradsForge"]]
-    check("the ending is served as a kind 3 that asks and shows, not a kind 11 "
-          "that quits", last and last[0][12] == 3, str(last and last[0][12]))
-    resp = handlers.interact(Req(11, chunks=[(1, codec.T_INT, b"\x00\xe2")]))
-    shown = b"".join(raw for tag, _, raw in chunks_of(resp) if tag == 2)
-    check("asking about it shows the thanks and the hero's tally",
-          b"Thank you, hero, for saving this land." in shown
-          and b"Level " in shown and b"creatures slain" in shown,
-          shown[:60])
-    check("and marks the chapter finished", get_world().finished)
+    switch = [r for r in e.entity_table() if r[0] == 132][0]
+    check("Shirard's death no longer arms the kind 11 that quits the game",
+          226 not in bytes(switch)[15:])
+    shirard = e.mobs[20]
+    shirard.alive = True
+    e.location = shirard.location
+    e.begin_fight([20])
+    shirard.alive = False
+    e.hero_hp = e.hero_max
+    report = e.battle_report()
+    status, script = handlers.finish(e, [])
+    check("the battle report after Shirard carries the thanks and the tally",
+          "Thank you, hero, for saving this land." in report
+          and "creatures slain" in report, report[-120:])
+    check("and marks the chapter finished", status == 2 and e.finished)
     kept = World("ShiradsForge")
-    kept.from_dict(get_world().to_dict())
+    kept.from_dict(e.to_dict())
     check("a save remembers the chapter is finished", kept.finished)
+
+    # The crate prizes the server adds must behave like the jar's own: start
+    # dormant, fire once when their crate is smashed, and not loop forever
+    cr = World("ShiradsForge")
+    made = cr._silent_crate_ids()
+    rows = {r[0]: r for r in cr.entity_table()}
+    start = cr.entity_states()
+    check("an added crate prize starts dormant until its crate is smashed",
+          made and all(start[sid] == 1 for sid in made), str({s: start[s] for s in made}))
+    check("and completes itself when it fires, so it fires once",
+          all(sid in bytes(rows[sid])[14:] for sid in made))
+    stuck = bytearray(start)
+    stuck[240] = 2
+    cr.progress = bytes(stuck)
+    check("a save with the Lava Island prize stuck live is put back to dormant",
+          cr.entity_states()[240] == 1)
+    cr.opened.append(240)
+    check("and to done once that crate has been looted",
+          cr.entity_states()[240] == 3)
+
+    # Habits: a creature second-guesses you partway through its turn
+    def lone(name, tier_room=None):
+        world = World("ShiradsForge")
+        world.equipped["weapon"] = "Bloody Blade"
+        foe = next(m for m in world.mobs.values() if not m.npc
+                   and handlers.fighter_name(world, m) == name
+                   and (tier_room is None or m.location == tier_room))
+        world.location = foe.location
+        handlers.open_fight(world, [foe.node])
+        return world, foe
+
+    def plan_of(world, foe, hero):
+        world.hero_x, world.hero_y = hero
+        foe.face = 1                                   # facing east
+        return [ev for _, ev in handlers.mob_timeline(world) if ev[1] == foe.node]
+
+    world, sk = lone("Skeleton")
+    beside = (sk.x, sk.y + 1)                          # a blind spot of front1 east
+    check("a Skeleton never turns", not any(ev[0] == "mob_turn"
+                                            for ev in plan_of(world, sk, beside)))
+    world, gor = lone("Gorrak")
+    hero = (gor.x + 1, gor.y)                          # in front of it
+    gor.hit_from = (0, 1)                              # last hit from below
+    ev = plan_of(world, gor, hero)
+    turn = [e for e in ev if e[0] == "mob_turn"]
+    check("a Gorrak turns after its first swing, to where it was hit from",
+          turn and ev.index(turn[0]) > next(i for i, e in enumerate(ev) if e[0] == "mob_attack")
+          and handlers._covers(world, "lunge", gor.x, gor.y, turn[0][2], gor.x, gor.y + 1),
+          str(ev[:4]))
+    world, gol = lone("Golem")
+    times = [t for t, e in handlers.mob_timeline(world) if e[1] == gol.node]
+    world.hero_x, world.hero_y = gol.x + 1, gol.y
+    gol.face = 1
+    evs = [(t, e) for t, e in handlers.mob_timeline(world) if e[1] == gol.node]
+    turned = [t for t, e in evs if e[0] == "mob_turn"]
+    check("a Golem turns no earlier than halfway, and slowly",
+          not turned or turned[0] >= handlers.HALF + 120, str(turned))
+    world, fun = lone("Fungusman")
+    world.hero_x, world.hero_y = fun.x + 1, fun.y
+    check("a Fungusman is rooted in its spores and never turns",
+          not any(e[0] == "mob_turn" for _, e in handlers.mob_timeline(world)
+                  if e[1] == fun.node))
+    world, bee = lone("Beetle")
+    world.equipped["weapon"] = "Short Bow"
+    world.hero_x, world.hero_y = bee.x + 3, bee.y
+    check("against a bow every creature strikes all around, so none turns",
+          not any(e[0] == "mob_turn" for _, e in handlers.mob_timeline(world)
+                  if e[1] == bee.node))
+    # the turn reaches the phone as the set-animation record a Miss already uses
+    world, gor = lone("Gorrak")
+    world.hero_x, world.hero_y = gor.x + 1, gor.y
+    gor.face, gor.hit_from = 1, (0, 1)
+    script = []
+    handlers._play(world, [(1, ("mob_turn", gor.node, 2))], script, random.Random(1))
+    check("a turn is shown as the creature facing its new way",
+          gor.face == 2 and script and script[0][0] == 0
+          and said(script, "Gorrak turns"))
+
+    # Trophies (trophies.py): each one earned the way a player would
+    import trophies as tr
+    tw = World("ShiradsForge")
+    tw.entity_table()
+
+    def slay(world, weapon, action):
+        """Put a creature beside the hero and kill it with this action."""
+        foe = next(m for m in world.mobs.values()
+                   if not m.npc and m.alive and m.location == 2
+                   and m.node not in world.slain)
+        world.location = foe.location
+        world.hero_x, world.hero_y = foe.x - 2 if action in ("Shoot", "Zap") else foe.x - 1, foe.y
+        if weapon:
+            if weapon not in world.inventory:
+                world.inventory.append(weapon)
+            world.equip(weapon)
+        world.begin_fight([foe.node])
+        for seed in range(40):
+            if not foe.alive:
+                break
+            foe.hp = 1
+            handlers._hero_attack(world, action, foe.x, foe.y, [], random.Random(seed))
+        return foe
+    slay(tw, "Bloody Blade", "Hit")
+    slay(tw, "Spike Axe", "Hit")
+    slay(tw, "Short Bow", "Shoot")
+    slay(tw, "Bloody Blade", "Zap")
+    check("a kill with a sword, an axe, a bow and Zap each earn their trophy",
+          all(t in tw.trophies for t in ("blade", "heavy", "marksman", "spellbinder")),
+          str(sorted(tw.trophies)))
+    status, _ = handlers.finish(tw, [])
+    report_news = tw.battle_report()
+    check("winning untouched earns First Blood and Untouchable",
+          status == 2 and "first_blood" in tw.trophies and "untouchable" in tw.trophies)
+    hurt = World("ShiradsForge")
+    hurt.entity_table()
+    slay(hurt, "Bloody Blade", "Hit")
+    hurt.fight_hurt = True
+    handlers.finish(hurt, [])
+    check("a fight where a blow landed is not Untouchable",
+          "first_blood" in hurt.trophies and "untouchable" not in hurt.trophies)
+    tw.gold = 1000
+    handlers.salvage(tw, "Short Bow")
+    tw.buy("Corrupter")
+    check("recycling and buying earn Recycler and Customer",
+          "recycler" in tw.trophies and "customer" in tw.trophies)
+    for loc in tw.locations:
+        tw.note_place(loc)
+    check("every room earns Explorer, the hidden ones Secret Keeper",
+          "explorer" in tw.trophies and "secrets" in tw.trophies)
+    for st in sorted(tw.prize_crates()):
+        tw.loot_container(st)
+    check("every crate earns Treasure Hunter", "treasure" in tw.trophies,
+          str(tr.progress(tw)["treasure"]))
+    done = bytearray(tw.entity_states())
+    for sid, _ in tr._quests(tw):
+        done[sid] = 3
+    tw.note_progress(bytes(done))
+    check("the phone's quest switches earn Cogwheels and Every Quest",
+          "cogwheels" in tw.trophies and "quests" in tw.trophies)
+    for node in tr._crypt_foes(tw):
+        tr.killed(tw, node, None)
+    check("killing every creature in the Crypt earns The Crypt",
+          "crypt" in tw.trophies)
+    for node in (46, 48, 19):
+        tr.killed(tw, node, None)
+    check("each boss earns its own trophy, and platinum waits for the last",
+          all(t in tw.trophies for t in ("mira", "aldor", "beholder"))
+          and "platinum" not in tw.trophies)
+    tr.killed(tw, 20, None)
+    check("Shirard completes the set, and platinum follows",
+          "forge" in tw.trophies and "platinum" in tw.trophies
+          and len(tw.trophies) == len(tr.TROPHIES), str(len(tw.trophies)))
+    lines = tr.news(tw)
+    check("new trophies are announced once, as text the phone can show",
+          any(l == "Trophy: Platinum (platinum)" for l in lines) and not tr.news(tw))
+    keep = World("ShiradsForge")
+    keep.from_dict(tw.to_dict())
+    check("a save keeps the trophies and what they counted",
+          len(keep.trophies) == len(tr.TROPHIES) and keep.slain and keep.visited)
+    fresh_panel = tr.panel(World("ShiradsForge"))
+    full_panel = tr.panel(tw)
+    check("the side panel lists every trophy with progress, and the count",
+          len(fresh_panel["entries"]) == len(tr.TROPHIES)
+          and fresh_panel["name"] == f"Trophies 0/{len(tr.TROPHIES)}"
+          and full_panel["name"] == f"Trophies {len(tr.TROPHIES)}/{len(tr.TROPHIES)}"
+          and any("0 of 27 so far." in e["lines"] for e in fresh_panel["entries"]))
+    live = get_world()
+    live.entity_table()
+    unopened = next(st for st in sorted(live.prize_crates()) if st not in live.opened)
+    live.trophy_news = ["recycler"]
+    reply = handlers.interact(Req(11, chunks=[(1, codec.T_INT,
+                                                unopened.to_bytes(2, "big"))]))
+    said_text = b"".join(raw for tag, _, raw in chunks_of(reply) if tag == 2)
+    check("a crate's message carries a trophy earned since the last one",
+          b"Trophy: Recycler (bronze)" in said_text, said_text[-80:])
 
     # Dodge gives less each time in a turn; Minor Cure is slow
     d = World("ShiradsForge")
@@ -1133,10 +1323,15 @@ def main():
           status == 2 and offered[0] == 21, offered[:8].hex())
 
     gold = w.gold
-    check("Dreyfus pays 3, and only once",
-          w.claim_gift(117) == 3 and w.claim_gift(117) == 0
-          and w.gold == gold + 3)
-    check("Milas pays 5", w.claim_gift(148) == 5)
+    check("Dreyfus pays 250, and only once",
+          w.claim_gift(117) == 250 and w.claim_gift(117) == 0
+          and w.gold == gold + 250)
+    check("Milas pays 400 and Tillic 150",
+          w.claim_gift(148) == 400 and w.claim_gift(136) == 150)
+    from layout import QUEST_GIFTS
+    said_right = all(f"{gold} Gold coins" in w.text(loc)[key]
+                     for loc, key, gold, _ in QUEST_GIFTS.values())
+    check("each quest-giver's line names exactly what he pays", said_right)
 
     w = World("ShiradsForge")
     w.entity_table()
@@ -1427,8 +1622,9 @@ def main():
     import webserve
     ref = webserve.compendium_view()
     names = [s["name"] for s in ref["sections"]]
-    check("the compendium carries every section",
-          names == ["How it works", "Areas", "Creatures", "Gear"], str(names))
+    check("the compendium carries the hero's trophies, then every section",
+          names[0].startswith("Trophies ")
+          and names[1:] == ["How it works", "Areas", "Creatures", "Gear"], str(names))
     by = {s["name"]: s["entries"] for s in ref["sections"]}
     check("one entry an area", len(by["Areas"]) == 18, str(len(by["Areas"])))
     check("every entry has a title and something to say",
@@ -1515,6 +1711,87 @@ def main():
           forge.can_stand(forge.hero_x, forge.hero_y)
           and (forge.hero_x, forge.hero_y) != (0, 32),
           f"{(forge.hero_x, forge.hero_y)} spawn {parked}")
+
+    print("\nclassic ruleset")
+    tiers.RULESET_OVERRIDE = "classic"
+    cw = World("ShiradsForge")
+    cw.equipped["weapon"] = "Bloody Blade"
+    beetle = next(m for m in cw.mobs.values() if cw.creature_name(m.creature) == "Beetle")
+    gorrak = next(m for m in cw.mobs.values() if cw.creature_name(m.creature) == "Gorrak")
+    check("classic: every creature strikes every square beside it",
+          handlers.pattern_of(cw, beetle) == "ring" and handlers.pattern_of(cw, cw.mobs[46]) == "ring")
+    check("classic: no shells, so a Beetle is soft and has its full tier life",
+          beetle.offence()["armour"] == 0
+          and beetle.max_hp == tiers.creature_life(beetle.tier, beetle.weight))
+    check("classic: no creature second-guesses you mid-turn",
+          handlers.habit_of(cw, gorrak) == (None, None, 0))
+    check("classic: Mira's twin waits to wake after the fight, the Mira you speak to",
+          not cw.mobs[47].alive and cw.mobs[47].dormant
+          and handlers.fighter_name(cw, cw.mobs[47]) == "Mira"
+          and cw.node_states()[47] == 1)
+    # The boss boxes start their fight when stepped into (trigger 0), and a
+    # death switch (trigger 2 on the boss's node) completes each box.
+    ents = {r[0]: r for r in cw.entity_table()}
+    boxes = {85: (46, 227), 122: (48, 134), 111: (20, 132)}
+    check("the boss fights start when you step into their box",
+          all(ents[b][6] == 0 and ents[b][12] == 2 and ents[b][14] == node
+              for b, (node, _) in boxes.items()))
+    check("each boss box is switched off by its own death switch",
+          all(ents[d][6] == 2 and ents[d][8] == node
+              for _, (node, d) in boxes.items()))
+    mira = cw.mobs[46]
+    cw.location = mira.location
+    cw.hero_x, cw.hero_y = mira.x, mira.y + 1
+    handlers.open_fight(cw, [46])
+    script = []
+    handlers._land_on_mob(cw, 0, mira, "hit", mira.hp, 1, script)
+    check("classic: a boss falls in one fight, no change of shape",
+          not mira.alive and not said(script, "draws a blade"))
+    shirard = cw.mobs[20]
+    shirard.alive = True
+    cw.location = shirard.location
+    handlers.open_fight(cw, [20])
+    check("classic: Shirard is one pool as long as both remastered phases",
+          shirard.max_hp == tiers.boss_life("III", 2 * handlers.balance()["boss_turns"]))
+    handlers.open_fight(cw, [46])
+    check("classic: Mira is one pool as long as both remastered phases, like the rest",
+          mira.max_hp == tiers.boss_life(mira.tier, 2 * handlers.balance()["boss_turns"]))
+    tiers.RULESET_OVERRIDE = None
+    check("with no setting, the server plays the classic game",
+          tiers.ruleset() == "classic" or os.path.exists(tiers._BALANCE))
+
+    # the server's map is the phone's: a fired kind 6 patch opens ground
+    crypt = World("ShiradsForge")
+    crypt.entity_table()
+    crypt.location = 16
+    shut = crypt.map().walkable(8, 4)
+    switches = bytearray(256)
+    switches[142] = 3            # the Crypt crate's patch, fired
+    crypt.progress = bytes(switches)
+    check("a wall a fired patch opened is open to the server's fights too",
+          not shut and crypt.map().walkable(8, 4)
+          and not crypt.maps[16].walkable(8, 4))
+
+    # two servers on one save file: the web game and a test relay
+    import tempfile
+    shared = os.path.join(tempfile.mkdtemp(), "game.json")
+    web, relay = Saves(shared), Saves(shared)
+    wkey, rkey = web.new_key(), relay.new_key()
+    web.create_hero(wkey, "Web", "ShiradsForge")
+    relay.create_hero(rkey, "Bot", "ShiradsForge")
+    web.world("Web", "ShiradsForge").gold = 999
+    web.save("Web", "ShiradsForge")
+    relay.world("Bot", "ShiradsForge").gold = 5
+    relay.save("Bot", "ShiradsForge")
+    stranger = relay.new_key()
+    check("another account cannot create a hero over an existing one",
+          relay.taken(stranger, "Web", "ShiradsForge")
+          and not relay.create_hero(stranger, "Web", "ShiradsForge"))
+    back = Saves(shared)
+    check("a server saving its hero keeps another server's heroes on the same file",
+          back.world("Web", "ShiradsForge").gold == 999
+          and back.world("Bot", "ShiradsForge").gold == 5
+          and back.heroes(wkey, "ShiradsForge") == ["Web"])
 
     print()
     if FAILED:

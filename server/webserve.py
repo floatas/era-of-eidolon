@@ -37,15 +37,23 @@ TYPES = {
 
 
 def compendium_view(store=None):
-    """The panel's contents. Nothing session-dependent.
+    """The panel's contents: the hero's trophies, then the reference.
 
-    It used to name the room the player was in, which meant knowing where
-    they were — and under CheerpJ the client's map-loaded ping never reaches
-    the server, so the panel sat on a stale room. It is a reference now: the
-    player opens what they want, and it is right whatever the game is doing.
+    The reference is not session-dependent. It used to name the room the
+    player was in, which meant knowing where they were — and under CheerpJ
+    the client's map-loaded ping never reaches the server, so the panel sat
+    on a stale room. It is a reference now: the player opens what they want.
+
+    The Trophies tab belongs to whichever hero the latest request came from
+    (saves().playing()); before any hero has played it lists every trophy as
+    not yet earned. The page reloads this each time the panel is opened.
     """
     from compendium import reference
-    return reference()
+    import trophies
+    from world import saves
+    book = reference()
+    hero = (store or saves()).playing()
+    return {**book, "sections": [trophies.panel(hero)] + list(book.get("sections", []))}
 
 
 class Handler(relay.Handler):
