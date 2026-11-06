@@ -14,6 +14,7 @@ HttpConnectionImpl built on java.net, which CheerpJ maps onto browser fetch.
 
 import os
 import shutil
+import subprocess
 import sys
 import zipfile
 
@@ -29,17 +30,35 @@ CLASSES = [
 ]
 
 
+def compile_keyboard():
+    """The browser emulator reads keys in FreeJ2ME. Rebuild that class as Java 8."""
+    source = os.path.join(HERE, "freej2me-web", "src", "org", "recompile",
+                          "freej2me", "FreeJ2ME.java")
+    subprocess.check_call([
+        "javac", "--release", "8", "-cp", SRC, "-d", PATCH, source,
+    ])
+    out = os.path.join(PATCH, "org", "recompile", "freej2me")
+    found = []
+    for name in sorted(os.listdir(out)):
+        if name.startswith("FreeJ2ME") and name.endswith(".class"):
+            found.append("org/recompile/freej2me/" + name)
+    if not found:
+        raise SystemExit("FreeJ2ME did not compile")
+    return found
+
+
 def main():
     if not os.path.exists(SRC):
         print(f"missing {SRC}")
         return 1
+    classes = CLASSES + compile_keyboard()
     backup = SRC + ".orig"
     if not os.path.exists(backup):
         shutil.copy2(SRC, backup)
         print(f"kept original at {backup}")
 
     new = {}
-    for rel in CLASSES:
+    for rel in classes:
         path = os.path.join(PATCH, rel)
         if not os.path.exists(path):
             print(f"missing compiled class: {path}")
@@ -58,7 +77,7 @@ def main():
             zout.writestr(rel, data)
 
     os.replace(tmp, SRC)
-    print(f"patched {SRC}: " + ", ".join(os.path.basename(c) for c in CLASSES))
+    print(f"patched {SRC}: " + ", ".join(os.path.basename(c) for c in classes))
     return 0
 
 

@@ -25,6 +25,46 @@ fi
 python3 run/mkjar.py "jars/EoE-${GAME}.jar" "run/EoE-${GAME}.jar" \
     "Relay=${RELAY}" "INFO=preservation"
 
+# Start the relay when the jar points at this machine and nothing answers
+# there yet, the way play-card.sh and play-town.sh start theirs. Without it
+# the phone sits on "Loading..." for ever.
+case "$RELAY" in
+    http://127.0.0.1:*|http://localhost:*)
+        PORT="${RELAY#http://*:}"
+        PORT="${PORT%%/*}"
+        if ! lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+            mkdir -p server/logs
+            python3 -u server/relay.py "$PORT" >/dev/null 2>&1 &
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+                if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+                    break
+                fi
+                sleep 0.2
+            done
+        fi
+        ;;
+esac
+
+# FreeJ2ME drops soft keys unless phone:Standard is set for this MIDlet-Name.
+# Forge and Sterling Lake already have a config; copy Sterling's for a chapter
+# that does not (Mistral Grove). Never overwrite one that is already there.
+python3 - << PY
+import os, zipfile
+jar = "run/EoE-${GAME}.jar"
+template = "config/Sterling Lake/game.conf"
+with zipfile.ZipFile(jar) as z:
+    mf = z.read("META-INF/MANIFEST.MF").decode("utf-8", "replace")
+name = ""
+for ln in mf.splitlines():
+    if ln.startswith("MIDlet-Name:"):
+        name = ln.split(":", 1)[1].strip()
+dest = os.path.join("config", name, "game.conf")
+if name and os.path.isfile(template) and not os.path.exists(dest):
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(template) as src, open(dest, "w") as out:
+        out.write(src.read())
+PY
+
 # FreeJ2ME scales the LCD to the frame and preserves aspect (its resize()), so
 # simply enlarging the window zooms the game. The phone screen is 240x320 and
 # the frame adds a little chrome; SCALE=2 gives a crisp 2x with no distortion.

@@ -4,6 +4,36 @@ watAgame ApS (Copenhagen, founded 2003). One of the first genuinely *online* mob
 RPGs; J2ME MIDlets for Nokia S30/S40/S60, Sony Ericsson and Siemens handsets.
 Servers dead; `eraofeidolon.com` lapsed and was squatted in 2019.
 
+## Play it
+
+Needs Java 11+ and Python 3. Each launcher rebuilds its jar from `jars/`
+(the originals are never touched) and starts its own local server.
+
+| game | what works | desktop | browser |
+|---|---|---|---|
+| **Shirad's Forge** | the whole chapter, start to the ending | `./run/play.sh` | `./run/web.sh` |
+| Sterling Lake | its maps, to walk round the first one; no doors or creatures | `./run/play.sh SterlingLake` | `./run/web.sh SterlingLake` |
+| Mistral Grove | the same as Sterling Lake | `./run/play.sh MistralGrove` | `./run/web.sh MistralGrove` |
+| Badaz Poker | a table against the offline opponents | `./run/play-card.sh` | `./run/web.sh Poker` |
+| Badaz Blackjack | the same | `./run/play-card.sh Blackjack` | `./run/web.sh Blackjack` |
+| Orumant (Arena) | the town and its menus; most screens open empty | `./run/play-town.sh` | `./run/web.sh Orumant` |
+| Dagonar (Arena) | the same as Orumant | `./run/play-town.sh Dagonar` | `./run/web.sh Dagonar` |
+
+`web.sh` prints the URL to open. Arrow keys move, Enter confirms, Escape
+goes back; the top-row digits are the phone keypad.
+
+Sterling Lake and Mistral Grove never shipped the table that says which
+doorway leads where, and nothing else records it, so they open as bare maps
+rather than on doors we would have had to invent. See `notes/MISSING.md`.
+
+To check nothing is broken:
+
+    tools/check.sh                  # under a second: tests and anomalies
+    tools/harness/regress.py        # about a minute: boots all three chapters
+                                    # headless, crosses a door, saves, resumes
+    tools/harness/playthrough.py    # Shirad's Forge on the phone client to
+                                    # the ending (see its header for the relay)
+
 ## World structure (from the archived official site, 2004)
 
 Three regions, each ruled by one of three sisters, each with a capital town:
@@ -55,7 +85,7 @@ town art and intro text, and no town-selection parameter exists in the binary.
     notes/       official 2004 site pages, game-rules PDF, 7 JAD descriptors
     tools/       freej2me 1.52, cfr.jar
 
-## Current playability
+## Playability before the server (first look, kept for the record)
 
 FreeJ2ME-Plus 1.52 in `tools/freej2me` (needs Java; tested on JDK 11 arm64):
 
@@ -74,8 +104,6 @@ standing up a replacement content server and redirecting the hardcoded host.
 - `EOE-GAME-RULES-0.2.pdf` — official 8-page rules document (2004)
 - `site-world.html`, `site-story.html`, `site-game.html` — archived official site
 - `*.jad` — 7 MIDlet descriptors (Nokia S30/S40/S60, SonyEricsson K500/K700/T610, Siemens M55)
-EOE
-ls -R . | head -30; echo; du -sh .
 ## Asset completeness (measured)
 
 Resource key is `"/" + type + Integer.toHexString(id)` (`g.java:368`). On a miss,

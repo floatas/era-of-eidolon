@@ -14,10 +14,13 @@ http.server does not do, so that is implemented here.
 Then open http://localhost:<port>/ and load run/EoE-ShiradsForge-web.jar.
 """
 
+import http.client
 import json
 import os
 import re
+import socket
 import sys
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -63,7 +66,71 @@ class Handler(relay.Handler):
         pass
 
     def do_POST(self):
+        path = self.path.split("?", 1)[0]
+        # Card tables and towns post to this same origin. A desktop server
+        # already on that port is used as-is; otherwise this process answers.
+        if "/3/" in path and path.endswith(".pl"):
+            return self.online_post("cards", 8082)
+        if path.startswith("/1/"):
+            return self.online_post("arena", 8081)
         return relay.Handler.do_POST(self)
+
+    def online_post(self, kind, port):
+        length = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(length) if length else b""
+        if _listening(port):
+            try:
+                self._proxy(port, body)
+                return
+            except OSError as exc:
+                print(f"{kind} proxy failed: {exc}", flush=True)
+        if kind == "cards":
+            import cards
+            if cards.Handler.store is None:
+                cards.Handler.store = cards.Store(cards.SAVE)
+            try:
+                reply = cards.handle(self.path, body, cards.Handler.store)
+            except Exception:
+                traceback.print_exc()
+                reply = cards.frame(1, [cards.field_str(2, cards.NOTE)])
+            ctype = "application/octet-stream"
+        else:
+            import arena
+            if arena.Handler.store is None:
+                arena.Handler.store = arena.Store(arena.SAVE)
+            try:
+                reply = arena.handle(self.path, body, arena.Handler.store).encode("utf-8")
+            except Exception as exc:
+                print(f"arena {self.path} failed: {exc}", flush=True)
+                reply = (arena.BAR + "1" + arena.BAR + "0" + arena.BAR + "0"
+                         + arena.BAR + "0" + arena.BAR + "0").encode("utf-8")
+            ctype = "text/plain"
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(reply)))
+        self.end_headers()
+        self.wfile.write(reply)
+
+    def _proxy(self, port, body):
+        headers = {}
+        for key in ("Content-Type", "X-relay-url"):
+            val = self.headers.get(key)
+            if val:
+                headers[key] = val
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
+        try:
+            conn.request("POST", self.path, body, headers)
+            resp = conn.getresponse()
+            data = resp.read()
+            status = resp.status
+            ctype = resp.getheader("Content-Type") or "application/octet-stream"
+        finally:
+            conn.close()
+        self.send_response(status)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_HEAD(self):
         self.do_GET(head=True)
@@ -138,6 +205,15 @@ class Handler(relay.Handler):
         self.end_headers()
         if not head:
             self.wfile.write(body)
+
+
+def _listening(port):
+    try:
+        sock = socket.create_connection(("127.0.0.1", port), 0.2)
+    except OSError:
+        return False
+    sock.close()
+    return True
 
 
 if __name__ == "__main__":
