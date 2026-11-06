@@ -18,7 +18,7 @@ run/EoE-*.jad
 server/capture/
 server/logs/
 server/saves/
-server/__pycache__/
+__pycache__/
 rms/
 freej2me_system/
 
