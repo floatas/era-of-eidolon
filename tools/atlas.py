@@ -90,8 +90,21 @@ def _i8(b):
     return b - 256 if b > 127 else b
 
 
-def sprite(w, creature, anim=1):
-    """One standing frame of a creature, assembled the way j.java draws it.
+# The walk set that faces the camera. j.java reads `e & 127` for the script
+# and `e & 128` as a mirror, so 14 is the walk and 14+64 = 78 its other pair
+# of facings; 78 drawn as-is walks down-left, 78 flipped walks down-right.
+# Both show the face. (Our decode notes called 64 "away from the camera",
+# which is backwards — render the two and the eyes are in 78.)
+FACE_WALK = 78
+
+
+def sprite(w, creature, anim=None, mirror=None):
+    """One frame of a creature, assembled the way j.java draws it.
+
+    By default the frame where it walks down and to the right, so a map or a
+    bestiary shows the face and a little of the profile rather than the back
+    of its head. Falls back to the standing frame for anything that has no
+    walk — the townsfolk, and whatever only ever stands still.
 
     A creature is not a single image. Its animation script (type 11, keyed by
     animation id) is a run of groups, each `duration, part count, then that
@@ -103,7 +116,15 @@ def sprite(w, creature, anim=1):
     Returns the composed image and the offset to draw it at, relative to the
     creature's tile.
     """
-    key = (w.game, creature, anim)
+    if anim is None:
+        if FACE_WALK in w.res.props(11, creature):
+            anim, mirror = FACE_WALK, True if mirror is None else mirror
+        else:
+            anim = 1
+    if mirror is None:
+        mirror = False
+
+    key = (w.game, creature, anim, mirror)
     if key in _SPRITES:
         return _SPRITES[key]
 
@@ -136,6 +157,9 @@ def sprite(w, creature, anim=1):
             img = Image.new("RGBA", (x1 - x0, y1 - y0), (0, 0, 0, 0))
             for px, py, piece in parts:
                 img.alpha_composite(piece, (px - x0, py - y0))
+            if mirror:
+                img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                x0 = -(x0 + img.width)
             result = (img, (x0, y0))
     except Exception:
         result = None                      # a creature we cannot draw is fine
@@ -188,8 +212,13 @@ def markers(w, loc):
             # Not there when you walk in: eleven creatures wait for a kind 5
             # entity to switch them on — Shirard behind the statue, the
             # Crypt's second and third waves standing where their chamber has
-            # not been painted yet. A map that leaves them out is as wrong as
-            # one that draws them as if they were on the board.
+            # not been painted yet. Worth marking where the ground exists,
+            # because something is coming. Where it does not, they would be
+            # ghosts hanging in the dark over floor the map is not showing,
+            # so they are left out with it.
+            w.location = loc
+            if not w.can_stand(m.x, m.y):
+                continue
             kind = "waiting"
         else:
             continue

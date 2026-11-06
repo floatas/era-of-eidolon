@@ -1,0 +1,74 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Swarm — Compendium</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap">
+<style>
+:root {
+  --ink:#f3e6c4; --dim:#c3b389; --faint:#8b7d5c;
+  --ground:#14110e; --panel:#1b1711; --rule:#6e5424; --gold:#f4dc62;
+  --hit:#b4532b; --safe:#3d5b3a; --void:#221d16; --me:#e8dcc0;
+}
+* { box-sizing:border-box }
+body { margin:0; background:var(--ground); color:var(--ink);
+  font-family:"EB Garamond",Palatino,Georgia,serif; font-size:17px; line-height:1.55 }
+.page { max-width:520px; margin:0 auto; padding:34px 30px 60px;
+  box-shadow:inset 3px 0 0 var(--rule), inset 4px 0 0 var(--gold) }
+.eyebrow { font-family:Cinzel,Georgia,serif; font-size:11px; letter-spacing:.22em;
+  text-transform:uppercase; color:var(--faint); margin:0 0 6px }
+h1 { font-family:Cinzel,Georgia,serif; font-weight:800; font-size:40px;
+  letter-spacing:.02em; margin:0; text-wrap:balance;
+  text-shadow:0 2px 0 #000, 0 0 22px rgba(244,220,98,.18) }
+.rule { height:1px; background:linear-gradient(90deg,var(--gold),var(--rule),transparent);
+  margin:16px 0 22px }
+.plate { background:var(--panel); border:1px solid var(--rule); border-radius:3px;
+  display:flex; align-items:center; justify-content:center; gap:18px;
+  padding:16px 14px; margin:0 0 22px; min-height:180px; overflow:hidden }
+.plate img.portrait { image-rendering:pixelated; display:block; max-height:150px;
+  flex:0 0 auto }
+.plate img.walk { image-rendering:pixelated; display:block; border-left:1px solid var(--rule);
+  padding-left:20px; width:100%; max-width:290px; height:auto; flex:1 1 auto;
+  min-width:0 }
+.stat { display:flex; gap:34px; flex-wrap:nowrap; margin:0 0 22px }
+.stat div { display:flex; flex-direction:column }
+.stat b { font-family:Cinzel,Georgia,serif; font-size:24px; line-height:1.1 }
+.stat span { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint) }
+h2 { font-family:Cinzel,Georgia,serif; font-size:13px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--dim); margin:28px 0 12px; font-weight:600 }
+.shapes { display:flex; gap:26px; flex-wrap:wrap }
+.shape { margin:0 }
+.shape svg { width:168px; height:168px; display:block }
+figcaption { margin-top:9px; display:flex; flex-direction:column }
+figcaption b { font-family:Cinzel,Georgia,serif; font-size:12px; letter-spacing:.1em;
+  text-transform:uppercase; font-weight:600 }
+figcaption span { font-size:14px; color:var(--dim) }
+p { margin:0 0 12px }
+.where { color:var(--dim); font-style:italic }
+</style>
+<div class="page">
+  <p class="eyebrow">Era of Eidolon &middot; Mistral Grove</p>
+  <h1>Swarm</h1>
+  <div class="rule"></div>
+
+  <div class="plate">
+    <img class="portrait" src="portrait.png" alt="Swarm">
+    <img class="walk" src="walk.gif" alt="Swarm walking">
+  </div>
+
+  <div class="stat">
+    <div><b>8</b><span>squares it reaches</span></div>
+    <div><b>0</b><span>safe beside it</span></div>
+    <div><b>3</b><span>blows a turn</span></div>
+  </div>
+
+  <h2>Where it can reach you</h2>
+  <div class="shapes">
+    <figure class="shape"><svg viewBox="0 0 138 138" role="img" aria-label="Swarm"><rect x="0" y="0" width="26" height="26" rx="3" fill="var(--void)"/><rect x="28" y="0" width="26" height="26" rx="3" fill="var(--void)"/><rect x="56" y="0" width="26" height="26" rx="3" fill="var(--void)"/><rect x="84" y="0" width="26" height="26" rx="3" fill="var(--void)"/><rect x="112" y="0" width="26" height="26" rx="3" fill="var(--void)"/><rect x="0" y="28" width="26" height="26" rx="3" fill="var(--void)"/><rect x="28" y="28" width="26" height="26" rx="3" fill="var(--hit)"/><rect x="56" y="28" width="26" height="26" rx="3" fill="var(--hit)"/><rect x="84" y="28" width="26" height="26" rx="3" fill="var(--hit)"/><rect x="112" y="28" width="26" height="26" rx="3" fill="var(--void)"/><rect x="0" y="56" width="26" height="26" rx="3" fill="var(--void)"/><rect x="28" y="56" width="26" height="26" rx="3" fill="var(--hit)"/><rect x="56" y="56" width="26" height="26" rx="13" fill="var(--me)"/><rect x="84" y="56" width="26" height="26" rx="3" fill="var(--hit)"/><rect x="112" y="56" width="26" height="26" rx="3" fill="var(--void)"/><rect x="0" y="84" width="26" height="26" rx="3" fill="var(--void)"/><rect x="28" y="84" width="26" height="26" rx="3" fill="var(--hit)"/><rect x="56" y="84" width="26" height="26" rx="3" fill="var(--hit)"/><rect x="84" y="84" width="26" height="26" rx="3" fill="var(--hit)"/><rect x="112" y="84" width="26" height="26" rx="3" fill="var(--void)"/><rect x="0" y="112" width="26" height="26" rx="3" fill="var(--void)"/><rect x="28" y="112" width="26" height="26" rx="3" fill="var(--void)"/><rect x="56" y="112" width="26" height="26" rx="3" fill="var(--void)"/><rect x="84" y="112" width="26" height="26" rx="3" fill="var(--void)"/><rect x="112" y="112" width="26" height="26" rx="3" fill="var(--void)"/></svg><figcaption><b>Swarm</b><span>8 of the eight squares beside it, and it picks its facing before the turn plays</span></figcaption></figure>
+  </div>
+
+  <h2>How to fight it</h2>
+  <p>It swings 3 times a turn, so each blow is small. Armour comes off every one of them, and earns its price here.</p>
+  <p>There is nowhere beside it that is safe.</p>
+  <p class="where">Found in Red Pines.</p>
+</div>

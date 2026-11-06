@@ -24,15 +24,23 @@ TURN = 720
 
 
 def portrait(w, creature, path, scale=6):
-    """The biggest standing frame it has, blown up with hard pixels."""
+    """The frame where it walks down and to the right, blown up.
+
+    Script 78 is the pair of facings that look toward the camera, and
+    flipping it turns down-left into down-right — so the portrait catches
+    the face and a little of the profile, mid-stride, instead of the back
+    of a head. Anything with no walk falls back to standing.
+    """
     have = set(w.res.props(11, creature))
-    for anim in (1, 15, 14):
+    for anim, mirror in ((78, True), (14, False), (1, False), (15, False)):
         if anim not in have:
             continue
         got = showcase.frames(w, creature, anim)
         if not got:
             continue
         img = max((f[0] for f in got), key=lambda i: i.width * i.height)
+        if mirror:
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)
         img = img.resize((img.width * scale, img.height * scale), Image.NEAREST)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         img.save(path)
@@ -66,6 +74,15 @@ def grid(cells, caption, note):
 
 def card(game, name):
     w = World(game)
+    # Only Shirad's Forge ships its creature table. The other two chapters
+    # are populated from the reconstruction, which does not run until a
+    # location is asked for.
+    for loc in w.locations:
+        if not any(m.location == loc for m in w.mobs.values()):
+            try:
+                w.populate_location(loc)
+            except Exception:
+                pass
     target = None
     for m in sorted(w.mobs.values(), key=lambda x: x.node):
         nm = handlers.fighter_name(w, m)
@@ -77,7 +94,7 @@ def card(game, name):
     if target is None:
         raise SystemExit(f"no creature called {name}")
 
-    folder = os.path.join(OUT, name.lower().replace(" ", "-"))
+    folder = os.path.join(OUT, game, name.lower().replace(" ", "-").replace("'", ""))
     os.makedirs(folder, exist_ok=True)
     pic = portrait(w, target.creature, os.path.join(folder, "portrait.png"))
     # A small board and a tight circle, blown up hard: the point of the loop
@@ -101,6 +118,9 @@ def card(game, name):
                         or handlers.fighter_name(w, o) == name)})
 
 
+    chapter = {"ShiradsForge": "Shirard\u2019s Forge",
+               "SterlingLake": "Sterling Lake",
+               "MistralGrove": "Mistral Grove"}.get(game, game)
     html = f"""<!doctype html>
 <meta charset="utf-8">
 <title>{name} — Compendium</title>
@@ -150,7 +170,7 @@ p {{ margin:0 0 12px }}
 .where {{ color:var(--dim); font-style:italic }}
 </style>
 <div class="page">
-  <p class="eyebrow">Era of Eidolon &middot; Shirard&rsquo;s Forge</p>
+  <p class="eyebrow">Era of Eidolon &middot; {chapter}</p>
   <h1>{name}</h1>
   <div class="rule"></div>
 
