@@ -15,6 +15,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -73,8 +74,11 @@ def chapter(jar, name):
     first = states[0]
     check(f"{name}: starts out of combat", first.get("inCombat") == "false")
     check(f"{name}: the map is loaded", first.get("loaded") == "true")
-    check(f"{name}: something is drawn besides the hero",
-          int(first.get("entities", 0)) > 1, first.get("entities"))
+    # Sterling Lake and Mistral Grove never shipped their type 1 tables, so
+    # they open as bare maps: no doors, no creatures, only the hero.
+    if jar == "EoE-ShiradsForge.jar":
+        check(f"{name}: something is drawn besides the hero",
+              int(first.get("entities", 0)) > 1, first.get("entities"))
     last = states[-1]
     check(f"{name}: the hero walks",
           (last.get("heroX"), last.get("heroY"))
@@ -98,11 +102,12 @@ def doorway_of(game):
 
 def transition():
     print("\ncrossing a doorway, and coming back to it")
-    # goto steers by the hero's real position, so the walk does not depend on
-    # emulator timing. A key press first, in case an entity greeted us.
+    # path walks the phone's own map round walls (goto steers in a straight
+    # line, and the Village has a wall between the start and its door). A key
+    # press first, in case an entity greeted us.
     dx, dy = doorway_of("ShiradsForge")
-    walk = f"boot:Keeper,dismiss,goto:{dx}:{dy},wait:2500,state"
-    states, out = play("EoE-ShiradsForge.jar", walk)
+    walk = "boot:{},dismiss,path:%d:%d:60000,wait:2500,state" % (dx, dy)
+    states, out = play("EoE-ShiradsForge.jar", walk.format("Walker"))
     moved = states and states[-1].get("location") not in (None, "1")
     check("a doorway moves you to another location", bool(moved),
           states[-1].get("location") if states else "no state")
@@ -113,7 +118,7 @@ def transition():
 
     # ... and save there, on a record store that survives the run
     states, out = play("EoE-ShiradsForge.jar",
-                       walk + ",dismiss,key:-7,wait:900,choose:Save & exit,wait:900,"
+                       walk.format("Keeper") + ",dismiss,key:-7,wait:900,choose:Save & exit,wait:900,"
                               "choose:Save & exit,wait:1500", rms="file")
     check("Save & exit reaches the server", "opcode=9" in relay_tail(),
           "no opcode 9 in the relay log")
@@ -149,11 +154,42 @@ def main():
     check("test_server.py passes", rc.returncode == 0,
           f"{len(failed)} checks failed; run it directly")
 
-    if not relay_up():
-        print(f"\n{RED}relay is not running{OFF} — start it with:"
-              f"\n  (cd server && python3 -u relay.py 8080 &)")
-        return 2
+    # The jars under run/ are rebuilt from jars/, so they carry today's text
+    # patches and point at this relay.
+    for game in ("ShiradsForge", "SterlingLake", "MistralGrove"):
+        subprocess.run([sys.executable, os.path.join(ROOT, "run", "mkjar.py"),
+                        os.path.join(ROOT, "jars", f"EoE-{game}.jar"),
+                        os.path.join(ROOT, "run", f"EoE-{game}.jar"),
+                        f"Relay={RELAY}", "INFO=preservation"],
+                       check=True, capture_output=True)
 
+    # A relay of our own, on a save file of its own: the heroes this run
+    # creates are not left in the web game's save, and a name an earlier run
+    # took is never offered back as "Regress2".
+    relay = None
+    if relay_up():
+        print(f"\n{DIM}using the relay already on :8080; its save file must"
+              f" not hold Regress, Walker or Keeper{OFF}")
+    else:
+        saves = tempfile.NamedTemporaryFile(suffix=".json", delete=False).name
+        os.unlink(saves)
+        relay = subprocess.Popen(
+            [sys.executable, "-u", "relay.py", "8080"],
+            cwd=os.path.join(ROOT, "server"),
+            env=dict(os.environ, EOE_SAVES=saves),
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for _ in range(50):
+            if relay_up():
+                break
+            time.sleep(0.1)
+    try:
+        return play_all()
+    finally:
+        if relay:
+            relay.terminate()
+
+
+def play_all():
     for jar, name in (("EoE-ShiradsForge.jar", "Shirad's Forge"),
                       ("EoE-SterlingLake.jar", "Sterling Lake"),
                       ("EoE-MistralGrove.jar", "Mistral Grove")):

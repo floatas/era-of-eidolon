@@ -107,7 +107,20 @@ Most of it the client reads, so the meaning is not a guess:
     [10]    reach radius      same loop: within this many tiles it joins the
                               "Choose action" list, so you can fight or talk
                               to it. 0 means never.
-    [11]    hit points, or the respawn countdown. Unsettled.
+    [11]    respawn countdown. SETTLED, from the client: it is read in
+            three places and never as hit points. On load, a node that is
+            dead (state 3) with a non-zero [11] is put back to state 2
+            (d.java, the node loop). On death, c(int) sets state 3 and
+            copies [11] into m[node]. Each tick, `if (m[node] != 0 &&
+            --m[node] == 0)` brings it back. Zero therefore means a fight
+            that never returns, which is why a boss reads 10 and a
+            Fungusman 50 — minutes, not toughness, at a tick every ten
+            seconds.
+
+            Creature hit points were the server's, like the rest. The
+            per-species figures this file used to call hit points —
+            Skeleton 18, Ghost 20, Gorrak 24, Beetle 30, Golem 36-50,
+            Fungusman 50 — are respawn timers of three to eight minutes.
                               Constant per species: Skeleton 18, Ghost 20,
                               Gorrak 24, Beetle 30, Golem 36-50, Fungusman
                               50. But it is 0 on 28 of 90 rows, exactly the

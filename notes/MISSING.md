@@ -12,11 +12,14 @@ The early 176×208 jar holds the world: 18 tilemaps, the text, the quests,
 235 placed entities (doors, crates, the lava bridge, the fight triggers) and
 111 creatures with squares and names. The phone keeps the quest log itself.
 
-Three rooms, Fire Cave, Ilrik's Tomb and Aldor's Outpost, are stored
-north-up in that jar and play turned a quarter clockwise. Fire Cave's lava
-bridge is moved to meet Aldor's door once it turns. `server/layout.py` does
-this on load. `run/mkjar.py` rewrites the run jar the same way, and an old
-save is moved with it. The jar in `jars/` is untouched.
+Every tilemap, door and creature square is the jar's own. Three rooms —
+Fire Cave, Ilrik's Tomb and Aldor's Outpost — were for a while turned a
+quarter clockwise, with a bridge laid over Fire Cave's lava, so the chapter
+would seam into one picture. watAgame's own doors already joined them (Fire
+Cave's south-east corner to Aldor's west edge), so the turn bought only the
+picture and cost the rooms their shape. It is reverted; `layout.migrate_save`
+reads a save written while it was in force. The jar in `jars/` was never
+touched, and the run jar now carries its tilemaps byte for byte.
 
 Eleven creatures start dormant and wake when their kind 5 entity fires:
 Shirard, the Crypt's second and third waves, and Mira's twin, who is her

@@ -185,10 +185,12 @@ sword is for soft packs, the heavy line and the bow for armour. Beetles and
 Golems wear shells to make that true. Weapon times and classes are
 watAgame's; their effects, prices and requirements here are ours.
 
-**Three rooms turned.** Fire Cave, Ilrik's Tomb and Aldor's Outpost are
-stored north-up in the 2005 jar and are turned a quarter clockwise to join
-the world, with Fire Cave's lava bridge moved to meet Aldor's door. The
-original jar is untouched. The server and the run jar are rewritten.
+**No room is moved.** Fire Cave, Ilrik's Tomb and Aldor's Outpost were for
+a while turned a quarter clockwise, with a bridge laid over Fire Cave's lava,
+so that the chapter would lay out as one picture. watAgame had already joined
+those rooms by door, so the turn bought nothing but the picture. It is gone:
+every grid, door and creature square on the world map is the 2005 jar's, and
+the three rooms sit apart on the map because that is where the data puts them.
 
 **Recycle.** The item screen's "Delete" is renamed Recycle in the run jar,
 and it returns 30% of the price. The chapters have no way to sell, and a
@@ -211,7 +213,7 @@ set aside.
 - Ravarcil, a fourth chapter that was announced and may never have shipped.
 - Per-chapter shop stock, the experience curve, prices, and the hero's
   maximum life. All fitted.
-- Whether byte 11 of a creature row is hit points or a respawn countdown.
+- ~~Whether byte 11 of a creature row is hit points or a respawn countdown.~~ Settled: a respawn countdown. See notes/recovered.
   The server reads it as both.
 - Any per-creature difficulty. Bytes 16–19 were the last hope for it.
 - Whatever watAgame's server said at the end. Every entity kind is decoded

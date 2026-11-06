@@ -87,6 +87,17 @@ def main():
               all(not w.name(l).startswith("Area ") for l in w.locations))
         check(f"{game}: hero spawns somewhere walkable",
               w.can_stand(w.hero_x, w.hero_y))
+        if w.real1 is None:
+            check(f"{game}: no placement table, so no invented entities",
+                  rows == [] and not w.mobs and w.mob_table() == [])
+            check(f"{game}: no invented door graph",
+                  all(not links for links in w.exits.values()))
+            check(f"{game}: opens on the first map in the jar",
+                  w.location == w.locations[0])
+            mp = w.map(w.location)
+            tile = mp.tile(w.hero_x, w.hero_y) if mp else 0
+            check(f"{game}: spawn is clear of a painted doorway",
+                  (tile & 15) != w.marker)
 
         # The client indexes up to [15], so 16 is the floor. We used to
         # assert exactly 19, which is simply what our own encoder emitted;
@@ -183,18 +194,19 @@ def main():
               w.real1 is not None or not unreachable,
               str(unreachable[:3]))
 
-        # the old rule chose destinations from the source alone, so seven of
-        # Sterling Lake's locations could be left but never entered
-        inbound = {l: 0 for l in w.locations}
-        for links in w.EXITS.values():
-            for _, dest in links:
-                inbound[dest] += 1
-        check(f"{game}: every location can be reached",
-              all(inbound[l] for l in w.locations),
-              f"no way into {[l for l in w.locations if not inbound[l]][:5]}")
-        check(f"{game}: every location can be left",
-              all(w.EXITS.get(l) for l in w.locations),
-              f"dead ends at {[l for l in w.locations if not w.EXITS.get(l)][:5]}")
+        # Door destinations are watAgame's only where the type 1 table
+        # survived. The other chapters keep every map and wire none of them.
+        if w.real1:
+            inbound = {l: 0 for l in w.locations}
+            for links in w.EXITS.values():
+                for _, dest in links:
+                    inbound[dest] += 1
+            check(f"{game}: every location can be reached",
+                  all(inbound[l] for l in w.locations),
+                  f"no way into {[l for l in w.locations if not inbound[l]][:5]}")
+            check(f"{game}: every location can be left",
+                  all(w.EXITS.get(l) for l in w.locations),
+                  f"dead ends at {[l for l in w.locations if not w.EXITS.get(l)][:5]}")
 
         # Opening a crate has to remove it from the tilemap, or it sits there
         # to be opened again for ever. Each one is paired with a kind 6 patch
@@ -215,7 +227,7 @@ def main():
             elif row[19] != (w.map(loc).tile(x, y) & 15):
                 wrong.append((loc, x, y))
         check(f"{game}: every openable crate is paired with a tilemap patch",
-              w.real1 is not None or (not missing and bool(openable)),
+              w.real1 is not None or not openable,
               f"{len(missing)} unpaired of {len(openable)}")
         check(f"{game}: the patch leaves the ground and drops the obstacle",
               w.real1 is not None or not wrong, str(wrong[:2]))
@@ -240,13 +252,14 @@ def main():
               len(stranded) <= limit,
               f"{len(stranded)} do not, e.g. {stranded[:2]}")
 
-        # the route recovered from the dialogue is the only part of the graph
-        # that is watAgame's, so it must survive whatever else gets wired
-        missing = [(w.name(a), w.name(b)) for a, b in w.story_links()
-                   if not (any(d == b for _, d in w.EXITS.get(a, []))
-                           and any(d == a for _, d in w.EXITS.get(b, [])))]
-        check(f"{game}: the route from the dialogue is wired both ways",
-              not missing, str(missing))
+        # Dialogue names the route. Wiring it needs the type 1 table, which
+        # only Shirad's Forge still has, so only that chapter is checked.
+        if w.real1:
+            missing = [(w.name(a), w.name(b)) for a, b in w.story_links()
+                       if not (any(d == b for _, d in w.EXITS.get(a, []))
+                               and any(d == a for _, d in w.EXITS.get(b, [])))]
+            check(f"{game}: the route from the dialogue is wired both ways",
+                  not missing, str(missing))
 
         # all three chapters ship exactly eleven, which is a useful canary:
         # Mistral Grove came in at nine until "Cut through hedge" and
@@ -1643,29 +1656,31 @@ def main():
 
     forge = World("ShiradsForge")
     cave, aldor, tomb = forge.map(12), forge.map(11), forge.map(14)
-    check("Fire Cave, Aldor and Ilrik are turned clockwise",
-          (cave.w, cave.h) == (25, 35)
+    check("Fire Cave, Aldor and Ilrik are the size the 2005 jar stores them",
+          (cave.w, cave.h) == (35, 25)
           and (aldor.w, aldor.h) == (30, 30)
-          and (tomb.w, tomb.h) == (20, 10))
-    door = {(x, 34) for x in (11, 12)}
-    check("the lava bridge ends on Aldor's doorway",
-          all((cave.tile(x, 34) & 15) == 12 and cave.walkable(x, 34)
-              for x in (11, 12))
-          and cave.walkable(12, 33) and (cave.tile(12, 33) & 15) == 7
-          and not (cave.tile(0, 32) & 15))
+          and (tomb.w, tomb.h) == (10, 20))
+    import zipfile
+    raw = zipfile.ZipFile(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "jars", "EoE-ShiradsForge.jar"))
+    check("the server draws the jar's own tiles, byte for byte",
+          all(raw.read(name)[13:13 + forge.map(loc).w * forge.map(loc).h]
+              == bytes(forge.map(loc).tiles)
+              for loc, name in ((11, "2b"), (12, "2c"), (14, "2e"))))
     exits = {dest: box for box, dest in (
         ((r[2], r[3], r[4], r[5]), r[14])
         for r in forge.real1 if len(r) > 16 and r[12] == 4 and r[1] == 12)}
-    check("Fire Cave's south door is the way to Aldor",
-          exits.get(11) == (11, 34, 13, 35))
+    check("Fire Cave reaches Aldor by watAgame's own corner door",
+          exits.get(11) == (32, 24, 33, 25))
     back = next(r for r in forge.real1
                 if len(r) > 16 and r[12] == 4 and r[1] == 11 and r[14] == 12)
-    check("Aldor sends you back onto the bridge, not into the gap",
-          (back[15], back[16]) == (12, 33) and cave.walkable(12, 33)
-          and (12, 33) not in door)
+    check("Aldor's west door sends you back to that corner, on ground",
+          (back[2], back[3], back[4], back[5]) == (0, 13, 1, 15)
+          and (back[15], back[16]) == (32, 23) and cave.walkable(32, 23))
     hall = next(r for r in forge.real1
                 if len(r) > 16 and r[12] == 4 and r[1] == 3 and r[14] == 12)
-    start = (hall[15], hall[16])
+    start_sq = (hall[15], hall[16])
 
     def walkable_path(mp, a, b):
         seen, stack = {a}, [a]
@@ -1681,36 +1696,33 @@ def main():
                 stack.append(n)
         return False
 
-    check("you can walk from the Hall's door across the bridge to Aldor",
-          cave.walkable(*start) and start not in door
-          and walkable_path(cave, start, (12, 34)),
-          f"arrive {start}")
-    inside = aldor.walkable(16, 1) and (back[2], back[3]) == (15, 0)
-    check("Aldor's north door is where the bridge meets it",
-          inside and aldor.walkable(16, 0))
+    check("you can walk from the Hall's door to Aldor's, with no bridge of ours",
+          cave.walkable(*start_sq)
+          and walkable_path(cave, start_sq, (32, 24)),
+          f"arrive {start_sq}")
+    # watAgame gated the Tomb: one square, (15,3), is closed until a kind 6
+    # patch paints it open. Both doorways are ground either side of it.
+    gate = [r for r in forge.real1
+            if len(r) > 18 and r[12] == 6 and r[14] == 12
+            and (r[15], r[16]) == (15, 3)]
+    check("Ilrik's Tomb is reached through the jar's own patched square",
+          gate and cave.walkable(15, 1) and tomb.walkable(5, 18)
+          and not cave.walkable(15, 3)
+          and walkable_path(cave, start_sq, (15, 4)),
+          str([r[0] for r in gate]))
     stray = [m.node for m in forge.mobs.values()
              if m.location in (11, 12, 14)
              and not (0 <= m.x < forge.map(m.location).w
                       and 0 <= m.y < forge.map(m.location).h
                       and forge.map(m.location).tile(m.x, m.y) & 15)]
-    check("turned rooms keep every creature on ground", not stray, str(stray))
-    import zipfile
-    from layout import TYPE2, TURNS, rewrite_type2
-    raw = zipfile.ZipFile(os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "jars", "EoE-ShiradsForge.jar"))
-    same = True
-    for loc, name in TYPE2.items():
-        turned, _ = rewrite_type2(raw.read(name), TURNS[loc], bridge=(loc == 12))
-        same = same and turned[13:] == bytes(forge.map(loc).tiles)
-    check("the run jar is turned the same way the server is", same)
-    parked = forge.spawn_point(12)
-    forge.from_dict({"location": 12, "hero_x": 32, "hero_y": 24, "layout": 0,
+    check("every creature in the three rooms stands on ground", not stray,
+          str(stray))
+    # A save written while those rooms were turned is read upright again.
+    forge.from_dict({"location": 12, "hero_x": 0, "hero_y": 32, "layout": 1,
                      "mobs": []})
-    check("a save standing on the old corner is not left in the gap",
-          forge.can_stand(forge.hero_x, forge.hero_y)
-          and (forge.hero_x, forge.hero_y) != (0, 32),
-          f"{(forge.hero_x, forge.hero_y)} spawn {parked}")
+    check("a save from the turned rooms comes back onto real ground",
+          forge.can_stand(forge.hero_x, forge.hero_y),
+          f"{(forge.hero_x, forge.hero_y)}")
 
     print("\nclassic ruleset")
     tiers.RULESET_OVERRIDE = "classic"

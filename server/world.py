@@ -25,8 +25,7 @@ POTENCY_DIV = 3     # tiers.POTENCY_DIV; see tiers.potency_bonus
 import zipfile
 
 from catalogue import catalogue
-from layout import (QUEST_GIFTS, apply_forge_layout, apply_forge_texts,
-                    migrate_save)
+from layout import QUEST_GIFTS, apply_forge_texts, migrate_save
 import tiers
 import trophies
 
@@ -293,10 +292,10 @@ class World:
         # the real tables, where an early build kept them locally
         self.real1 = recovered_rows(self.game, 1)
         self.real9 = recovered_rows(self.game, 9)
-        # The three detached rooms are turned, and Fire Cave's bridge is
-        # moved, before anything reads a coordinate out of them.
+        # The grids, doors and creature squares are the jar's own. Only the
+        # three optional quests' lines are rewritten, to name the sums this
+        # economy pays — see layout.QUEST_GIFTS.
         if self.game == "ShiradsForge":
-            apply_forge_layout(self.res, self.real1, self.real9)
             apply_forge_texts(self.res)
         self._names = {}
         self.locations = sorted(
@@ -679,7 +678,16 @@ class World:
         The row is richer than the one we were synthesising: [5:7] is a name
         key, [7:9] the key of the "Fight <name>" label — which is how the
         bestiary read off the art can be checked, and it agrees — [11] the
-        hit points, [12] the sheet, [13] the animation.
+        respawn countdown, [12] the sheet, [13] the animation.
+
+        [11] is NOT hit points. The client reads it in three places and in
+        all three it is a timer: a dead node with a non-zero [11] is revived
+        on load, c(int) copies it into m[node] on death, and each tick
+        decrements it until the creature returns. Zero means a fight that
+        never comes back. Hit points were the server's. We keep the figure
+        as `weight`, because a creature that takes eight minutes to come
+        back is plausibly a heavier one than one that takes three — but the
+        ordering is all we are borrowing, and that much is ours.
         """
         self.mobs = {}
         for r in self.real9:
@@ -755,118 +763,18 @@ class World:
         return out
 
     def _build_exits(self):
-        """Wire the locations together.
+        """The doorway graph.
 
-        Which doorway led where lived in the lost type 1 tables, so this is a
-        reconstruction. The rule it replaces linked each doorway to "the next
-        location in id order", which chose destinations purely as a function
-        of the source: Sterling Lake's Harbour ended up with twelve ways in
-        and Gold Island with none, and seven locations could be left but never
-        entered.
-
-        This builds a hub and spokes instead, and guarantees two things that
-        the old rule did not: every location can be reached, and every
-        location can be left.
-
-        A doorway does not actually need a red exit tile. The trigger is a
-        type 1 bounding box (see exit_entity), and the tiles are only the
-        artist showing you where the boxes were. So a location the artist
-        never marked still gets one, invented on walkable ground.
+        Shirad's Forge reads it out of the recovered type 1 table. The other
+        chapters never shipped that table, and a destination is not something
+        the tilemap records, so those graphs stay empty.
         """
         if self.real1:
             return self._recovered_exits()
+        # No type 1 table survived for this chapter. A doorway's destination
+        # is not in the jar, so the graph stays empty rather than invented.
+        return {loc: [] for loc in self.locations}
 
-        locs = list(self.locations)
-        if len(locs) < 2:
-            return {loc: [] for loc in locs}
-
-        marked = {loc: list(self.exit_tiles(loc)) for loc in locs}
-        hub = max(locs, key=lambda l: (len(marked[l]), -l))
-        spokes = [l for l in locs if l != hub]
-
-        out = {loc: [] for loc in locs}
-        spent = {loc: 0 for loc in locs}
-        wired = set()
-
-        def doorway(loc):
-            """The next unused doorway in this location."""
-            n = spent[loc]
-            spent[loc] += 1
-            if n < len(marked[loc]):
-                return marked[loc][n]
-            return self._invent_doorway(loc, [t for t, _ in out[loc]]
-                                        + marked[loc])
-
-        # The route the dialogue gives us goes in first and is never
-        # overridden: these are the only links in the project that are
-        # watAgame's rather than ours.
-        for a, b in self.story_links():
-            if a in out and b in out:
-                out[a].append((doorway(a), b))
-                out[b].append((doorway(b), a))
-                wired.add(a)
-                wired.add(b)
-
-        # the hub reaches as far as its own doorways allow, and each of those
-        # keeps one doorway for the way back
-        reach = max(1, len(marked[hub]))
-        spokes = [l for l in spokes if l not in wired] or spokes
-        attached = []
-        for dest in spokes[:reach]:
-            out[hub].append((doorway(hub), dest))
-            out[dest].append((doorway(dest), hub))
-            attached.append(dest)
-
-        # whatever is left hangs off the chain, so nothing is stranded
-        prev = attached[-1] if attached else hub
-        for dest in spokes[reach:]:
-            out[prev].append((doorway(prev), dest))
-            out[dest].append((doorway(dest), prev))
-            prev = dest
-
-        # Now spend the doorways the artist drew and the structure above did
-        # not need. Where they lead is ours either way, but a door that
-        # watAgame put on the map is better used than left shut while we
-        # invent one somewhere else. Pair them off, spare with spare.
-        spare = [l for l in locs for _ in range(len(marked[l]) - spent[l])
-                 if spent[l] < len(marked[l])]
-        for a, b in zip(spare[0::2], spare[1::2]):
-            if a == b or any(d == b for _, d in out[a]):
-                continue
-            out[a].append((doorway(a), b))
-            out[b].append((doorway(b), a))
-
-        # an odd one out still beats leaving a drawn door shut; the far end of
-        # that link is invented, this end is the artist's
-        for loc in locs:
-            if spent[loc] < len(marked[loc]):
-                other = hub if loc != hub else spokes[0]
-                out[loc].append((doorway(loc), other))
-                out[other].append((doorway(other), loc))
-
-        return out
-
-    def _invent_doorway(self, location, avoid):
-        """A walkable tile to put a doorway on, well clear of the others."""
-        mp = self.map(location)
-        if not mp:
-            return (1, 1)
-        best = None
-        for y in range(mp.h):
-            for x in range(mp.w):
-                if not mp.walkable(x, y) or (mp.tile(x, y) & 15) == self.marker:
-                    continue
-                near = min((max(abs(x - ax), abs(y - ay))
-                            for ax, ay in avoid), default=99)
-                if near <= EXIT_RADIUS + 2:
-                    continue
-                # hug the edge: doorways belong at the rim of a map, not in
-                # the middle of it
-                rim = min(x, y, mp.w - 1 - x, mp.h - 1 - y)
-                score = (rim, -near)
-                if best is None or score < best[0]:
-                    best = (score, (x, y))
-        return best[1] if best else (1, 1)
 
     EXITS = property(lambda self: self.exits)
 
@@ -896,7 +804,35 @@ class World:
             quiet = self._quiet_spawn(location)
             if quiet:
                 return quiet
-        return self._spawn_by_door(location)
+            return self._spawn_by_door(location)
+        return self._open_spawn(location)
+
+    def _open_spawn(self, location):
+        """A walkable tile near the middle of a map whose furniture is lost.
+
+        Painted doorway tiles stay in the art. Standing on one is fine
+        visually, but the middle of the floor is where a new game begins
+        when nothing in the jar says where watAgame put the hero.
+        """
+        mp = self.map(location)
+        cx, cy = mp.w / 2, mp.h / 2
+        best = None
+        for y in range(mp.h):
+            for x in range(mp.w):
+                if not mp.walkable(x, y):
+                    continue
+                if (mp.tile(x, y) & 15) == self.marker:
+                    continue
+                score = (abs(x - cx) + abs(y - cy), y, x)
+                if best is None or score < best[0]:
+                    best = (score, (x, y))
+        if best:
+            return best[1]
+        for y in range(mp.h):
+            for x in range(mp.w):
+                if mp.walkable(x, y):
+                    return x, y
+        return 1, 1
 
     def _boxes(self, location):
         """Exit tiles, auto-fire boxes and fight boxes from the type 1 table.
@@ -1025,9 +961,8 @@ class World:
         if self.real9:
             self._adopt_real_creatures()
             return
-        for loc in self.locations:
-            self.populate_location(loc)
-            self.place_npcs(loc)
+        # Creature squares lived in the type 9 table. Without it the maps
+        # stay empty: a guessed skeleton on a guessed tile would be ours.
 
     def place_npcs(self, loc):
         """One standing figure per "Talk to ..." label the location carries.
@@ -2053,36 +1988,12 @@ class World:
 
     # -- type 1 entities ----------------------------------------------------
 
-    # Which exit tile leads where. The tiles themselves come from the maps
-    # (high nibble 1 = the "red tiles marked with green arrows" the Village
-    # text tells you about); the destinations are a reconstruction.
     def entity_table(self):
         """The type 1 resource: what stands where.
 
-        When the real table survived we serve it unchanged — 235 entities for
-        Shirad's Forge, watAgame's own. Everything below is the
-        reconstruction, still used by the chapters that have no early build.
-
-        Set EOE_TEST_EXIT=1 to widen every doorway's trigger box by 3 tiles,
-        so a transition fires almost as soon as you can walk. Useful because
-        reaching a real doorway means winning a fight first and then crossing
-        the map.
+        Shirad's Forge serves the recovered table. A chapter with no table
+        gets an empty one, and the phone walks the jar's own tilemap.
         """
-        # EOE_TEST_EXIT=1 widens every doorway so transitions are easy to
-        # reach. =2 additionally makes them teleport WITHIN the location, which
-        # takes d.java's `var2[14] == this.L` branch: no map reload, no
-        # resource fetch. That isolates "does the entity fire at all" from
-        # "does the location reload work".
-        mode = os.environ.get("EOE_TEST_EXIT", "")
-        pad = 3 if mode else EXIT_RADIUS
-        local = mode == "2"
-        # The quest log is built client-side out of these rows (d.h()), so an
-        # objective only exists as far as the game is concerned if some entity
-        # carries its text key. Hand them out one per location, in key order,
-        # so the log fills as the player travels.
-        quests = self.quests()
-        quest_for = {loc: quests[i][0] for i, loc in
-                     enumerate(self.locations[:len(quests)])}
 
         if self.real1:
             self.interactables = {}
@@ -2120,75 +2031,14 @@ class World:
             self.node_count = max(self.node_count, self.entity_count)
             return [bytes(r) for r in rows]
 
-        painted = {loc: set(self.exit_tiles(loc)) for loc in self.locations}
-        rows, state = [], 1
-        for loc in self.locations:
-            for n, ((x, y), dest) in enumerate(self.EXITS.get(loc, [])):
-                dx, dy = self.arrival(dest, came_from=loc)
-                if local:
-                    mp = self.map(loc)
-                    dest = loc
-                    dx, dy = (mp.w // 2, mp.h // 2) if mp else (dx, dy)
-                rows.append(exit_entity(state, loc, x, y, dest, dx, dy,
-                                        radius=pad,
-                                        quest=quest_for.get(loc)
-                                        if n == 0 else None))
-                state += 1
-                # A doorway we had to invent has no red tile on it, so the
-                # way back is invisible: you walk onto ordinary ground and
-                # the map changes. Paint one, using the game's own mechanism
-                # and the chapter's own art — a kind 6 patch covering the
-                # whole map, which fires as soon as the location loads.
-                if (x, y) not in painted.get(loc, ()):
-                    mp = self.map(loc)
-                    if mp:
-                        tile = (mp.tile(x, y) & 240) | self.marker
-                        rows.append(patch_entity(state, loc, x, y,
-                                                 bytes([tile]),
-                                                 box=(0, 0, mp.w, mp.h)))
-                        state += 1
-        # Interactables, built from the location's own action labels. The
-        # crates and NPCs are drawn into the tilemap, so their real positions
-        # were in the lost table; these are placed near where you arrive so
-        # they are at least reachable.
+        # The phone will walk the tilemap with nothing placed on it.
         self.interactables = {}
-        for loc in self.locations:
-            mp = self.map(loc)
-            if not mp:
-                continue
-            labels = dict(self.action_labels(loc))
-            by_text = {v.lower(): k for k, v in labels.items()}
+        self._patch_rows = []
+        self._extra_crates = set()
+        self._extra_crate_locs = {}
+        self.entity_count = 1
+        return []
 
-            # Crates and barrels sit on known tiles, so their entities go
-            # exactly where the art is.
-            for x, y, what in self.containers(loc):
-                key = next((k for t, k in by_text.items() if what in t), None)
-                if key is None:
-                    continue
-                # A crate is part of the tilemap, so the only way to make one
-                # go away is to patch the map. Completing a kind 6 entity
-                # applies its patch (d.java:976-988), so the crate is paired
-                # with a patch that clears its obstacle nibble, and opening it
-                # completes both: the crate vanishes and cannot be used twice.
-                patch = state
-                rows.append(patch_entity(patch, loc, x, y,
-                                         bytes([self.map(loc).tile(x, y) & 15])))
-                state += 1
-                rows.append(interact_entity(state, loc, x, y, key,
-                                            completes=(patch, state)))
-                self.interactables[state] = (loc, labels[key], key)
-                state += 1
-
-            # The talkers stand where place_npcs() put them.
-            for m in self.mobs.values():
-                if m.location == loc and m.npc and getattr(m, "text_key", None):
-                    rows.append(interact_entity(state, loc, m.x, m.y,
-                                                m.text_key))
-                    self.interactables[state] = (loc, m.label, m.text_key)
-                    state += 1
-
-        self.entity_count = state
-        return rows
 
     ACTION_VERBS = ("destroy", "talk", "speak", "trade", "use", "search",
                     "open", "pick", "read")
@@ -2478,7 +2328,10 @@ def _refresh_npcs(self):
 
     from_dict() restores the saved mob list wholesale, and saves written
     before NPCs existed simply have none — so they would never reappear.
+    Chapters with no type 9 table have no townsfolk to put back.
     """
+    if not self.real9:
+        return
     for loc in self.locations:
         if not any(m.npc and m.location == loc for m in self.mobs.values()):
             self.place_npcs(loc)
@@ -2536,7 +2389,7 @@ def _world_to_dict(self):
         "trophy_news": list(getattr(self, "trophy_news", ())),
         "progress": (list(self.progress)
                      if getattr(self, "progress", None) else None),
-        "layout": 1,
+        "layout": 0,          # 1 meant the old turned rooms; see layout.py
         "tiers": 1,
         "mobs": [{"node": m.node, "location": m.location, "x": m.x, "y": m.y,
                   "creature": m.creature, "hp": m.hp, "max_hp": m.max_hp,
@@ -2632,23 +2485,10 @@ def _world_from_dict(self, d):
         if self.game == "ShiradsForge" and 47 in self.mobs and tiers.remastered():
             self.mobs[47].alive = False     # Mira's twin; see _adopt_real_creatures
         return self
-    self.refresh_npcs()
+    # A save from the reconstructed chapter still lists creatures we placed.
+    # Those squares were not watAgame's, so they do not come back.
     self.mobs = {}
-    for md in saved:
-        m = Mob(md["node"], md["location"], md["x"], md["y"], md["creature"],
-                hp=md.get("max_hp", 12), npc=md.get("npc", False))
-        m.hp = md.get("hp", m.max_hp)
-        m.alive = md.get("alive", True)
-        if md.get("label"):
-            m.label = md["label"]
-        if md.get("text_key"):
-            m.text_key = md["text_key"]
-        if md.get("home"):
-            m.home = tuple(md["home"])
-        m.fight_hp = md.get("fight_hp", m.hp)
-        m.respawn = md.get("respawn", 0)
-        m.dead_at = md.get("dead_at")
-        self.mobs[m.node] = m
+    self.next_node = 1
     return self
 
 

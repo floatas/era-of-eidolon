@@ -40,52 +40,10 @@ SHOW_PASSAGES = False
 OUT = os.path.join(os.path.dirname(HERE), "assets", "maps")
 
 
-def _unrotate(x, y, turns, width, height):
-    """A point on a grid turned `turns` times clockwise, back in the original."""
-    w, h = width, height
-    sizes = [(w, h)]
-    for _ in range(turns % 4):
-        w, h = h, w
-        sizes.append((w, h))
-    for i in range(turns % 4, 0, -1):
-        dw = sizes[i][0]
-        x, y = y, dw - 1 - x
-    return x, y
-
-
-class _Turned:
-    """The same tilemap, with its footprint turned clockwise in quarter turns.
-
-    The isometric pictures stay upright. Only which tile sits where changes,
-    which is what a clockwise turn of the room means on this projection.
-    """
-
-    def __init__(self, mp, turns):
-        self._mp = mp
-        self.turns = turns % 4
-        self.w, self.h = mp.w, mp.h
-        for _ in range(self.turns):
-            self.w, self.h = self.h, self.w
-
-    def _src(self, x, y):
-        return _unrotate(x, y, self.turns, self._mp.w, self._mp.h)
-
-    def tile(self, x, y):
-        return self._mp.tile(*self._src(x, y))
-
-    def obstacle(self, x, y):
-        return self._mp.obstacle(*self._src(x, y))
-
-    def is_override(self, x, y):
-        return self._mp.is_override(*self._src(x, y))
-
-
-def render(w, loc, annotate=True, bg=(10, 10, 16, 255), turns=0):
+def render(w, loc, annotate=True, bg=(10, 10, 16, 255)):
     mp = w.map(loc)
     if not mp:
         return None
-    if turns:
-        mp = _Turned(mp, turns)
     # Shirad's Forge hardcodes (4,0), (5,2), (6,2); Sterling Lake's build uses
     # (4,1), (5,0x30), (6,0x30). Each chapter has exactly one of each, so find
     # them rather than assuming.

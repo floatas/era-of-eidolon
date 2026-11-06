@@ -195,6 +195,75 @@ def flat_pairs(w, at):
     return out
 
 
+def islands(w, at):
+    """Groups of locations the seams really do join. Largest first."""
+    adj = {}
+    for a, b in flat_pairs(w, at):
+        adj.setdefault(a, set()).add(b)
+        adj.setdefault(b, set()).add(a)
+    seen, out = set(), []
+    for loc in at:
+        if loc in seen:
+            continue
+        stack, group = [loc], []
+        while stack:
+            n = stack.pop()
+            if n in seen:
+                continue
+            seen.add(n)
+            group.append(n)
+            stack += [m for m in adj.get(n, ()) if m not in seen]
+        out.append(sorted(group))
+    out.sort(key=len, reverse=True)
+    return out
+
+
+def shelve(w, at, boxes, gap=90):
+    """Draw the islands near each other instead of in one long line.
+
+    A portal says nothing about where the room behind it lies, so two
+    islands have no position relative to one another — only the rooms
+    inside one do. Seeding each new island to the right of everything
+    placed so far made a picture four times wider than it was tall and
+    mostly black. They are shelved into rows instead.
+
+    An island moves as one piece, by a whole number of tiles, so every
+    seam inside it survives exactly: a tile step of (a + b, b - a) is a
+    screen step of (2a*STEP_X, 2b*STEP_Y), which is how a pixel offset
+    is turned back into something the isometric grid can express.
+    """
+    groups = islands(w, at)
+    sizes = []
+    for g in groups:
+        xs = [boxes[l][0] for l in g if l in boxes]
+        ys = [boxes[l][1] for l in g if l in boxes]
+        xe = [boxes[l][2] for l in g if l in boxes]
+        ye = [boxes[l][3] for l in g if l in boxes]
+        if not xs:
+            continue
+        sizes.append((g, min(xs), min(ys), max(xe) - min(xs), max(ye) - min(ys)))
+    if len(sizes) < 2:
+        return at
+    # a row about as wide as the widest island, so the biggest one never
+    # has to share and the rest fill in beside each other underneath
+    limit = max(max(s[3] for s in sizes),
+                int(sum(s[3] * s[4] for s in sizes) ** 0.5 * 1.3))
+    out = dict(at)
+    cx = cy = 0
+    row_h = 0
+    for g, x0, y0, iw, ih in sizes:
+        if cx and cx + iw > limit:
+            cx, cy, row_h = 0, cy + row_h + gap, 0
+        a = round((cx - x0) / (2 * STEP_X))
+        b = round((cy - y0) / (2 * STEP_Y))
+        for loc in g:
+            gx, gy = out[loc]
+            out[loc] = (gx + a + b, gy + b - a)
+        cx += iw + gap
+        row_h = max(row_h, ih)
+    return out
+
+
 def marker_strip(w, fade=0.6):
     """The chapter's red doorway tile, faded, for annotating the doorways
     watAgame left bare."""
@@ -220,63 +289,18 @@ def font(size):
     return ImageFont.load_default()
 
 
-def turn_xy(x, y, width, height, turns):
-    """Same quarter-turns clockwise as render_map._Turned."""
-    w, h = width, height
-    for _ in range(turns % 4):
-        x, y = h - 1 - y, x
-        w, h = h, w
-    return x, y, w, h
-
-
-def proposed(w, at):
-    """Where the turned rooms sit. The grids themselves are already turned
-    by the time a World exists — see server/layout.py — so this only places
-    them. Turning again here would spin Fire Cave twice.
-    """
-    hall = at[3]
-    fc = (hall[0] + 40, hall[1] + 7)
-    at[12] = fc
-    at[14] = (fc[0] + 25, fc[1] + 10)
-    at[11] = (fc[0] + 12 - 16, fc[1] + 35)
-    return at, {}, {}
-
-
 def main():
     game = sys.argv[1] if len(sys.argv) > 1 else "ShiradsForge"
-    trial = "--proposed" in sys.argv
     w = World(game)
-    # Draw the world as it can ever be, not as it is on arrival: sixteen of
-    # the eighteen rooms have their ground rewritten during play, and the
-    # Crypt nearly triples. See World.reveal_all_patches.
-    painted = w.reveal_all_patches()
+    # The ground as the player meets it. Sixteen rooms rewrite themselves
+    # during play — the Crypt nearly triples — but a map that shows floor
+    # you have not uncovered is not the map you are standing on.
+    painted = 0
     at, portals = lay_out(w)
-    turns, doors = {}, {}
-    if trial:
-        at, turns, doors = proposed(w, at)
-        portals = [p for p in portals if p not in (11, 12, 14)]
-
-    def shown(loc, x, y, dest=None):
-        if dest is not None and (loc, dest) in doors:
-            return doors[(loc, dest)]
-        t = turns.get(loc, 0)
-        if not t:
-            return x, y
-        mp = w.map(loc)
-        x, y, _, _ = turn_xy(x, y, mp.w, mp.h, t)
-        return x, y
-
-    def footprint(loc):
-        mp = w.map(loc)
-        tw, th = mp.w, mp.h
-        for _ in range(turns.get(loc, 0)):
-            tw, th = th, tw
-        return tw, th
 
     imgs, trim = {}, {}
     for loc in w.locations:
-        img = render(w, loc, annotate=False, bg=(0, 0, 0, 0),
-                     turns=turns.get(loc, 0))
+        img = render(w, loc, annotate=False, bg=(0, 0, 0, 0))
         if not img:
             continue
         box = img.getbbox()
@@ -288,10 +312,17 @@ def main():
     def place(loc):
         """Where a location's image goes, in world pixels."""
         gx, gy = at[loc]
-        _, th = footprint(loc)
-        ox = th * STEP_X + PAD
+        ox = w.map(loc).h * STEP_X + PAD
         tx, ty = trim.get(loc, (0, 0))
         return ((gx - gy) * STEP_X - ox + tx, (gx + gy) * STEP_Y - PAD + ty)
+
+    # Islands first sit in one long line east of each other; shelve them.
+    before = flat_pairs(w, at)
+    boxes = {loc: (place(loc)[0], place(loc)[1],
+                   place(loc)[0] + imgs[loc].size[0],
+                   place(loc)[1] + imgs[loc].size[1]) for loc in imgs}
+    at = shelve(w, at, boxes)
+    assert flat_pairs(w, at) == before, "shelving broke a seam"
 
     spots = {loc: place(loc) for loc in imgs}
     xs = [p[0] for p in spots.values()] + [p[0] + imgs[l].size[0]
@@ -323,15 +354,6 @@ def main():
     standing = []
     for loc in imgs:
         for (tx, ty), kind, creature in markers(w, loc):
-            if kind == "door":
-                dest = next((d for (sx, sy), d in w.EXITS.get(loc, [])
-                             if (sx, sy) == (tx, ty)), None)
-                # The dot is the old corner. A door this layout moved is
-                # already drawn as its own tile, so the dot would be left
-                # behind in the gap the bridge just vacated.
-                if dest is not None and (loc, dest) in doors:
-                    continue
-            tx, ty = shown(loc, tx, ty)
             gx, gy = at[loc]
             standing.append((gx + tx + gy + ty, loc, tx, ty, kind, creature))
     for _, loc, tx, ty, kind, creature in sorted(standing):
@@ -370,8 +392,7 @@ def main():
     tile = marker_strip(w)
     for loc in imgs:
         for (ox, oy), dest in w.EXITS.get(loc, []):
-            tx, ty = shown(loc, ox, oy, dest)
-            cx, cy = px(loc, tx, ty)
+            cx, cy = px(loc, ox, oy)
             if is_arch(w, loc, ox, oy):
                 draw.ellipse([cx - 12, cy - 8, cx + 12, cy + 8],
                              outline=(205, 155, 255, 255), width=3)
@@ -382,8 +403,6 @@ def main():
     # page: a ring where it stands and the number of the place it goes. A
     # line across the whole world only looked like a road.
     joined = flat_pairs(w, at)
-    if trial:
-        joined |= {(3, 12), (11, 12), (12, 14)}
     jog = set()
     stub = font(22)
     for a, links in w.EXITS.items():
@@ -392,12 +411,11 @@ def main():
             if pair in joined or a not in at or b not in at:
                 continue
             if pair in jog:
-                back = shown(b, *next(t for t, d in w.EXITS.get(b, []) if d == a), a)
-                ax, ay = px(a, *shown(a, *ta, b))
+                back = next(t for t, d in w.EXITS.get(b, []) if d == a)
+                ax, ay = px(a, *ta)
                 bx, by = px(b, *back)
                 draw.line([(ax, ay), (bx, by)], fill=(255, 210, 90, 220), width=3)
                 continue
-            ta = shown(a, *ta, b)
             cx, cy = px(a, *ta)
             draw.ellipse([cx - 13, cy - 9, cx + 13, cy + 9],
                          outline=(205, 155, 255, 255), width=3)
@@ -412,7 +430,7 @@ def main():
         # the middle of the GROUND, not of the rectangle: the Crypt fills
         # only the left third of its 20x10 map, so its geometric centre is
         # out in the void
-        drawn_tiles = [shown(loc, x, y)
+        drawn_tiles = [(x, y)
                        for y in range(mp.h) for x in range(mp.w)
                        if mp.tile(x, y) & 15]
         if drawn_tiles:
@@ -427,15 +445,10 @@ def main():
         draw.text((tx, c[1]), text, font=label, fill=(255, 245, 190, 255))
 
     real = getattr(w, "real1", None)
-    if trial:
-        head = f"{game} - trial layout"
-        sub = ("11, 12 and 14 turned clockwise. The stone bridge by the "
-               "Long Run arch now crosses the lava to Aldor's door.")
-    else:
-        head = f"{game} - one continuous world"
-        sub = (f"{len(joined)} shared borders laid out flat. A purple ring "
-               f"is a portal, labelled with the location it reaches. Faded red "
-               f"tiles are doorways watAgame left unmarked.")
+    head = f"{game} - one continuous world"
+    sub = (f"{len(joined)} shared borders laid out flat. A purple ring "
+           f"is a portal, labelled with the location it reaches. Faded red "
+           f"tiles are doorways watAgame left unmarked.")
     draw.text((margin + 2, 22), head, font=title, fill=(0, 0, 0, 255))
     draw.text((margin, 20), head, font=title, fill=(245, 245, 250, 255))
     draw.text((margin, 78), sub, font=label, fill=(160, 160, 180, 255))
@@ -446,7 +459,7 @@ def main():
                    "so this layout is a guess",
               font=label, fill=(160, 160, 180, 255))
 
-    path = os.path.join(OUT, f"{game}-world{'-proposed' if trial else ''}.png")
+    path = os.path.join(OUT, f"{game}-world.png")
     sheet.convert("RGB").save(path)
     print(f"{path}  {sheet.size[0]}x{sheet.size[1]}  "
           f"{len(imgs)} locations, {len(joined)} seams, "
