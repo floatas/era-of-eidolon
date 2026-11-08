@@ -30,6 +30,16 @@ CLASSES = [
 ]
 
 
+def compile_net():
+    """Build the HTTP classes as Java 8 (the .class files are not kept in git)."""
+    base = os.path.join(PATCH, "javax", "microedition", "io")
+    sources = [os.path.join(base, n) for n in sorted(os.listdir(base)) if n.endswith(".java")]
+    against = SRC + ".orig" if os.path.exists(SRC + ".orig") else SRC
+    subprocess.check_call([
+        "javac", "--release", "8", "-cp", against, "-d", PATCH, *sources,
+    ])
+
+
 def compile_keyboard():
     """The browser emulator reads keys in FreeJ2ME. Rebuild that class as Java 8."""
     source = os.path.join(HERE, "freej2me-web", "src", "org", "recompile",
@@ -51,6 +61,7 @@ def main():
     if not os.path.exists(SRC):
         print(f"missing {SRC}")
         return 1
+    compile_net()
     classes = CLASSES + compile_keyboard()
     backup = SRC + ".orig"
     if not os.path.exists(backup):

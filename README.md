@@ -27,6 +27,10 @@ Needs Java 11+ and Python 3. Each launcher rebuilds its jar from `jars/`
 | Orumant (Arena) | the town and its menus; most screens open empty | `./run/play-town.sh` | `./run/web.sh Orumant` |
 | Dagonar (Arena) | the same as Orumant | `./run/play-town.sh Dagonar` | `./run/web.sh Dagonar` |
 
+The first `web.sh` also clones the browser emulator,
+[zb3/freej2me-web](https://github.com/zb3/freej2me-web) (GPL-3.0), into
+`tools/freej2me-web` and applies this project's edits from
+`tools/freej2me-web.patch`, so it needs git and a network connection once.
 `web.sh` prints the URL to open. Arrow keys move, Enter confirms, Escape
 goes back; the top-row digits are the phone keypad.
 

@@ -11,7 +11,9 @@ GAME="${1:-ShiradsForge}"
 # Baked into the jar. Use the public name when the page is not on this machine.
 HOST="${HOST:-localhost:${PORT}}"
 
-# Real HTTP for the web build (upstream has none) and ?autojar= support.
+# The emulator itself (cloned once, plus our edits), then real HTTP for the web
+# build (upstream has none) and ?autojar= support.
+./tools/setup_web.sh
 python3 tools/patch_web_jar.py
 python3 tools/patch_web_launcher.py
 

@@ -1,0 +1,572 @@
+diff --git a/src/javax/microedition/lcdui/Font.java b/src/javax/microedition/lcdui/Font.java
+index cbea792..d6390c5 100644
+--- a/src/javax/microedition/lcdui/Font.java
++++ b/src/javax/microedition/lcdui/Font.java
+@@ -43,7 +43,7 @@ public final class Font
+ 	private static int[] fontSizes = {
+ 		10, 12, 14, // < 176
+ 		12, 14, 16, // < 220
+-		14, 16, 20,
++		13, 16, 20,
+ 	};
+ 
+ 	private static Font defaultFont = null;
+diff --git a/src/org/recompile/freej2me/FreeJ2ME.java b/src/org/recompile/freej2me/FreeJ2ME.java
+index ed5a4a9..39691d6 100644
+--- a/src/org/recompile/freej2me/FreeJ2ME.java
++++ b/src/org/recompile/freej2me/FreeJ2ME.java
+@@ -58,6 +58,8 @@ public class FreeJ2ME {
+ 	private int limitFPS = 0;
+ 
+ 	private boolean[] pressedKeys = new boolean[128];
++	// Poker, blackjack, and the two towns take letters as themselves.
++	private boolean typingKeys;
+ 
+ 	private Runnable painter;
+ 
+@@ -100,6 +102,7 @@ public class FreeJ2ME {
+ 		}
+ 
+ 		Shell.setTitle(loader.name.isEmpty() ? loader.getAppId() : loader.name);
++		typingKeys = typingJar(loader.name);
+ 		Shell.setIcon(loader.getIconBytes());
+ 
+ 		// screen size needs to be known and requires restart
+@@ -160,6 +163,10 @@ public class FreeJ2ME {
+ 		// JS can communicate with us only using this mechanism
+ 		Shell.startInputListener(new InputListener() {
+ 			public void keyPressed(KeyEvent e) {
++				if (typingKeys && !configScreen.isRunning && applyTypingKey(e)) {
++					dispatchTyping(e, true);
++					return;
++				}
+ 				int keycode = e.code;
+ 				int mobikey = e.platformCode = Mobile.getMobileKey(keycode);
+ 				e.normalizedCode = Mobile.normalizeKey(mobikey);
+@@ -194,6 +201,10 @@ public class FreeJ2ME {
+ 			}
+ 
+ 			public void keyReleased(KeyEvent e) {
++				if (typingKeys && !configScreen.isRunning && applyTypingKey(e)) {
++					dispatchTyping(e, false);
++					return;
++				}
+ 				int keycode = e.code;
+ 				int mobikey = e.platformCode = Mobile.getMobileKey(keycode);
+ 				e.normalizedCode = Mobile.normalizeKey(mobikey);
+@@ -344,4 +355,62 @@ public class FreeJ2ME {
+ 		}
+ 	}
+ 
++	static boolean typingJar(String name) {
++		if (name == null) {
++			return false;
++		}
++		String n = name.toLowerCase();
++		return n.indexOf("badaz") >= 0 || n.indexOf("blackjack") >= 0
++				|| n.indexOf("orumant") >= 0 || n.indexOf("dagonar") >= 0;
++	}
++
++	/** Arrows, Enter, Escape, Backspace, and real characters. Digits stay phone keys. */
++	boolean applyTypingKey(KeyEvent e) {
++		int code = e.code;
++		int mapped;
++		if (code == KeyEvent.VK_UP) mapped = -1;
++		else if (code == KeyEvent.VK_DOWN) mapped = -2;
++		else if (code == KeyEvent.VK_LEFT) mapped = -3;
++		else if (code == KeyEvent.VK_RIGHT) mapped = -4;
++		else if (code == KeyEvent.VK_ENTER) mapped = -5;
++		else if (code == KeyEvent.VK_ESCAPE) mapped = -7;
++		else if (code == KeyEvent.VK_BACK_SPACE || code == KeyEvent.VK_DELETE) mapped = 8;
++		else {
++			char ch = e.keyChar;
++			boolean digit = ch >= '0' && ch <= '9'
++					&& ((code >= KeyEvent.VK_0 && code <= KeyEvent.VK_9)
++						|| (code >= KeyEvent.VK_NUMPAD0 && code <= KeyEvent.VK_NUMPAD9));
++			if (digit || (ch >= 32 && ch <= 126)) {
++				mapped = ch;
++			} else {
++				return false;
++			}
++		}
++		e.platformCode = mapped;
++		e.normalizedCode = Mobile.normalizeKey(mapped);
++		return true;
++	}
++
++	void dispatchTyping(KeyEvent e, boolean down) {
++		int slot = (e.platformCode + 64) & 0x7F;
++		if (!down) {
++			if (e.platformCode != 0) {
++				pressedKeys[slot] = false;
++			}
++			Mobile.getPlatform().keyReleased(e);
++			return;
++		}
++		boolean held = pressedKeys[slot];
++		int key = e.platformCode;
++		// A held letter or Backspace should keep typing. Arrow repeat stays a repeat.
++		if (!held || key == 8 || (key >= 32 && key <= 126)) {
++			Mobile.getPlatform().keyPressed(e);
++		} else {
++			Mobile.getPlatform().keyRepeated(e);
++		}
++		if (e.platformCode != 0) {
++			pressedKeys[slot] = true;
++		}
++	}
++
+ }
+diff --git a/web/run.html b/web/run.html
+index 4b450ee..1075999 100644
+--- a/web/run.html
++++ b/web/run.html
+@@ -6,16 +6,20 @@
+     <title>freej2me-web</title>
+ </head>
+ <style>
++    :root {
++        --px: 2px;
++    }
+     html, body {
+         height: 100%;
+     }
+     body {
+         margin: 0;
+         padding: 0;
++        background: #100e0c;
+         font-family: sans;
+     }
+     #screen-area {
+-        background-color: #eee;
++        background-color: #100e0c;
+         position: absolute;
+         top: 0;
+         left: 0;
+@@ -35,6 +39,78 @@
+     }
+     #loading {
+         font-size: 2em;
++        color: #f4dc62;
++    }
++
++    /* The frame hugs the phone. Padding and the gold ring are sized in
++       game pixels (--px is the canvas zoom) so the ornament stays in
++       step with the sprites. menu.png is the chapter's own gold bar. */
++    #bezel {
++        display: flex;
++        align-items: center;
++    }
++    /* Same width as the toggle, so a closed book leaves the phone
++       in the middle instead of a button-width to the left. */
++    #bezel .toggle-spacer {
++        width: calc(var(--px) * 9);
++        margin-right: calc(var(--px) * 3);
++        flex: none;
++    }
++    #phone {
++        display: flex;
++        flex-direction: column;
++        align-items: center;
++        gap: calc(var(--px) * 2);
++        padding: calc(var(--px) * 2) calc(var(--px) * 6);
++        background-color: #171411;
++        image-rendering: pixelated;
++        box-shadow:
++            0 0 0 calc(var(--px) * 1) #9a9a9a,
++            0 0 0 calc(var(--px) * 2) #3c3c3c,
++            0 0 0 calc(var(--px) * 3) #f4dc62,
++            0 0 0 calc(var(--px) * 4) #8a5a12,
++            0 0 0 calc(var(--px) * 6) #100e0c;
++    }
++    #phone .rail {
++        align-self: stretch;
++        flex: none;
++        height: calc(var(--px) * 9);
++        width: calc(100% + var(--px) * 12);
++        margin-left: calc(var(--px) * -6);
++        margin-right: calc(var(--px) * -6);
++        background: url("frame/menu.png") left center / calc(var(--px) * 90) calc(var(--px) * 9) repeat-x;
++        image-rendering: pixelated;
++    }
++    #display {
++        align-self: center;
++    }
++    #panel-toggle {
++        display: flex;
++        align-items: center;
++        justify-content: center;
++        width: calc(var(--px) * 9);
++        height: calc(var(--px) * 18);
++        margin-left: calc(var(--px) * 3);
++        padding: 0;
++        border: calc(var(--px) * 1) solid #d6b01b;
++        background: #241c14;
++        cursor: pointer;
++        flex: none;
++    }
++    #panel-toggle span {
++        display: block;
++        width: calc(var(--px) * 3);
++        height: calc(var(--px) * 3);
++        border-right: calc(var(--px) * 1) solid #f4dc62;
++        border-bottom: calc(var(--px) * 1) solid #f4dc62;
++        transform: rotate(-45deg);
++    }
++    body.compendium-open #panel-toggle span {
++        transform: rotate(135deg);
++    }
++    body.kbd-portrait #panel-toggle,
++    body.kbd-landscape #panel-toggle {
++        display: none;
+     }
+ 
+     .keypad-part {
+@@ -184,12 +260,200 @@
+         right: 220px;
+     }
+ 
++    /* Open, the book takes every pixel the phone does not. Closed, it
++       leaves the page and the phone sits in the middle. The on-screen
++       keypad already uses both sides, so the book steps aside then. */
++    body:not(.kbd-portrait):not(.kbd-landscape) {
++        display: flex;
++    }
++    body:not(.kbd-portrait):not(.kbd-landscape) #screen-area {
++        position: relative;
++        inset: auto;
++        flex: 1 1 auto;
++        width: auto;
++        height: 100%;
++    }
++    body.compendium-open:not(.kbd-portrait):not(.kbd-landscape) #screen-area {
++        flex: 0 0 auto;
++    }
++    #book-bar {
++        display: flex;
++        align-items: center;
++        gap: 10px;
++        margin: 0 0 10px;
++    }
++    #book-refresh {
++        font: inherit;
++        font-size: 13px;
++        cursor: pointer;
++        color: #cdbb8c;
++        background: transparent;
++        border: 1px solid #6e5424;
++        border-radius: 999px;
++        padding: 3px 12px;
++    }
++    #book-refresh:hover, #book-refresh:focus-visible { color: #f4dc62; border-color: #f4dc62; }
++    #book-updated {
++        font-size: 12px;
++        color: #8b7d5c;
++    }
++    #book-tabs {
++        display: flex;
++        flex-wrap: wrap;
++        gap: 6px;
++        margin: 0 0 14px;
++    }
++    #book-tabs button {
++        font: inherit;
++        font-size: 13px;
++        cursor: pointer;
++        color: #cdbb8c;
++        background: transparent;
++        border: 1px solid #6e5424;
++        border-radius: 2px;
++        padding: 3px 10px;
++    }
++    #book-tabs button[aria-current="true"] {
++        color: #14110e;
++        background: #f4dc62;
++        border-color: #f4dc62;
++    }
++    #book-list {
++        list-style: none;
++        margin: 0;
++        padding: 0;
++    }
++    #book-list li { margin: 0 0 2px; }
++    #book-list button {
++        font: inherit;
++        font-size: 15px;
++        text-align: left;
++        width: 100%;
++        cursor: pointer;
++        color: #f3e6c4;
++        background: transparent;
++        border: 0;
++        border-bottom: 1px solid #2b2419;
++        padding: 7px 2px;
++    }
++    #book-list button:hover { color: #f4dc62; }
++    #entry-lines p { margin: 0 0 12px; line-height: 1.55; }
++    #book-entry h2 { margin: 12px 0 10px; }
++
++    #compendium {
++        display: none;
++        box-sizing: border-box;
++        margin: 0;
++        padding: 36px 40px;
++        background: #14110e;
++        color: #f3e6c4;
++        box-shadow: inset 3px 0 0 #6e5424, inset 4px 0 0 #f4dc62;
++        font-family: Palatino, "Palatino Linotype", Georgia, serif;
++        overflow: auto;
++    }
++    body.compendium-open:not(.kbd-portrait):not(.kbd-landscape) #compendium {
++        display: block;
++        position: relative;
++        flex: 1 1 auto;
++        width: auto;
++        height: 100%;
++        min-width: 0;
++    }
++    #compendium .where {
++        margin: 0;
++        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
++        font-size: 12px;
++        letter-spacing: 0.22em;
++        text-transform: uppercase;
++        color: #d6b01b;
++    }
++    #compendium h1 {
++        margin: 14px 0 0;
++        font-size: 44px;
++        font-weight: 500;
++        letter-spacing: -0.02em;
++        line-height: 1.1;
++        color: #f4dc62;
++    }
++    #compendium .rule {
++        width: 90px;
++        height: 9px;
++        margin: 18px 0;
++        background: url("frame/menu.png") center / 90px 9px no-repeat;
++        image-rendering: pixelated;
++    }
++    #compendium .blurb, #compendium .desc {
++        margin: 0 0 16px;
++        font-size: 18px;
++        line-height: 1.45;
++        color: #f3e6c4;
++    }
++    #compendium .back {
++        margin-top: 14px;
++        font: 14px/1 -apple-system, BlinkMacSystemFont, sans-serif;
++        letter-spacing: 0.08em;
++        text-transform: uppercase;
++        color: #d6b01b;
++        background: none;
++        border: 0;
++        padding: 0;
++        cursor: pointer;
++    }
++    #compendium article { margin: 0 0 22px; }
++    #compendium h2 {
++        margin: 0;
++        font-size: 26px;
++        font-weight: 500;
++        color: #f4dc62;
++    }
++    #compendium .meta {
++        margin: 4px 0 8px;
++        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
++        font-size: 13px;
++        letter-spacing: 0.04em;
++        color: #d6b01b;
++    }
++
+ </style>
+ <body>
++    <script>
++        var book = new URLSearchParams(location.search).get("book");
++        var open = book ? book !== "closed"
++            : localStorage.getItem("eoe.compendium") !== "closed";
++        document.body.classList.toggle("compendium-open", open);
++    </script>
+     <div id="screen-area">
+-        <canvas tabindex="0" id="display" style="display: none;"></canvas>
+-        <div id="loading">Loading...</div>
++        <div id="bezel">
++            <div class="toggle-spacer"></div>
++            <div id="phone">
++                <div class="rail"></div>
++                <canvas tabindex="0" id="display" style="display: none;"></canvas>
++                <div id="loading">Loading...</div>
++                <div class="rail"></div>
++            </div>
++            <button type="button" id="panel-toggle" aria-controls="compendium" title="Compendium">
++                <span></span>
++            </button>
++        </div>
+     </div>
++    <aside id="compendium">
++        <div id="book">
++            <p class="where">Shirard&rsquo;s Forge</p>
++            <h1 id="book-title">Compendium</h1>
++            <div class="rule"></div>
++            <div id="book-bar">
++                <button type="button" id="book-refresh">Refresh</button>
++                <span id="book-updated" aria-live="polite"></span>
++            </div>
++            <nav id="book-tabs"></nav>
++            <ul id="book-list"></ul>
++            <article id="book-entry" hidden>
++                <button type="button" id="book-back" class="back">Back</button>
++                <h2 id="entry-title"></h2>
++                <div id="entry-lines"></div>
++            </article>
++        </div>
++    </aside>
+     <div id="left-keys" class="keypad-part">
+         <div class="key-grid left-grid">
+             <button data-key="Digit1" class="key">1</button>
+@@ -219,6 +483,115 @@
+             <button data-key="Maximize" class="key small-key small-key-right" aria-label="Maximize">⛶</button>
+         </div>
+     </div>
++    <script>
++        // The panel is a reference, not a follower. It used to poll for the
++        // room the player was in, which the server can only know when some
++        // request happens to carry it — and under CheerpJ the client's
++        // map-loaded ping never arrives at all, so it sat on a stale room.
++        // Everything here is fetched once and browsed.
++        const tabs = document.getElementById("book-tabs");
++        const list = document.getElementById("book-list");
++        const entry = document.getElementById("book-entry");
++        let sections = [], current = 0;
++
++        function showList(n) {
++            current = n;
++            entry.hidden = true;
++            list.hidden = false;
++            for (const b of tabs.children) {
++                b.setAttribute("aria-current", b.dataset.n === String(n) ? "true" : "false");
++            }
++            list.replaceChildren();
++            for (const e of sections[n].entries) {
++                const li = document.createElement("li");
++                const b = document.createElement("button");
++                b.type = "button";
++                b.textContent = e.title;
++                b.addEventListener("click", () => showEntry(e));
++                li.append(b);
++                list.append(li);
++            }
++        }
++        function showEntry(e) {
++            list.hidden = true;
++            entry.hidden = false;
++            document.getElementById("entry-title").textContent = e.title;
++            const box = document.getElementById("entry-lines");
++            box.replaceChildren();
++            for (const line of e.lines) {
++                const p = document.createElement("p");
++                p.textContent = line;
++                box.append(p);
++            }
++            entry.scrollTop = 0;
++        }
++        document.getElementById("book-back")
++            .addEventListener("click", () => showList(current));
++
++        // Loaded when the page opens and again each time the panel is opened,
++        // so the Trophies tab shows what the hero has earned since. The tab
++        // you were on stays selected; an entry you were reading stays open.
++        // The Refresh button, and every few seconds while the panel is open,
++        // ask again. Nothing is redrawn unless the answer changed, so the list
++        // does not jump under the reader.
++        let lastBook = "";
++        const updated = document.getElementById("book-updated");
++        async function loadBook() {
++            try {
++                const res = await fetch("/compendium", {cache: "no-store"});
++                if (!res.ok) return;
++                const text = await res.text();
++                updated.textContent = "Updated " + new Date().toLocaleTimeString();
++                if (text === lastBook) return;
++                lastBook = text;
++                const reading = !entry.hidden;
++                sections = JSON.parse(text).sections || [];
++                tabs.replaceChildren();
++                sections.forEach((sec, n) => {
++                    const b = document.createElement("button");
++                    b.type = "button";
++                    b.dataset.n = String(n);
++                    b.textContent = sec.name;
++                    b.addEventListener("click", () => showList(n));
++                    tabs.append(b);
++                });
++                if (!sections.length) return;
++                if (current >= sections.length) current = 0;
++                if (reading) {
++                    for (const b of tabs.children) {
++                        b.setAttribute("aria-current", b.dataset.n === String(current) ? "true" : "false");
++                    }
++                } else {
++                    showList(current);
++                }
++            } catch (err) {}
++        }
++        loadBook();
++        document.getElementById("book-refresh").addEventListener("click", loadBook);
++        setInterval(() => {
++            if (document.body.classList.contains("compendium-open")
++                    && document.visibilityState === "visible") {
++                loadBook();
++            }
++        }, 8000);
++
++        const panelToggle = document.getElementById("panel-toggle");
++        function setBookOpen(open) {
++            if (open) loadBook();
++            document.body.classList.toggle("compendium-open", open);
++            panelToggle.setAttribute("aria-expanded", open ? "true" : "false");
++            localStorage.setItem("eoe.compendium", open ? "open" : "closed");
++            window.dispatchEvent(new Event("resize"));
++        }
++        panelToggle.setAttribute(
++            "aria-expanded",
++            document.body.classList.contains("compendium-open") ? "true" : "false");
++        panelToggle.addEventListener("click", () => {
++            setBookOpen(!document.body.classList.contains("compendium-open"));
++            const display = document.getElementById("display");
++            if (display) display.focus();
++        });
++    </script>
+     <script src="https://cjrtnc.leaningtech.com/20260317_2978/loader.js"></script>
+     <script type="module" src="src/main.js"></script>
+ </body>
+diff --git a/web/src/main.js b/web/src/main.js
+index e980e92..3f2a7ab 100644
+--- a/web/src/main.js
++++ b/web/src/main.js
+@@ -51,16 +51,22 @@ function autoscale() {
+         }
+     }
+ 
++    // Same fit as the phone had before the book: the whole window,
++    // height usually winning. The book uses whatever width is left.
+     let scale = Math.min(
+-        screenWidth/screenCtx.canvas.width,
+-        screenHeight/screenCtx.canvas.height
++        screenWidth / screenCtx.canvas.width,
++        screenHeight / screenCtx.canvas.height
+     );
+ 
+     if (!fractionScale) {
+         scale = scale|0;
++        if (scale < 1) scale = 1;
++    } else if (scale < 0.5) {
++        scale = 0.5;
+     }
+ 
+     display.style.zoom = scale;
++    document.documentElement.style.setProperty("--px", scale + "px");
+ }
+ 
+ function setListeners() {
