@@ -4,6 +4,14 @@ watAgame ApS (Copenhagen, founded 2003). One of the first genuinely *online* mob
 RPGs; J2ME MIDlets for Nokia S30/S40/S60, Sony Ericsson and Siemens handsets.
 Servers dead; `eraofeidolon.com` lapsed and was squatted in 2019.
 
+**Rights.** Era of Eidolon, its game files (`jars/`), its art, its text and the
+code decompiled from it belong to watAgame ApS or whoever holds its rights
+now. This is an unofficial, non-commercial preservation project, not
+affiliated with watAgame. The jars are kept unchanged so the game can still be
+played after its servers shut down. If you hold the rights and want something
+taken down, open an issue and it will be removed. The replacement server,
+launchers, tools and notes are this project's own work.
+
 ## Play it
 
 Needs Java 11+ and Python 3. Each launcher rebuilds its jar from `jars/`
